@@ -1,0 +1,23 @@
+# Build output
+out/
+target/
+.shadow-cljs/
+.cpcache/
+resources/public/js/
+resources/public/mocks-bundle.js
+resources/public/mockServiceWorker.js
+
+# Node
+node_modules/
+package-lock.json
+package.json
+
+# Editor
+*.swp
+*~
+.nrepl-port
+.nrepl-history
+
+# OS
+.DS_Store
+Thumbs.db

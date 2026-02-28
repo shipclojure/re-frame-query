@@ -1,0 +1,15 @@
+{:deps {:aliases [:dev]}
+ :builds
+ {:test
+  {:target :node-test
+   :output-to "out/test/test.js"
+   :ns-regexp "rfq\\..*-test$"
+   :autorun true}
+
+  :demo
+  {:target :browser
+   :output-dir "out/demo/js"
+   :asset-path "/js"
+   :modules {:main {:init-fn demo.core/init}}
+   :devtools {:http-root "out/demo/public"
+              :http-port 8700}}}}
