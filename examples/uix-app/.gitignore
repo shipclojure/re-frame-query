@@ -1,0 +1,6 @@
+node_modules/
+resources/public/js/
+resources/public/mocks-bundle.js
+.shadow-cljs
+.cpcache
+resources/public/mockServiceWorker.js

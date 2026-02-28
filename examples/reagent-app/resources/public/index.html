@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>re-frame-query Reagent Example</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      padding: 2rem;
+      max-width: 800px;
+      margin: 0 auto;
+      color: #333;
+      background: #fafafa;
+    }
+
+    h1 { margin-bottom: 0.5rem; color: #1a1a2e; }
+    h2 { margin-bottom: 0.75rem; color: #16213e; font-size: 1.25rem; }
+    h3 { margin-bottom: 0.5rem; color: #0f3460; font-size: 1.1rem; }
+
+    .subtitle {
+      color: #666;
+      margin-bottom: 1.5rem;
+      font-size: 0.95rem;
+    }
+
+    .panel {
+      background: #fff;
+      border: 1px solid #e0e0e0;
+      border-radius: 8px;
+      padding: 1.25rem;
+      margin-bottom: 1.25rem;
+    }
+
+    .loading {
+      color: #0f3460;
+      padding: 1rem;
+      background: #e8f0fe;
+      border-radius: 6px;
+      text-align: center;
+    }
+
+    .error {
+      color: #c62828;
+      padding: 1rem;
+      background: #fdecea;
+      border-radius: 6px;
+    }
+
+    .book-card {
+      padding: 0.75rem 1rem;
+      border: 1px solid #e0e0e0;
+      border-radius: 6px;
+      margin-bottom: 0.5rem;
+      cursor: pointer;
+      transition: background 0.15s, border-color 0.15s;
+    }
+
+    .book-card:hover {
+      background: #f0f4ff;
+      border-color: #90b0f0;
+    }
+
+    .book-card .title {
+      font-weight: 600;
+      color: #1a1a2e;
+    }
+
+    .book-card .author {
+      font-size: 0.875rem;
+      color: #666;
+      margin-top: 0.15rem;
+    }
+
+    button {
+      padding: 0.5rem 1rem;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 0.875rem;
+      font-weight: 500;
+      transition: background 0.15s;
+    }
+
+    button.primary {
+      background: #0f3460;
+      color: #fff;
+    }
+    button.primary:hover { background: #16213e; }
+
+    button.danger {
+      background: #c62828;
+      color: #fff;
+    }
+    button.danger:hover { background: #a01010; }
+
+    button.secondary {
+      background: #e0e0e0;
+      color: #333;
+    }
+    button.secondary:hover { background: #d0d0d0; }
+
+    button:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    .button-group {
+      display: flex;
+      gap: 0.5rem;
+      margin-top: 0.75rem;
+    }
+
+    input[type="text"] {
+      padding: 0.5rem 0.75rem;
+      border: 1px solid #ccc;
+      border-radius: 6px;
+      font-size: 0.9rem;
+      width: 100%;
+      margin-bottom: 0.5rem;
+    }
+
+    input[type="text"]:focus {
+      outline: none;
+      border-color: #0f3460;
+      box-shadow: 0 0 0 2px rgba(15, 52, 96, 0.15);
+    }
+
+    label {
+      display: block;
+      font-size: 0.8rem;
+      font-weight: 600;
+      color: #555;
+      margin-bottom: 0.25rem;
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+    }
+
+    .form-group { margin-bottom: 0.75rem; }
+
+    .detail-field {
+      margin-bottom: 0.5rem;
+    }
+    .detail-field span.label {
+      font-weight: 600;
+      color: #555;
+      margin-right: 0.5rem;
+    }
+
+    .empty-state {
+      color: #999;
+      text-align: center;
+      padding: 2rem;
+      font-style: italic;
+    }
+
+    .toolbar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 1rem;
+    }
+  </style>
+</head>
+<body>
+  <div id="app">
+    <p class="loading">Loading application…</p>
+  </div>
+  <!-- MSW mock server — must load BEFORE main.js so window.__mswReady
+       is available when the app's init function runs. -->
+  <script src="/mocks-bundle.js"></script>
+  <script src="/js/main.js"></script>
+</body>
+</html>

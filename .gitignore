@@ -21,3 +21,4 @@ package.json
 # OS
 .DS_Store
 Thumbs.db
+/.lsp/
