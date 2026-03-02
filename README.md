@@ -19,7 +19,7 @@ Declarative data fetching and caching for [re-frame](https://github.com/day8/re-
 
 ```clojure
 ;; deps.edn
-{:deps {io.github.ovistoica/re-frame-query {:git/tag "v0.1.0" :git/sha "..."}}}
+{:deps {io.github.shipclojure/re-frame-query {:git/sha "86a658d"}}}
 ```
 
 ### 2. Configure the effect adapter
