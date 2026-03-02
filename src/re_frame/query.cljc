@@ -20,8 +20,8 @@
        :tags (fn [{:keys [user-id]}] [[:todos :user user-id]])})
 
     ;; Fetch and subscribe
-    (rf/dispatch [:re-frame.query/ensure-query :todos/list {:user-id 42}])
-    @(rf/subscribe [:re-frame.query/query :todos/list {:user-id 42}])"
+    (rf/dispatch [::rfq/ensure-query :todos/list {:user-id 42}])
+    @(rf/subscribe [::rfq/query :todos/list {:user-id 42}])"
   (:require
    ;; Side-effecting requires — registers events, subs, and fx on load
    [re-frame.core :as rf]
