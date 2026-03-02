@@ -4,6 +4,7 @@
    [re-frame.core :as rf]
    [re-frame.db :as rf-db]
    [rfq.core :as rfq]
+   [rfq.gc :as gc]
    [rfq.util :as util]))
 
 ;; ---------------------------------------------------------------------------
@@ -12,7 +13,8 @@
 
 (defn reset-db! []
   (reset! rf-db/app-db {})
-  (rfq/clear-registry!))
+  (rfq/clear-registry!)
+  (gc/cancel-all!))
 
 (use-fixtures :each
   {:before reset-db!
@@ -76,6 +78,15 @@
       (is (= #{[:books :all]} (:tags query)))
       (is (= 30000 (:stale-time-ms query)))
       (is (= 300000 (:cache-time-ms query))))))
+
+(deftest query-success-uses-default-cache-time-test
+  (testing "query-success stores default cache-time-ms when not specified in config"
+    (rfq/reg-query :books/detail
+      {:query-fn (fn [_] {})})
+    (process-event [:rfq/query-success :books/detail {:id 1} {:title "Dune"}])
+    (let [qid   (util/query-id :books/detail {:id 1})
+          query (get-in (app-db) [:rfq/queries qid])]
+      (is (= gc/default-cache-time-ms (:cache-time-ms query))))))
 
 (deftest query-failure-test
   (testing "query-failure stores error"
@@ -173,3 +184,60 @@
     (process-event [:rfq/mark-inactive :books/list {}])
     (let [qid (util/query-id :books/list {})]
       (is (false? (get-in (app-db) [:rfq/queries qid :active?]))))))
+
+;; ---------------------------------------------------------------------------
+;; Per-query GC timer tests
+;; ---------------------------------------------------------------------------
+
+(deftest mark-inactive-schedules-gc-timer
+  (testing "mark-inactive schedules a GC timer when query has cache-time-ms"
+    (rfq/reg-query :books/list
+      {:query-fn      (fn [_] {})
+       :cache-time-ms 60000})
+    (process-event [:rfq/query-success :books/list {} [{:id 1}]])
+    (process-event [:rfq/mark-inactive :books/list {}])
+    (let [qid (util/query-id :books/list {})]
+      (is (contains? (gc/active-timers) qid)))))
+
+(deftest mark-inactive-uses-default-cache-time
+  (testing "mark-inactive schedules a GC timer using default cache time when query has no cache-time-ms"
+    (rfq/reg-query :books/list {:query-fn (fn [_] {})})
+    (process-event [:rfq/query-success :books/list {} [{:id 1}]])
+    (process-event [:rfq/mark-inactive :books/list {}])
+    (let [qid (util/query-id :books/list {})]
+      (is (contains? (gc/active-timers) qid)))))
+
+(deftest mark-active-cancels-gc-timer
+  (testing "mark-active cancels any pending GC timer"
+    (rfq/reg-query :books/list
+      {:query-fn      (fn [_] {})
+       :cache-time-ms 60000})
+    (process-event [:rfq/query-success :books/list {} [{:id 1}]])
+    ;; Go inactive → timer starts
+    (process-event [:rfq/mark-inactive :books/list {}])
+    (let [qid (util/query-id :books/list {})]
+      (is (contains? (gc/active-timers) qid))
+      ;; Go active again → timer cancelled
+      (process-event [:rfq/mark-active :books/list {}])
+      (is (not (contains? (gc/active-timers) qid))))))
+
+(deftest remove-query-evicts-inactive-query
+  (testing "remove-query removes an inactive query from cache"
+    (rfq/reg-query :books/list {:query-fn (fn [_] {})})
+    (process-event [:rfq/query-success :books/list {} [{:id 1}]])
+    (let [qid (util/query-id :books/list {})]
+      ;; Mark inactive, then remove
+      (process-event [:rfq/mark-inactive :books/list {}])
+      (process-event [:rfq/remove-query qid])
+      (is (nil? (get-in (app-db) [:rfq/queries qid]))))))
+
+(deftest remove-query-keeps-active-query
+  (testing "remove-query is a no-op if query became active again"
+    (rfq/reg-query :books/list {:query-fn (fn [_] {})})
+    (process-event [:rfq/query-success :books/list {} [{:id 1}]])
+    (let [qid (util/query-id :books/list {})]
+      ;; Mark active
+      (process-event [:rfq/mark-active :books/list {}])
+      ;; Attempt removal — should be a no-op
+      (process-event [:rfq/remove-query qid])
+      (is (some? (get-in (app-db) [:rfq/queries qid]))))))

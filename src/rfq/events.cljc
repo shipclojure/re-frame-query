@@ -2,6 +2,7 @@
   "Re-frame event handlers for query and mutation lifecycle."
   (:require
    [re-frame.core :as rf]
+   [rfq.gc :as gc]
    [rfq.registry :as registry]
    [rfq.util :as util]))
 
@@ -64,7 +65,8 @@
                  :stale?        false
                  :tags          tags
                  :stale-time-ms (:stale-time-ms query-config)
-                 :cache-time-ms (:cache-time-ms query-config)}))))
+                 :cache-time-ms (or (:cache-time-ms query-config)
+                                    gc/default-cache-time-ms)}))))
 
 (rf/reg-event-db
  :rfq/query-failure
@@ -145,21 +147,36 @@
 ;; Active Tracking
 ;; ---------------------------------------------------------------------------
 
-(rf/reg-event-db
+(rf/reg-event-fx
  :rfq/mark-active
- (fn [db [_ k params]]
+ (fn [{:keys [db]} [_ k params]]
    (let [qid (util/query-id k params)]
-     (assoc-in db [:rfq/queries qid :active?] true))))
+     {:db          (assoc-in db [:rfq/queries qid :active?] true)
+      :rfq/cancel-gc {:query-id qid}})))
 
-(rf/reg-event-db
+(rf/reg-event-fx
  :rfq/mark-inactive
- (fn [db [_ k params]]
-   (let [qid (util/query-id k params)]
-     (assoc-in db [:rfq/queries qid :active?] false))))
+ (fn [{:keys [db]} [_ k params]]
+   (let [qid        (util/query-id k params)
+         query      (get-in db [:rfq/queries qid])
+         cache-time (or (:cache-time-ms query) gc/default-cache-time-ms)]
+     {:db            (assoc-in db [:rfq/queries qid :active?] false)
+      :rfq/schedule-gc {:query-id      qid
+                         :cache-time-ms cache-time}})))
 
 ;; ---------------------------------------------------------------------------
 ;; Garbage Collection
 ;; ---------------------------------------------------------------------------
+
+(rf/reg-event-db
+ :rfq/remove-query
+ (fn [db [_ qid]]
+   (let [query (get-in db [:rfq/queries qid])]
+     (if (and query (not (:active? query)))
+       ;; Query is still inactive — safe to remove
+       (update db :rfq/queries dissoc qid)
+       ;; Query became active again — leave it alone (timer was a no-op)
+       db))))
 
 (rf/reg-event-db
  :rfq/garbage-collect

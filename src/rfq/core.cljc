@@ -20,8 +20,9 @@
     (rf/dispatch [:rfq/ensure-query :todos/list {:user-id 42}])
     @(rf/subscribe [:rfq/query :todos/list {:user-id 42}])"
   (:require
-   ;; Side-effecting requires — registers events and subs on load
+   ;; Side-effecting requires — registers events, subs, and fx on load
    [rfq.events]
+   [rfq.gc]
    [rfq.subs]
    ;; Functional requires
    [rfq.registry :as registry]))
@@ -37,7 +38,7 @@
     k      - Keyword identifying the query (e.g. :todos/list)
     config - Map with:
       :query-fn      (fn [params] -> re-frame effects map)  REQUIRED
-      :cache-time-ms  Milliseconds before inactive query is GC'd
+      :cache-time-ms  Milliseconds before inactive query is GC'd (default: 300000 / 5 min)
       :stale-time-ms  Milliseconds before query auto-becomes stale
       :tags           (fn [params] -> [[tag ...] ...]) for invalidation
 

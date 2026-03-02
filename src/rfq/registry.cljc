@@ -12,7 +12,7 @@
   `k`      - Namespaced keyword identifying the query (e.g. :todos/list)
   `config` - Map with keys:
     :query-fn      (fn [params] -> effects-map) — REQUIRED
-    :cache-time-ms — ms before an inactive query is garbage-collected
+    :cache-time-ms — ms before an inactive query is garbage-collected (default: 300000 / 5 min)
     :stale-time-ms — ms before a query is considered stale
     :tags          (fn [params] -> [[tag-tuple] ...]) — for invalidation matching"
   [k config]
