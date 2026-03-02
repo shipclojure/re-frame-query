@@ -1,7 +1,7 @@
-(ns rfq.util-test
+(ns re-frame.query.util-test
   (:require
    [clojure.test :refer [deftest is testing]]
-   [rfq.util :as util]))
+   [re-frame.query.util :as util]))
 
 (deftest query-id-test
   (testing "creates a tuple of key and params"

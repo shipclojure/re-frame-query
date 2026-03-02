@@ -1,4 +1,4 @@
-(ns rfq.registry
+(ns re-frame.query.registry
   "Internal registry for query and mutation definitions.
    Stores configuration maps keyed by query/mutation name.")
 

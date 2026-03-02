@@ -3,7 +3,7 @@
  {:test
   {:target :node-test
    :output-to "out/test/test.js"
-   :ns-regexp "rfq\\..*-test$"
+   :ns-regexp "re-frame\\.query.*-test$"
    :autorun true}
 
   :demo

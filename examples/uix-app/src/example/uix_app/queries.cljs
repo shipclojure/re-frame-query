@@ -2,7 +2,7 @@
   "Query and mutation registrations for the demo book app.
    Uses :http effect (js/fetch) — requests are intercepted by MSW."
   (:require
-   [rfq.core :as rfq]))
+   [re-frame.query :as rfq]))
 
 ;; ---------------------------------------------------------------------------
 ;; Effect adapter — configure once, used by all queries and mutations

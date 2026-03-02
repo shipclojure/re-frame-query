@@ -8,8 +8,8 @@
    [example.reagent-app.http-fx]
    [example.reagent-app.queries]
    [example.reagent-app.views :as views]
-   [reagent.dom.client :as rdc]
-   [rfq.core :as rfq]))
+   [re-frame.query :as rfq]
+   [reagent.dom.client :as rdc]))
 
 ;; Log all rfq events to the browser console during development
 (when ^boolean goog.DEBUG

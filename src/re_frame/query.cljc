@@ -1,10 +1,10 @@
-(ns rfq.core
+(ns re-frame.query
   "re-frame-query: Declarative data fetching and caching for re-frame.
 
   Public API namespace — require this to get started:
 
     (ns my-app.core
-      (:require [rfq.core :as rfq]))
+      (:require [re-frame.query :as rfq]))
 
     ;; Configure the effect adapter (once, at app startup)
     (rfq/set-default-effect-fn!
@@ -20,16 +20,16 @@
        :tags (fn [{:keys [user-id]}] [[:todos :user user-id]])})
 
     ;; Fetch and subscribe
-    (rf/dispatch [:rfq/ensure-query :todos/list {:user-id 42}])
-    @(rf/subscribe [:rfq/query :todos/list {:user-id 42}])"
+    (rf/dispatch [:re-frame.query/ensure-query :todos/list {:user-id 42}])
+    @(rf/subscribe [:re-frame.query/query :todos/list {:user-id 42}])"
   (:require
    ;; Side-effecting requires — registers events, subs, and fx on load
    [re-frame.core :as rf]
-   [rfq.events]
-   [rfq.gc]
+   [re-frame.query.events]
+   [re-frame.query.gc]
    ;; Functional requires
-   [rfq.registry :as registry]
-   [rfq.subs]))
+   [re-frame.query.registry :as registry]
+   [re-frame.query.subs]))
 
 ;; ---------------------------------------------------------------------------
 ;; Public Registration API
@@ -93,19 +93,19 @@
 ;; ---------------------------------------------------------------------------
 
 (defn enable-debug-logging!
-  "Install a global interceptor that logs all :rfq/* events to the browser
-  console. Call once at app startup (dev only).
+  "Install a global interceptor that logs all :re-frame.query/* events to the
+  browser console. Call once at app startup (dev only).
 
   Example:
     (when ^boolean goog.DEBUG (rfq/enable-debug-logging!))"
   []
   (rf/reg-global-interceptor
     (rf/->interceptor
-      :id    :rfq/debug-log
+      :id    :re-frame.query/debug-log
       :before (fn [context]
                 (let [[event-id & args] (get-in context [:coeffects :event])]
                   (when (and (keyword? event-id)
-                             (= "rfq" (namespace event-id)))
+                             (= "re-frame.query" (namespace event-id)))
                     (let [label (str "📦 " event-id)]
                       #?(:cljs (js/console.log label (clj->js (vec args)))
                          :clj  (println label (vec args))))))

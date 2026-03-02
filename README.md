@@ -28,7 +28,7 @@ Tell the library how to turn a request map into a re-frame effect. Call this **o
 
 ```clojure
 (ns my-app.queries
-  (:require [rfq.core :as rfq]))
+  (:require [re-frame.query :as rfq]))
 
 ;; For js/fetch-based :http effect:
 (rfq/set-default-effect-fn!
@@ -68,11 +68,12 @@ That's it — no `:on-success` or `:on-failure` wiring. The library auto-injects
 
 ```clojure
 (ns my-app.views
-  (:require [re-frame.core :as rf]))
+  (:require [re-frame.core :as rf]
+            [re-frame.query :as rfq]))
 
 (defn todos-view []
   (let [{:keys [status data error fetching?]}
-        @(rf/subscribe [:rfq/query :todos/list {:user-id 42}])]
+        @(rf/subscribe [:re-frame.query/query :todos/list {:user-id 42}])]
     (case status
       :loading [:div "Loading..."]
       :error   [:div "Error: " (pr-str error)]
@@ -84,7 +85,7 @@ That's it — no `:on-success` or `:on-failure` wiring. The library auto-injects
       [:div "Idle"])))
 ```
 
-Subscribing to `[:rfq/query k params]` automatically:
+Subscribing to `[:re-frame.query/query k params]` automatically:
 1. Fetches data if absent or stale
 2. Marks the query as **active**
 3. Refetches when invalidated
@@ -102,7 +103,7 @@ Subscribing to `[:rfq/query k params]` automatically:
                   [[:todos :user user-id]])})
 
 ;; Dispatch
-(rf/dispatch [:rfq/execute-mutation :todos/add {:user-id 42 :title "Ship it"}])
+(rf/dispatch [:re-frame.query/execute-mutation :todos/add {:user-id 42 :title "Ship it"}])
 ```
 
 On success, mutations automatically invalidate matching tags — all active queries with those tags are refetched.
@@ -110,7 +111,7 @@ On success, mutations automatically invalidate matching tags — all active quer
 ### 6. Manual invalidation
 
 ```clojure
-(rf/dispatch [:rfq/invalidate-tags [[:todos :user 42]]])
+(rf/dispatch [:re-frame.query/invalidate-tags [[:todos :user 42]]])
 ```
 
 ## Status Tracking
@@ -179,24 +180,24 @@ Timer handles are stored in a side-channel atom (not in `app-db`) to keep the re
 
 | Event | Description |
 |---|---|
-| `[:rfq/ensure-query k params]` | Fetch if stale/absent (called automatically by subscription) |
-| `[:rfq/refetch-query k params]` | Force refetch regardless of staleness |
-| `[:rfq/execute-mutation k params]` | Execute a mutation |
-| `[:rfq/invalidate-tags tags]` | Mark matching queries stale & refetch active ones |
-| `[:rfq/remove-query qid]` | Remove a specific query from cache (used internally by GC) |
-| `[:rfq/garbage-collect]` | Bulk remove all expired inactive queries |
+| `[:re-frame.query/ensure-query k params]` | Fetch if stale/absent (called automatically by subscription) |
+| `[:re-frame.query/refetch-query k params]` | Force refetch regardless of staleness |
+| `[:re-frame.query/execute-mutation k params]` | Execute a mutation |
+| `[:re-frame.query/invalidate-tags tags]` | Mark matching queries stale & refetch active ones |
+| `[:re-frame.query/remove-query qid]` | Remove a specific query from cache (used internally by GC) |
+| `[:re-frame.query/garbage-collect]` | Bulk remove all expired inactive queries |
 
 ### Subscriptions
 
 | Subscription | Returns |
 |---|---|
-| `[:rfq/query k params]` | Full query state map |
-| `[:rfq/query-data k params]` | Just the `:data` |
-| `[:rfq/query-status k params]` | Just the `:status` (`:idle`, `:loading`, `:success`, `:error`) |
-| `[:rfq/query-fetching? k params]` | Boolean — is a request in flight? |
-| `[:rfq/query-error k params]` | Just the `:error` |
-| `[:rfq/mutation k params]` | Mutation state map |
-| `[:rfq/mutation-status k params]` | Just the mutation `:status` |
+| `[:re-frame.query/query k params]` | Full query state map |
+| `[:re-frame.query/query-data k params]` | Just the `:data` |
+| `[:re-frame.query/query-status k params]` | Just the `:status` (`:idle`, `:loading`, `:success`, `:error`) |
+| `[:re-frame.query/query-fetching? k params]` | Boolean — is a request in flight? |
+| `[:re-frame.query/query-error k params]` | Just the `:error` |
+| `[:re-frame.query/mutation k params]` | Mutation state map |
+| `[:re-frame.query/mutation-status k params]` | Just the mutation `:status` |
 
 ### Query State Shape
 
@@ -215,7 +216,7 @@ Timer handles are stored in a side-channel atom (not in `app-db`) to keep the re
 
 ## How It Works
 
-1. **Subscribing** to `[:rfq/query k params]` automatically fetches data (if absent or stale) and marks the query as **active**.
+1. **Subscribing** to `[:re-frame.query/query k params]` automatically fetches data (if absent or stale) and marks the query as **active**.
 2. **`query-fn`** returns a request description map. The library wraps it with success/failure callbacks via the configured `effect-fn` and dispatches the resulting re-frame effect.
 3. **On success**, the cache entry is updated with data, timestamps, and tags. On **failure**, the error is stored and the query is marked as stale (so it will retry on next subscription).
 4. **Mutations** execute side-effects and on success, invalidate matching tags — all active queries with those tags are automatically refetched.

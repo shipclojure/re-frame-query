@@ -1,6 +1,6 @@
 (ns example.reagent-app.views
   "Reagent view components for the demo book app.
-   Subscribing to [:rfq/query ...] automatically fetches and tracks active state."
+   Subscribing to [:re-frame.query/query ...] automatically fetches and tracks active state."
   (:require
    [re-frame.core :as rf]
    [reagent.core :as r]))
@@ -11,9 +11,9 @@
 
 (defn book-list
   "Displays the list of books. Clicking a book calls `on-select` with its id.
-   Simply subscribing to [:rfq/query :books/list {}] triggers the fetch."
+   Simply subscribing to [:re-frame.query/query :books/list {}] triggers the fetch."
   [on-select]
-  (let [query @(rf/subscribe [:rfq/query :books/list {}])]
+  (let [query @(rf/subscribe [:re-frame.query/query :books/list {}])]
     [:div.panel
      [:h2 "📚 Books"]
      (case (:status query)
@@ -41,7 +41,7 @@
   (let [editing? (r/atom false)
         new-title (r/atom "")]
     (fn [book-id on-deselect]
-      (let [query @(rf/subscribe [:rfq/query :book/detail {:id book-id}])]
+      (let [query @(rf/subscribe [:re-frame.query/query :book/detail {:id book-id}])]
         [:div.panel
          [:h2 "Book Detail"]
          (case (:status query)
@@ -66,7 +66,7 @@
                           [:div.button-group
                            [:button.primary
                             {:on-click (fn []
-                                         (rf/dispatch [:rfq/execute-mutation
+                                         (rf/dispatch [:re-frame.query/execute-mutation
                                                        :books/update
                                                        {:id id :title @new-title}])
                                          (reset! editing? false)
@@ -85,7 +85,7 @@
                            "Edit Title"])
                         [:button.danger
                          {:on-click (fn []
-                                      (rf/dispatch [:rfq/execute-mutation
+                                      (rf/dispatch [:re-frame.query/execute-mutation
                                                     :books/delete {:id id}])
                                       (on-deselect))}
                          "Delete"]
@@ -121,7 +121,7 @@
        [:button.primary
         {:disabled (or (empty? @title) (empty? @author))
          :on-click (fn []
-                     (rf/dispatch [:rfq/execute-mutation
+                     (rf/dispatch [:re-frame.query/execute-mutation
                                    :books/create
                                    {:title @title :author @author}])
                      (reset! title "")
@@ -140,7 +140,7 @@
   (let [current-page (r/atom 1)
         per-page 3]
     (fn [on-select]
-      (let [query @(rf/subscribe [:rfq/query :books/page {:page @current-page :per-page per-page}])]
+      (let [query @(rf/subscribe [:re-frame.query/query :books/page {:page @current-page :per-page per-page}])]
         [:div.panel
          [:h2 "📖 Books (Paginated)"]
          (case (:status query)
@@ -183,7 +183,7 @@
   "Manually invalidates all book-related caches."
   []
   [:button.secondary
-   {:on-click #(rf/dispatch [:rfq/invalidate-tags [[:books :all]]])}
+   {:on-click #(rf/dispatch [:re-frame.query/invalidate-tags [[:books :all]]])}
    "🔄 Invalidate All Books"])
 
 ;; ---------------------------------------------------------------------------

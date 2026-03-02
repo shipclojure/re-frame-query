@@ -8,7 +8,7 @@
    [example.uix-app.http-fx]
    [example.uix-app.queries]
    [example.uix-app.views :as views]
-   [rfq.core :as rfq]
+   [re-frame.query :as rfq]
    [uix.core :refer [$]]
    [uix.dom]))
 

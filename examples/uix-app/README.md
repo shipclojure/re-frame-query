@@ -40,7 +40,7 @@ bridges re-frame subscriptions to React via `useSyncExternalStore`:
             [re-frame.core :as rf]))
 
 (defui my-component []
-  (let [query (urf/use-subscribe [:rfq/query :books/list {}])]
+  (let [query (urf/use-subscribe [:re-frame.query/query :books/list {}])]
     (case (:status query)
       :loading ($ :div "Loading…")
       :success ($ :div (pr-str (:data query)))

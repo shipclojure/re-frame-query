@@ -1,4 +1,4 @@
-(ns rfq.gc
+(ns re-frame.query.gc
   "Garbage collection timer management for re-frame-query.
 
   GC timers live outside app-db to keep the re-frame store fully serializable.
@@ -60,7 +60,7 @@
 
 (defn schedule-gc!
   "Start a GC timer for `query-id`. After `cache-time-ms`, dispatches
-   :rfq/remove-query to evict the entry if it's still inactive.
+   :re-frame.query/remove-query to evict the entry if it's still inactive.
    Cancels any existing timer for this query-id first."
   [query-id cache-time-ms]
   (when (and cache-time-ms
@@ -70,7 +70,7 @@
     ;; Cancel any existing timer for this query
     (cancel-gc! query-id)
     (let [handle (set-timeout
-                   (fn [] (rf/dispatch [:rfq/remove-query query-id]))
+                   (fn [] (rf/dispatch [:re-frame.query/remove-query query-id]))
                    cache-time-ms)]
       (swap! gc-timers assoc query-id handle))))
 
@@ -91,11 +91,11 @@
 ;; ---------------------------------------------------------------------------
 
 (rf/reg-fx
-  :rfq/schedule-gc
+  :re-frame.query/schedule-gc
   (fn [{:keys [query-id cache-time-ms]}]
     (schedule-gc! query-id cache-time-ms)))
 
 (rf/reg-fx
-  :rfq/cancel-gc
+  :re-frame.query/cancel-gc
   (fn [{:keys [query-id]}]
     (cancel-gc! query-id)))

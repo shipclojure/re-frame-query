@@ -1,4 +1,4 @@
-(ns rfq.util
+(ns re-frame.query.util
   "Internal utility functions for re-frame-query.")
 
 (defn now-ms
