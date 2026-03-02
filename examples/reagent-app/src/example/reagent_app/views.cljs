@@ -129,6 +129,53 @@
         "Add Book"]])))
 
 ;; ---------------------------------------------------------------------------
+;; Paginated book list
+;; ---------------------------------------------------------------------------
+
+(defn paginated-book-list
+  "Displays a paginated list of books. Each page is a separate query,
+   so navigating back to a previously visited page is instant (cached).
+   Demonstrates how re-frame-query handles parameterised queries."
+  [on-select]
+  (let [current-page (r/atom 1)
+        per-page 3]
+    (fn [on-select]
+      (let [query @(rf/subscribe [:rfq/query :books/page {:page @current-page :per-page per-page}])]
+        [:div.panel
+         [:h2 "📖 Books (Paginated)"]
+         (case (:status query)
+           :loading [:div.loading "Loading page…"]
+           :error   [:div.error "Error: " (get-in query [:error :message] "Unknown error")]
+           :success (let [{:keys [items page total_pages total]} (:data query)]
+                      [:div
+                       [:div.page-info
+                        "Page " page " of " total_pages
+                        " (" total " books total)"]
+                       (if (seq items)
+                         [:div
+                          (for [{:keys [id title author]} items]
+                            ^{:key id}
+                            [:div.book-card {:on-click #(on-select id)}
+                             [:div.title title]
+                             [:div.author "by " author]])]
+                         [:div.empty-state "No books on this page."])
+                       [:div.pagination
+                        [:button.secondary
+                         {:disabled (= page 1)
+                          :on-click #(swap! current-page dec)}
+                         "← Prev"]
+                        (for [p (range 1 (inc total_pages))]
+                          ^{:key p}
+                          [:button {:class (if (= p page) "primary" "secondary")
+                                    :on-click #(reset! current-page p)}
+                           (str p)])
+                        [:button.secondary
+                         {:disabled (= page total_pages)
+                          :on-click #(swap! current-page inc)}
+                         "Next →"]]])
+           [:div.loading "Initializing…"])]))))
+
+;; ---------------------------------------------------------------------------
 ;; Invalidate button
 ;; ---------------------------------------------------------------------------
 
@@ -157,6 +204,8 @@
 
        (if @selected-id
          [book-detail @selected-id #(reset! selected-id nil)]
-         [book-list #(reset! selected-id %)])
+         [:<>
+          [book-list #(reset! selected-id %)]
+          [paginated-book-list #(reset! selected-id %)]])
 
        [add-book-form]])))

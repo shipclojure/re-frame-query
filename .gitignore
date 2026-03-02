@@ -22,3 +22,4 @@ package.json
 .DS_Store
 Thumbs.db
 /.lsp/
+.clj-kondo/.cache/
