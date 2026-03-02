@@ -2,9 +2,9 @@
   "UIx view components for the demo book app.
    Subscribing to [:rfq/query ...] automatically fetches and tracks active state."
   (:require
-   [uix.core :as uix :refer [defui $]]
-   [uix.re-frame :as urf]
-   [re-frame.core :as rf]))
+   [re-frame.core :as rf]
+   [uix.core :as uix :refer [$ defui]]
+   [uix.re-frame :as urf]))
 
 ;; ---------------------------------------------------------------------------
 ;; Book card
@@ -41,7 +41,7 @@
                                          :book book
                                          :on-select on-select})))
                       ($ :div.empty-state "No books yet. Add one below!")))
-        ;; :idle — initial render before dispatch fires
+         ;; :idle — initial render before dispatch fires
          ($ :div.loading "Initializing…")))))
 
 ;; ---------------------------------------------------------------------------
@@ -106,7 +106,7 @@
                  ($ :button.secondary
                     {:on-click on-back}
                     "← Back"))))
-        ;; :idle
+         ;; :idle
          ($ :div.loading "Initializing…")))))
 
 ;; ---------------------------------------------------------------------------

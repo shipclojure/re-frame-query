@@ -47,16 +47,102 @@
 ;; Query event tests
 ;; ---------------------------------------------------------------------------
 
-(deftest ensure-query-sets-loading-test
-  (testing "ensure-query sets status to :loading for a new query"
+(deftest ensure-query-sets-loading-for-initial-fetch-test
+  (testing "ensure-query sets status to :loading when no data exists"
     (rfq/reg-query :books/list
-      {:query-fn (fn [_]
-                   ;; Return no effects — we just test the db state
-                   {})})
+      {:query-fn (fn [_] {})})
     (process-event [:rfq/ensure-query :books/list {}])
     (let [qid   (util/query-id :books/list {})
           query (get-in (app-db) [:rfq/queries qid])]
       (is (= :loading (:status query)))
+      (is (true? (:fetching? query)))
+      (is (nil? (:data query))))))
+
+(deftest ensure-query-keeps-success-on-refetch-test
+  (testing "ensure-query keeps :success status when stale data exists"
+    (rfq/reg-query :books/list
+      {:query-fn      (fn [_] {})
+       :stale-time-ms 1000})
+    ;; Fetch successfully first
+    (process-event [:rfq/query-success :books/list {} [{:id 1}]])
+    ;; Make it stale by pushing fetched-at into the past
+    (let [qid (util/query-id :books/list {})]
+      (swap! rf-db/app-db assoc-in [:rfq/queries qid :fetched-at] 0)
+      (process-event [:rfq/ensure-query :books/list {}])
+      (let [query (get-in (app-db) [:rfq/queries qid])]
+        (is (= :success (:status query))
+            "status stays :success so components keep showing stale data")
+        (is (true? (:fetching? query))
+            "fetching? is true to indicate a background refetch")
+        (is (= [{:id 1}] (:data query))
+            "stale data is preserved while refetching")))))
+
+(deftest refetch-query-keeps-success-when-data-exists-test
+  (testing "refetch-query keeps :success status when data exists"
+    (rfq/reg-query :books/list
+      {:query-fn (fn [_] {})})
+    ;; Fetch successfully first
+    (process-event [:rfq/query-success :books/list {} [{:id 1}]])
+    ;; Force refetch
+    (process-event [:rfq/refetch-query :books/list {}])
+    (let [qid   (util/query-id :books/list {})
+          query (get-in (app-db) [:rfq/queries qid])]
+      (is (= :success (:status query))
+          "status stays :success during background refetch")
+      (is (true? (:fetching? query)))
+      (is (= [{:id 1}] (:data query))))))
+
+(deftest refetch-query-sets-loading-when-no-data-test
+  (testing "refetch-query sets :loading when no prior data exists"
+    (rfq/reg-query :books/list
+      {:query-fn (fn [_] {})})
+    (process-event [:rfq/refetch-query :books/list {}])
+    (let [qid   (util/query-id :books/list {})
+          query (get-in (app-db) [:rfq/queries qid])]
+      (is (= :loading (:status query)))
+      (is (true? (:fetching? query))))))
+
+(deftest ensure-query-sets-loading-after-error-test
+  (testing "ensure-query sets :loading when retrying after an error (no prior data)"
+    (rfq/reg-query :books/list {:query-fn (fn [_] {})})
+    (process-event [:rfq/query-failure :books/list {} {:status 500}])
+    (process-event [:rfq/ensure-query :books/list {}])
+    (let [qid   (util/query-id :books/list {})
+          query (get-in (app-db) [:rfq/queries qid])]
+      (is (= :loading (:status query))
+          "status resets to :loading on retry after error")
+      (is (true? (:fetching? query)))))
+
+  (testing "ensure-query sets :loading after error even when stale data exists"
+    (rfq/reg-query :books/detail
+      {:query-fn      (fn [_] {})
+       :stale-time-ms 1000})
+    ;; First fetch succeeds
+    (process-event [:rfq/query-success :books/detail {} {:title "Dune"}])
+    (let [qid (util/query-id :books/detail {})]
+      ;; Then a refetch fails — data persists but status is :error
+      (process-event [:rfq/query-failure :books/detail {} {:status 500}])
+      (is (= :error (get-in (app-db) [:rfq/queries qid :status])))
+      (is (some? (get-in (app-db) [:rfq/queries qid :data])))
+      ;; Retry
+      (process-event [:rfq/ensure-query :books/detail {}])
+      (let [query (get-in (app-db) [:rfq/queries qid])]
+        (is (= :loading (:status query))
+            "status resets to :loading even though stale data exists, because last status was :error")
+        (is (true? (:fetching? query)))))))
+
+(deftest refetch-query-sets-loading-after-error-test
+  (testing "refetch-query sets :loading when current status is :error"
+    (rfq/reg-query :books/list {:query-fn (fn [_] {})})
+    ;; First succeeds, then fails
+    (process-event [:rfq/query-success :books/list {} [{:id 1}]])
+    (process-event [:rfq/query-failure :books/list {} {:status 503}])
+    ;; Refetch after error
+    (process-event [:rfq/refetch-query :books/list {}])
+    (let [qid   (util/query-id :books/list {})
+          query (get-in (app-db) [:rfq/queries qid])]
+      (is (= :loading (:status query))
+          "status is :loading, not :success, because last status was :error")
       (is (true? (:fetching? query))))))
 
 (deftest query-success-test

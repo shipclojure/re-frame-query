@@ -23,9 +23,9 @@
    ;; Side-effecting requires — registers events, subs, and fx on load
    [rfq.events]
    [rfq.gc]
-   [rfq.subs]
    ;; Functional requires
-   [rfq.registry :as registry]))
+   [rfq.registry :as registry]
+   [rfq.subs]))
 
 ;; ---------------------------------------------------------------------------
 ;; Public Registration API

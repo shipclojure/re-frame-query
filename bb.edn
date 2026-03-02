@@ -1,0 +1,16 @@
+{:paths ["src" "resources"]
+ :deps {com.lambdaisland/dotenv {:mvn/version "0.2.5"}}
+
+ :tasks
+ {jar {:doc "Build jar with latest version"
+       :task (clojure "-T:build jar")}
+  bb-repl {:doc "Start a babashka nrepl server"
+           :task (shell "bb" "nrepl-server")}
+  pom {:doc "Build pom.xml based on deps.edn"
+       :task (clojure "-X:deps mvn-pom")}
+  deploy {:doc "Deploy the latest release to Clojars"
+          :task (clojure "-X:deploy")}
+  format:check {:doc "Check code formatting with standard-clj"
+                :task (shell "standard-clj" "check" "src" "test" "portfolio")}
+  format:project {:doc "Run standard-clojure formatting on the entire codebase"
+                  :task (shell "standard-clj" "fix" "src" "test" "examples")}}}

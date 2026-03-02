@@ -4,11 +4,11 @@
    (mocks-bundle.js) and sets window.__mswReady when the service
    worker is active. We wait for that promise before rendering."
   (:require
-   [reagent.dom.client :as rdc]
    ;; Side-effect requires — register :http effect + query/mutation definitions
    [example.reagent-app.http-fx]
    [example.reagent-app.queries]
-   [example.reagent-app.views :as views]))
+   [example.reagent-app.views :as views]
+   [reagent.dom.client :as rdc]))
 
 (defonce root (rdc/create-root (.getElementById js/document "app")))
 

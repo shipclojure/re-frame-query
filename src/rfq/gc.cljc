@@ -39,7 +39,7 @@
      :clj  (let [fut (future
                        (Thread/sleep ms)
                        (f))]
-              fut)))
+             fut)))
 
 (defn- clear-timeout
   "Cancel a previously scheduled timeout."
@@ -70,8 +70,8 @@
     ;; Cancel any existing timer for this query
     (cancel-gc! query-id)
     (let [handle (set-timeout
-                  (fn [] (rf/dispatch [:rfq/remove-query query-id]))
-                  cache-time-ms)]
+                   (fn [] (rf/dispatch [:rfq/remove-query query-id]))
+                   cache-time-ms)]
       (swap! gc-timers assoc query-id handle))))
 
 (defn cancel-all!
@@ -91,11 +91,11 @@
 ;; ---------------------------------------------------------------------------
 
 (rf/reg-fx
- :rfq/schedule-gc
- (fn [{:keys [query-id cache-time-ms]}]
-   (schedule-gc! query-id cache-time-ms)))
+  :rfq/schedule-gc
+  (fn [{:keys [query-id cache-time-ms]}]
+    (schedule-gc! query-id cache-time-ms)))
 
 (rf/reg-fx
- :rfq/cancel-gc
- (fn [{:keys [query-id]}]
-   (cancel-gc! query-id)))
+  :rfq/cancel-gc
+  (fn [{:keys [query-id]}]
+    (cancel-gc! query-id)))
