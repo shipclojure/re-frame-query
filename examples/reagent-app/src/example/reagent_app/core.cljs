@@ -8,7 +8,12 @@
    [example.reagent-app.http-fx]
    [example.reagent-app.queries]
    [example.reagent-app.views :as views]
-   [reagent.dom.client :as rdc]))
+   [reagent.dom.client :as rdc]
+   [rfq.core :as rfq]))
+
+;; Log all rfq events to the browser console during development
+(when ^boolean goog.DEBUG
+  (rfq/enable-debug-logging!))
 
 (defonce root (rdc/create-root (.getElementById js/document "app")))
 

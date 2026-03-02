@@ -327,3 +327,104 @@
       ;; Attempt removal — should be a no-op
       (process-event [:rfq/remove-query qid])
       (is (some? (get-in (app-db) [:rfq/queries qid]))))))
+
+;; ---------------------------------------------------------------------------
+;; Effect-fn (auto-injected callbacks) tests
+;; ---------------------------------------------------------------------------
+
+(deftest effect-fn-auto-injects-query-callbacks
+  (testing "execute-query-effect uses effect-fn to inject success/failure callbacks"
+    (let [captured (atom nil)]
+      ;; Register a test effect that captures its arguments
+      (rf/reg-fx :test-http (fn [v] (reset! captured v)))
+      ;; Set global effect-fn
+      (rfq/set-default-effect-fn!
+        (fn [request on-success on-failure]
+          {:test-http (assoc request
+                        :on-success on-success
+                        :on-failure on-failure)}))
+      ;; Register query — query-fn returns only the request description
+      (rfq/reg-query :books/list
+        {:query-fn (fn [{:keys [page]}]
+                     {:method :get
+                      :url    (str "/api/books?page=" page)})})
+      (process-event [:rfq/execute-query-effect :books/list {:page 1}])
+      (is (= {:method     :get
+              :url        "/api/books?page=1"
+              :on-success [:rfq/query-success :books/list {:page 1}]
+              :on-failure [:rfq/query-failure :books/list {:page 1}]}
+             @captured)))))
+
+(deftest effect-fn-auto-injects-mutation-callbacks
+  (testing "execute-mutation uses effect-fn to inject success/failure callbacks"
+    (let [captured (atom nil)]
+      (rf/reg-fx :test-http (fn [v] (reset! captured v)))
+      (rfq/set-default-effect-fn!
+        (fn [request on-success on-failure]
+          {:test-http (assoc request
+                        :on-success on-success
+                        :on-failure on-failure)}))
+      (rfq/reg-mutation :books/create
+        {:mutation-fn (fn [{:keys [title]}]
+                        {:method :post
+                         :url    "/api/books"
+                         :body   {:title title}})})
+      (process-event [:rfq/execute-mutation :books/create {:title "Dune"}])
+      (is (= {:method     :post
+              :url        "/api/books"
+              :body       {:title "Dune"}
+              :on-success [:rfq/mutation-success :books/create {:title "Dune"}]
+              :on-failure [:rfq/mutation-failure :books/create {:title "Dune"}]}
+             @captured)))))
+
+(deftest per-query-effect-fn-overrides-global
+  (testing "per-query :effect-fn takes precedence over the global one"
+    (let [captured (atom nil)]
+      (rf/reg-fx :custom-http (fn [v] (reset! captured v)))
+      ;; Global effect-fn (should NOT be used)
+      (rfq/set-default-effect-fn!
+        (fn [request on-success on-failure]
+          {:global-http (assoc request
+                          :on-success on-success
+                          :on-failure on-failure)}))
+      ;; Per-query effect-fn override
+      (rfq/reg-query :books/special
+        {:query-fn  (fn [_] {:method :get :url "/api/special"})
+         :effect-fn (fn [request on-success on-failure]
+                      {:custom-http (assoc request
+                                      :on-success on-success
+                                      :on-failure on-failure)})})
+      (process-event [:rfq/execute-query-effect :books/special {}])
+      (is (= {:method     :get
+              :url        "/api/special"
+              :on-success [:rfq/query-success :books/special {}]
+              :on-failure [:rfq/query-failure :books/special {}]}
+             @captured)))))
+
+(deftest legacy-query-fn-still-works-without-effect-fn
+  (testing "without effect-fn, query-fn returning a full effects map still works"
+    (let [captured (atom nil)]
+      (rf/reg-fx :test-http (fn [v] (reset! captured v)))
+      ;; No set-default-effect-fn! call — legacy mode
+      (rfq/reg-query :books/legacy
+        {:query-fn (fn [{:keys [page]}]
+                     {:test-http {:method     :get
+                                  :url        "/api/books"
+                                  :on-success [:rfq/query-success :books/legacy {:page page}]
+                                  :on-failure [:rfq/query-failure :books/legacy {:page page}]}})})
+      (process-event [:rfq/execute-query-effect :books/legacy {:page 1}])
+      (is (= {:method     :get
+              :url        "/api/books"
+              :on-success [:rfq/query-success :books/legacy {:page 1}]
+              :on-failure [:rfq/query-failure :books/legacy {:page 1}]}
+             @captured)))))
+
+
+
+(deftest no-custom-callbacks-still-works
+  (testing "queries without custom effect-fn work normally"
+    (rfq/reg-query :books/plain {:query-fn (fn [_] {})})
+    (process-event [:rfq/query-success :books/plain {} [{:id 1}]])
+    (let [qid (util/query-id :books/plain {})]
+      (is (= :success (get-in (app-db) [:rfq/queries qid :status])))
+      (is (= [{:id 1}] (get-in (app-db) [:rfq/queries qid :data]))))))

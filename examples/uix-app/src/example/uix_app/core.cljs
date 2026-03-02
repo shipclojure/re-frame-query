@@ -8,8 +8,13 @@
    [example.uix-app.http-fx]
    [example.uix-app.queries]
    [example.uix-app.views :as views]
+   [rfq.core :as rfq]
    [uix.core :refer [$]]
    [uix.dom]))
+
+;; Log all rfq events to the browser console during development
+(when ^boolean goog.DEBUG
+  (rfq/enable-debug-logging!))
 
 (defonce root
   (uix.dom/create-root (.getElementById js/document "root")))

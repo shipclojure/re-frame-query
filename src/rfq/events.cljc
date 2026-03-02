@@ -50,8 +50,16 @@
   :rfq/execute-query-effect
   (fn [_ [_ k params]]
     (let [query-config (registry/get-query k)
-          query-fn     (:query-fn query-config)]
-      (query-fn params))))
+          query-fn     (:query-fn query-config)
+          effect-fn    (or (:effect-fn query-config)
+                           (registry/get-default-effect-fn))
+          request      (query-fn params)]
+      (if effect-fn
+        (effect-fn request
+                   [:rfq/query-success k params]
+                   [:rfq/query-failure k params])
+        ;; Legacy: query-fn returns a full effects map with manual callbacks
+        request))))
 
 (rf/reg-event-db
   :rfq/query-success
@@ -93,8 +101,16 @@
       (when-not mutation-config
         (throw (ex-info (str "No mutation registered for key: " k) {:key k})))
       (let [mutation-fn (:mutation-fn mutation-config)
+            effect-fn   (or (:effect-fn mutation-config)
+                            (registry/get-default-effect-fn))
             mid         (util/query-id k params)
-            effects     (mutation-fn params)]
+            request     (mutation-fn params)
+            effects     (if effect-fn
+                          (effect-fn request
+                                     [:rfq/mutation-success k params]
+                                     [:rfq/mutation-failure k params])
+                          ;; Legacy: mutation-fn returns a full effects map
+                          request)]
         (merge
           {:db (assoc-in db [:rfq/mutations mid]
                          {:status :loading
@@ -108,12 +124,11 @@
           mid             (util/query-id k params)
           invalidates-fn  (or (:invalidates mutation-config) (constantly []))
           tags            (invalidates-fn params)]
-      {:db (assoc-in db [:rfq/mutations mid]
-                     {:status :success
-                      :data   data
-                      :error  nil})
-       :fx (when (seq tags)
-             [[:dispatch [:rfq/invalidate-tags tags]]])})))
+      (cond-> {:db (assoc-in db [:rfq/mutations mid]
+                             {:status :success
+                              :data   data
+                              :error  nil})}
+        (seq tags) (assoc :fx [[:dispatch [:rfq/invalidate-tags tags]]])))))
 
 (rf/reg-event-db
   :rfq/mutation-failure
