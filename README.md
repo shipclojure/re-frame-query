@@ -22,26 +22,42 @@ Declarative data fetching and caching for [re-frame](https://github.com/day8/re-
 {:deps {io.github.shipclojure/re-frame-query {:git/sha "86a658d"}}}
 ```
 
-### 2. Configure the effect adapter
+### 2. Initialize the registry
 
-Tell the library how to turn a request map into a re-frame effect. Call this **once** at app startup (e.g. in your queries namespace):
+Define your entire query/mutation configuration in one place using `rfq/init!`. Call this **once** at app startup:
 
 ```clojure
 (ns my-app.queries
   (:require [re-frame.query :as rfq]))
 
-;; For js/fetch-based :http effect:
-(rfq/set-default-effect-fn!
-  (fn [request on-success on-failure]
-    {:http (assoc request :on-success on-success :on-failure on-failure)}))
+(rfq/init!
+  {:default-effect-fn
+   (fn [request on-success on-failure]
+     {:http (assoc request :on-success on-success :on-failure on-failure)})
 
-;; For re-frame-http-fx (:http-xhrio):
-(rfq/set-default-effect-fn!
-  (fn [request on-success on-failure]
-    {:http-xhrio (assoc request :on-success on-success :on-failure on-failure)}))
+   :queries
+   {:todos/list
+    {:query-fn      (fn [{:keys [user-id]}]
+                      {:method :get
+                       :url    (str "/api/users/" user-id "/todos")})
+     :stale-time-ms 30000          ;; 30s — data is fresh for this long
+     :cache-time-ms (* 5 60 1000)  ;; 5min — inactive cache is GC'd after this
+     :tags          (fn [{:keys [user-id]}]
+                      [[:todos :user user-id]])}}
+
+   :mutations
+   {:todos/add
+    {:mutation-fn  (fn [{:keys [user-id title]}]
+                     {:method :post
+                      :url    (str "/api/users/" user-id "/todos")
+                      :body   {:title title}})
+     :invalidates  (fn [{:keys [user-id]}]
+                     [[:todos :user user-id]])}}})
 ```
 
-The `effect-fn` receives three arguments:
+That's it — no `:on-success` or `:on-failure` wiring. The library auto-injects the correct callbacks via your `default-effect-fn`.
+
+The `default-effect-fn` receives three arguments:
 
 | Argument | Description |
 |---|---|
@@ -49,22 +65,15 @@ The `effect-fn` receives three arguments:
 | `on-success` | A re-frame event vector — `conj` response data onto it and dispatch |
 | `on-failure` | A re-frame event vector — `conj` error data onto it and dispatch |
 
-### 3. Register a query
+> **Incremental API** — You can also register queries and mutations one at a time
+> with `rfq/reg-query`, `rfq/reg-mutation`, and `rfq/set-default-effect-fn!`.
+> These work both standalone and after an `init!` call (e.g. for lazy-loaded modules).
 
-```clojure
-(rfq/reg-query :todos/list
-  {:query-fn      (fn [{:keys [user-id]}]
-                    {:method :get
-                     :url    (str "/api/users/" user-id "/todos")})
-   :stale-time-ms 30000          ;; 30s — data is fresh for this long
-   :cache-time-ms (* 5 60 1000)  ;; 5min — inactive cache is GC'd after this
-   :tags          (fn [{:keys [user-id]}]
-                    [[:todos :user user-id]])})
-```
+### 3. Use a query
 
-That's it — no `:on-success` or `:on-failure` wiring. The library auto-injects the correct callbacks via your `effect-fn`.
-
-### 4. Subscribe (fetching is automatic)
+Think of `(rf/subscribe [::rfq/query k params])` like a **`use-query` hook** —
+subscribing is all you need. It triggers the fetch, caches the result, and
+keeps it fresh. No imperative dispatch required.
 
 ```clojure
 (ns my-app.views
@@ -72,6 +81,11 @@ That's it — no `:on-success` or `:on-failure` wiring. The library auto-injects
             [re-frame.query :as rfq]))
 
 (defn todos-view []
+  ;; This single subscribe call does everything:
+  ;;  • fetches data if absent or stale
+  ;;  • returns cached data instantly if fresh
+  ;;  • refetches automatically when invalidated by a mutation
+  ;;  • cleans up when the component unmounts
   (let [{:keys [status data error fetching?]}
         @(rf/subscribe [::rfq/query :todos/list {:user-id 42}])]
     (case status
@@ -85,30 +99,21 @@ That's it — no `:on-success` or `:on-failure` wiring. The library auto-injects
       [:div "Idle"])))
 ```
 
-Subscribing to `[::rfq/query k params]` automatically:
-1. Fetches data if absent or stale
-2. Marks the query as **active**
-3. Refetches when invalidated
-4. Marks as **inactive** on unmount (triggering the GC timer)
+Just like React Query's `useQuery`, the subscription manages the full lifecycle:
+1. **Fetches** data if absent or stale — no manual dispatch needed
+2. **Marks the query as active** — so mutations know to refetch it
+3. **Refetches** automatically when matching tags are invalidated
+4. **Marks as inactive** on unmount — triggering the GC timer
 
-### 5. Register a mutation
+### 4. Dispatch a mutation
 
 ```clojure
-(rfq/reg-mutation :todos/add
-  {:mutation-fn (fn [{:keys [user-id title]}]
-                  {:method :post
-                   :url    (str "/api/users/" user-id "/todos")
-                   :body   {:title title}})
-   :invalidates (fn [{:keys [user-id]}]
-                  [[:todos :user user-id]])})
-
-;; Dispatch
 (rf/dispatch [::rfq/execute-mutation :todos/add {:user-id 42 :title "Ship it"}])
 ```
 
 On success, mutations automatically invalidate matching tags — all active queries with those tags are refetched.
 
-### 6. Manual invalidation
+### 5. Manual invalidation
 
 ```clojure
 (rf/dispatch [::rfq/invalidate-tags [[:todos :user 42]]])
@@ -149,14 +154,25 @@ Timer handles are stored in a side-channel atom (not in `app-db`) to keep the re
 
 | Function | Description |
 |---|---|
+| `rfq/init!` | Initialize the full registry with a single config map (queries, mutations, default-effect-fn) |
 | `rfq/set-default-effect-fn!` | Set the global effect adapter `(fn [request on-success on-failure] -> effects-map)` |
 
-### Registration
+#### `init!` config keys
+
+| Key | Description |
+|---|---|
+| `:default-effect-fn` | `(fn [request on-success on-failure] -> effects-map)` — global effect adapter |
+| `:queries` | `{keyword -> query-config}` — map of query definitions (same keys as `reg-query`) |
+| `:mutations` | `{keyword -> mutation-config}` — map of mutation definitions (same keys as `reg-mutation`) |
+
+### Registration (incremental)
+
+Use these to add queries/mutations one at a time, either standalone or after `init!`:
 
 | Function | Description |
 |---|---|
-| `rfq/reg-query` | Register a query definition |
-| `rfq/reg-mutation` | Register a mutation definition |
+| `rfq/reg-query` | Register a single query definition |
+| `rfq/reg-mutation` | Register a single mutation definition |
 
 #### `reg-query` config keys
 
@@ -191,15 +207,20 @@ With `(:require [re-frame.query :as rfq])`, use `::rfq/` shorthand:
 
 ### Subscriptions
 
-| Subscription | Returns |
-|---|---|
-| `[::rfq/query k params]` | Full query state map |
-| `[::rfq/query-data k params]` | Just the `:data` |
-| `[::rfq/query-status k params]` | Just the `:status` (`:idle`, `:loading`, `:success`, `:error`) |
-| `[::rfq/query-fetching? k params]` | Boolean — is a request in flight? |
-| `[::rfq/query-error k params]` | Just the `:error` |
-| `[::rfq/mutation k params]` | Mutation state map |
-| `[::rfq/mutation-status k params]` | Just the mutation `:status` |
+> **Only `::rfq/query` triggers a fetch.** The other query subscriptions are
+> derived — they extract a single field from the query state but do **not**
+> start a fetch or manage the query lifecycle. Always subscribe to
+> `::rfq/query` first (or instead).
+
+| Subscription | Triggers fetch? | Returns |
+|---|---|---|
+| `[::rfq/query k params]` | ✅ Yes | Full query state map |
+| `[::rfq/query-data k params]` | ❌ No | Just the `:data` |
+| `[::rfq/query-status k params]` | ❌ No | Just the `:status` (`:idle`, `:loading`, `:success`, `:error`) |
+| `[::rfq/query-fetching? k params]` | ❌ No | Boolean — is a request in flight? |
+| `[::rfq/query-error k params]` | ❌ No | Just the `:error` |
+| `[::rfq/mutation k params]` | ❌ No | Mutation state map |
+| `[::rfq/mutation-status k params]` | ❌ No | Just the mutation `:status` |
 
 ### Query State Shape
 
@@ -215,6 +236,61 @@ With `(:require [re-frame.query :as rfq])`, use `::rfq/` shorthand:
  :stale-time-ms <ms>
  :cache-time-ms <ms>}
 ```
+
+## Where Data Lives in `app-db`
+
+re-frame-query stores **all** its state inside your re-frame `app-db` under two
+namespaced keys. This means query state is fully inspectable with
+[re-frame-10x](https://github.com/day8/re-frame-10x), serializable, and
+compatible with time-travel debugging.
+
+```clojure
+;; Your app-db will look like:
+{;; ... your own app state ...
+ :my-app/route   [:home]
+ :my-app/user    {:id 42 :name "Alice"}
+
+ ;; ┌─── re-frame-query state ─────────────────────────────────────────┐
+
+ :re-frame.query/queries
+ {[:todos/list {:user-id 42}]          ;; ← query-id = [key params]
+  {:status     :success
+   :data       [{:id 1 :title "Ship it"} {:id 2 :title "Write docs"}]
+   :error      nil
+   :fetching?  false
+   :stale?     false
+   :active?    true                     ;; ← a component is subscribed
+   :fetched-at 1718900000000
+   :tags       #{[:todos :user 42]}
+   :stale-time-ms 30000
+   :cache-time-ms 300000}
+
+  [:todos/list {:user-id 7}]
+  {:status :loading :data nil :fetching? true ,,,}}
+
+ :re-frame.query/mutations
+ {[:todos/add {:user-id 42 :title "New"}]
+  {:status :success
+   :data   {:id 3 :title "New"}
+   :error  nil}}
+
+ ;; └──────────────────────────────────────────────────────────────────┘
+ }
+```
+
+### Key layout
+
+| `app-db` key | Shape | Description |
+|---|---|---|
+| `:re-frame.query/queries` | `{[k params] → query-map}` | Cache of all fetched queries. Each entry is a query-id (`[key params]`) mapped to the query state shape above. |
+| `:re-frame.query/mutations` | `{[k params] → mutation-map}` | Status of in-flight and completed mutations. Each entry has `:status`, `:data`, and `:error`. |
+
+### What this means for your app
+
+- **No conflicts** — the namespaced keys (`:re-frame.query/*`) won't collide with your own state.
+- **Fully inspectable** — open re-frame-10x and browse `:re-frame.query/queries` to see every cached query, its status, data, and tags.
+- **Serializable** — GC timer handles are stored in a separate side-channel atom (not in `app-db`), so your db remains serializable for time-travel and persistence.
+- **You own the db** — re-frame-query never touches keys outside its namespace. You can safely `assoc`, `merge`, or `reset!` your own keys alongside it.
 
 ## How It Works
 

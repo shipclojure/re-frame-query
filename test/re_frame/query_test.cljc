@@ -5,6 +5,7 @@
    [re-frame.db :as rf-db]
    [re-frame.query :as rfq]
    [re-frame.query.gc :as gc]
+   [re-frame.query.registry :as registry]
    [re-frame.query.util :as util]))
 
 ;; ---------------------------------------------------------------------------
@@ -426,3 +427,76 @@
     (let [qid (util/query-id :books/plain {})]
       (is (= :success (get-in (app-db) [:re-frame.query/queries qid :status])))
       (is (= [{:id 1}] (get-in (app-db) [:re-frame.query/queries qid :data]))))))
+
+;; ---------------------------------------------------------------------------
+;; init! (declarative registry) tests
+;; ---------------------------------------------------------------------------
+
+(deftest init-registers-queries-and-mutations
+  (testing "init! sets up queries, mutations, and default-effect-fn in one shot"
+    (let [captured (atom nil)]
+      (rf/reg-fx :test-http (fn [v] (reset! captured v)))
+      (rfq/init!
+        {:default-effect-fn (fn [request on-success on-failure]
+                              {:test-http (assoc request
+                                            :on-success on-success
+                                            :on-failure on-failure)})
+         :queries
+         {:books/list {:query-fn (fn [{:keys [page]}]
+                                   {:method :get
+                                    :url    (str "/api/books?page=" page)})
+                       :stale-time-ms 30000
+                       :tags (fn [_] [[:books]])}}
+         :mutations
+         {:books/create {:mutation-fn (fn [{:keys [title]}]
+                                       {:method :post
+                                        :url    "/api/books"
+                                        :body   {:title title}})
+                         :invalidates (fn [_] [[:books]])}}})
+      ;; Query works
+      (process-event [:re-frame.query/refetch-query :books/list {:page 1}])
+      (is (= {:method     :get
+              :url        "/api/books?page=1"
+              :on-success [:re-frame.query/query-success :books/list {:page 1}]
+              :on-failure [:re-frame.query/query-failure :books/list {:page 1}]}
+             @captured))
+      ;; Mutation works
+      (reset! captured nil)
+      (process-event [:re-frame.query/execute-mutation :books/create {:title "Dune"}])
+      (is (= {:method     :post
+              :url        "/api/books"
+              :body       {:title "Dune"}
+              :on-success [:re-frame.query/mutation-success :books/create {:title "Dune"}]
+              :on-failure [:re-frame.query/mutation-failure :books/create {:title "Dune"}]}
+             @captured)))))
+
+(deftest init-clears-previous-state
+  (testing "init! replaces any previously registered queries/mutations"
+    ;; Register something first via the incremental API
+    (rfq/reg-query :old/query {:query-fn (fn [_] {})})
+    (rfq/reg-mutation :old/mutation {:mutation-fn (fn [_] {})})
+    ;; Now init! with a fresh config
+    (rfq/init!
+      {:queries {:new/query {:query-fn (fn [_] {:url "/new"})}}})
+    ;; Old registrations are gone
+    (is (nil? (registry/get-query :old/query)))
+    (is (nil? (registry/get-mutation :old/mutation)))
+    ;; New registration exists
+    (is (some? (registry/get-query :new/query)))))
+
+(deftest init-with-empty-map
+  (testing "init! with empty map clears everything"
+    (rfq/reg-query :some/query {:query-fn (fn [_] {})})
+    (rfq/init! {})
+    (is (nil? (registry/get-query :some/query)))
+    (is (nil? (registry/get-default-effect-fn)))))
+
+(deftest init-incremental-after-init
+  (testing "reg-query and reg-mutation still work after init!"
+    (rfq/init!
+      {:queries {:books/list {:query-fn (fn [_] {:url "/books"})}}})
+    ;; Add another query incrementally
+    (rfq/reg-query :books/detail {:query-fn (fn [{:keys [id]}] {:url (str "/books/" id)})})
+    ;; Both exist
+    (is (some? (registry/get-query :books/list)))
+    (is (some? (registry/get-query :books/detail)))))

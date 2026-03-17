@@ -84,6 +84,40 @@
   Returns the mutation key."
   registry/reg-mutation)
 
+(def init!
+  "Initialize the registry with a complete configuration map.
+
+  Replaces the entire registry in one shot, giving you a single declarative
+  place to define all queries, mutations, and the default effect adapter.
+
+  `config` is a map with optional keys:
+
+    :default-effect-fn — (fn [request on-success on-failure] -> effects-map)
+                         Global effect adapter.
+
+    :queries           — {keyword -> query-config}
+                         Map of query definitions (same keys as `reg-query`).
+
+    :mutations         — {keyword -> mutation-config}
+                         Map of mutation definitions (same keys as `reg-mutation`).
+
+  Example:
+    (rfq/init!
+      {:default-effect-fn (fn [request on-success on-failure]
+                            {:http (assoc request
+                                    :on-success on-success
+                                    :on-failure on-failure)})
+       :queries
+       {:books/list {:query-fn      (fn [{:keys [page]}]
+                                      {:url (str \"/api/books?page=\" page)})
+                     :stale-time-ms 30000
+                     :tags          (fn [_] [[:books]])}}
+       :mutations
+       {:books/create {:mutation-fn (fn [{:keys [title]}]
+                                      {:url \"/api/books\" :method :post})
+                       :invalidates (fn [_] [[:books]])}}})"
+  registry/init!)
+
 (def clear-registry!
   "Reset all query and mutation registrations. For testing only."
   registry/clear-registry!)
