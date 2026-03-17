@@ -1656,88 +1656,56 @@
           ;; ---------------------------------------------------------------------------
           ;; Conditional fetching (skip) tests
           ;; ---------------------------------------------------------------------------
-(deftest skip-query-returns-idle-state
-  (testing "Subscribing with :skip? true returns idle state and does not fetch"
-    (rf-test/run-test-sync
-      (let [call-count (atom 0)]
-        (rf/reg-fx :test-http (fn [_] (swap! call-count inc)))
-        (rfq/set-default-effect-fn!
-          (fn [request on-success on-failure]
-            {:test-http (assoc request
-                          :on-success on-success
-                          :on-failure on-failure)}))
-        (rfq/reg-query :books/detail
-          {:query-fn (fn [{:keys [id]}]
-                       {:method :get :url (str "/api/books/" id)})})
+(deftest skip-query-behavior
+  (rf-test/run-test-sync
+    (let [call-count (atom 0)]
+      (rf/reg-fx :test-http (fn [_] (swap! call-count inc)))
+      (rfq/set-default-effect-fn!
+        (fn [request on-success on-failure]
+          {:test-http (assoc request
+                        :on-success on-success
+                        :on-failure on-failure)}))
+      (rfq/reg-query :books/detail
+        {:query-fn (fn [{:keys [id]}]
+                     {:method :get :url (str "/api/books/" id)})})
+
+      (testing "returns idle state and does not fetch"
         (let [sub (rf/subscribe [:re-frame.query/query :books/detail {:id 1} {:skip? true}])]
           (is (= {:status    :idle
                   :data      nil
                   :error     nil
                   :fetching? false
                   :stale?    true}
-                 @sub)
-              "returns idle state when skipped")
+                 @sub))
           (is (zero? @call-count)
-              "no effect fired when skipped"))))))
-(deftest skip-query-does-not-mark-active
-  (testing "Subscribing with :skip? true does not mark the query active"
-    (rf-test/run-test-sync
-      (rfq/reg-query :books/detail {:query-fn (fn [_] {})})
-      (let [qid (util/query-id :books/detail {:id 1})
-            sub (rf/subscribe [:re-frame.query/query :books/detail {:id 1} {:skip? true}])]
-        @sub
-        (is (nil? (get-in (app-db) [:re-frame.query/queries qid :active?]))
-            "query is not marked active when skipped")))))
-(deftest skip-query-does-not-start-polling
-  (testing "Subscribing with :skip? true and :polling-interval-ms does not start polling"
-    (rf-test/run-test-sync
-      (rfq/reg-query :books/list {:query-fn (fn [_] {})})
-      (let [qid (util/query-id :books/list {})
-            sub (rf/subscribe [:re-frame.query/query :books/list {}
-                               {:skip? true :polling-interval-ms 5000}])]
-        @sub
-        (is (not (contains? (polling/active-polls) qid))
-            "no polling when skipped")))))
+              "no effect fired when skipped")))
 
-(deftest non-skipped-query-fetches-normally
-  (testing "Subscribing with :skip? false (or omitted) fetches normally"
-    (rf-test/run-test-sync
-      (let [call-count (atom 0)]
-        (rf/reg-fx :test-http (fn [_] (swap! call-count inc)))
-        (rfq/set-default-effect-fn!
-          (fn [request on-success on-failure]
-            {:test-http (assoc request
-                          :on-success on-success
-                          :on-failure on-failure)}))
-        (rfq/reg-query :books/detail
-          {:query-fn (fn [{:keys [id]}]
-                       {:method :get :url (str "/api/books/" id)})})
-        ;; Explicit :skip? false
+      (testing "does not mark the query active"
+        (let [qid (util/query-id :books/detail {:id 1})]
+          (is (nil? (get-in (app-db) [:re-frame.query/queries qid :active?])))))
+
+      (testing "does not start polling even with :polling-interval-ms"
+        (let [qid (util/query-id :books/detail {:id 1})
+              sub (rf/subscribe [:re-frame.query/query :books/detail {:id 1}
+                                 {:skip? true :polling-interval-ms 5000}])]
+          @sub
+          (is (not (contains? (polling/active-polls) qid)))))
+
+      (testing ":skip? false fetches normally"
+        (reset! call-count 0)
         (let [sub (rf/subscribe [:re-frame.query/query :books/detail {:id 1} {:skip? false}])]
           @sub
-          (is (= 1 @call-count)
-              "effect fires when :skip? is false"))))))
+          (is (= 1 @call-count) "effect fires when :skip? is false")))
 
-(deftest skip-toggle-triggers-fetch
-  (testing "Changing from :skip? true to :skip? false triggers the fetch"
-    (rf-test/run-test-sync
-      (let [call-count (atom 0)]
-        (rf/reg-fx :test-http (fn [_] (swap! call-count inc)))
-        (rfq/set-default-effect-fn!
-          (fn [request on-success on-failure]
-            {:test-http (assoc request
-                          :on-success on-success
-                          :on-failure on-failure)}))
-        (rfq/reg-query :books/detail
-          {:query-fn (fn [{:keys [id]}]
-                       {:method :get :url (str "/api/books/" id)})})
-        ;; First subscribe with skip
-        (let [sub-skipped (rf/subscribe [:re-frame.query/query :books/detail {:id 1} {:skip? true}])]
-          @sub-skipped
+      (testing "toggling skip off triggers the fetch"
+        (reset! call-count 0)
+        ;; Subscribe with skip — no new fetch
+        (let [sub (rf/subscribe [:re-frame.query/query :books/detail {:id 2} {:skip? true}])]
+          @sub
           (is (zero? @call-count) "no fetch when skipped"))
-        ;; Now subscribe without skip — same query key, different opts
-        (let [sub-active (rf/subscribe [:re-frame.query/query :books/detail {:id 1}])]
-          @sub-active
+        ;; Subscribe without skip — fetch fires
+        (let [sub (rf/subscribe [:re-frame.query/query :books/detail {:id 2}])]
+          @sub
           (is (= 1 @call-count) "fetch fires when skip is removed"))))))
 
 (deftest dependent-query-pattern

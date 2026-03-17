@@ -10,6 +10,7 @@ Declarative data fetching and caching for [re-frame](https://github.com/day8/re-
 - **Per-query garbage collection** — inactive queries are cleaned up after `cache-time-ms` via per-query timers (same model as TanStack Query)
 - **Polling** — automatic refetch intervals with per-subscriber or per-query config; multiple subscribers use the lowest non-zero interval
 - **Conditional fetching** — skip queries with `:skip? true` until a condition is met (e.g., dependent queries)
+- **Prefetching** — pre-populate the cache before a component subscribes (on hover, route transition, etc.)
 - **Smart status tracking** — distinguishes initial loading from background refetching
 - **Transport-agnostic** — works with any re-frame effect (HTTP, GraphQL, WebSocket, etc.)
 - **All state in re-frame DB** — predictable, inspectable, time-travel debuggable
@@ -221,6 +222,27 @@ When `:skip?` is `true`:
 
 When the component re-renders with `:skip? false` (or without the `:skip?` key), the query fires automatically.
 
+## Prefetching
+
+Pre-populate the cache before a component subscribes. Useful for hover-triggered preloading, route prefetching, or warming the cache from event handlers.
+
+```clojure
+;; On mouse-enter for a "Next page" button
+(rfq/prefetch :books/list {:page 2})
+
+;; Or dispatch ensure-query directly — same thing
+(rf/dispatch [::rfq/ensure-query :books/list {:page 2}])
+```
+
+When the component later mounts and subscribes, it finds cached data and skips the fetch:
+
+```clojure
+;; This finds cached data from the prefetch — no loading spinner
+@(rf/subscribe [::rfq/query :books/list {:page 2}])
+```
+
+Prefetch respects stale-time and in-flight deduplication — it won't re-fetch data that's already fresh or already being fetched. It does **not** mark the query as active, so the data is subject to normal GC rules.
+
 ## API Reference
 
 ### Setup
@@ -246,6 +268,7 @@ Use these to add queries/mutations one at a time, either standalone or after `in
 |---|---|
 | `rfq/reg-query` | Register a single query definition |
 | `rfq/reg-mutation` | Register a single mutation definition |
+| `rfq/prefetch` | `(rfq/prefetch k params)` — pre-populate cache (convenience for dispatching `::rfq/ensure-query`) |
 
 #### `reg-query` config keys
 
@@ -272,7 +295,7 @@ With `(:require [re-frame.query :as rfq])`, use `::rfq/` shorthand:
 
 | Event | Description |
 |---|---|
-| `[::rfq/ensure-query k params]` | Fetch if stale/absent (called automatically by subscription) |
+| `[::rfq/ensure-query k params]` | Fetch if stale/absent (called automatically by subscription; can also used for prefetching) |
 | `[::rfq/refetch-query k params]` | Force refetch regardless of staleness |
 | `[::rfq/execute-mutation k params]` | Execute a mutation |
 | `[::rfq/invalidate-tags tags]` | Mark matching queries stale & refetch active ones |

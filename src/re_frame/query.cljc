@@ -128,6 +128,32 @@
   registry/clear-registry!)
 
 ;; ---------------------------------------------------------------------------
+;; Prefetching
+;; ---------------------------------------------------------------------------
+
+(defn prefetch
+  "Pre-populate the cache for a query before a component subscribes.
+
+  Dispatches `ensure-query` which fetches if the query is absent or stale,
+  respecting stale-time and in-flight deduplication. Does NOT mark the query
+  as active — the data simply sits in the cache until a subscription picks
+  it up.
+
+  Common use cases:
+    - Prefetch on hover (e.g. next page, link target)
+    - Prefetch on route transition
+    - Prefetch from an event handler
+
+  Example:
+    ;; On mouse-enter for a link
+    (rfq/prefetch :book/detail {:id 42})
+
+    ;; Later, when the component mounts, it finds cached data:
+    @(rf/subscribe [::rfq/query :book/detail {:id 42}])"
+  [k params]
+  (rf/dispatch [:re-frame.query/ensure-query k params]))
+
+;; ---------------------------------------------------------------------------
 ;; Debug Logging
 ;; ---------------------------------------------------------------------------
 
