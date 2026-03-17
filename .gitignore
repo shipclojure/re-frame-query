@@ -9,8 +9,7 @@ resources/public/mockServiceWorker.js
 
 # Node
 node_modules/
-package-lock.json
-package.json
+pnpm-lock.yaml
 
 # Editor
 *.swp

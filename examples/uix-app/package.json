@@ -1,0 +1,29 @@
+{
+  "name": "uix-app",
+  "version": "1.0.0",
+  "description": "A minimal [UIx](https://github.com/pitch-io/uix) app demonstrating **re-frame-query** features with React hooks instead of Reagent's reactive atoms:",
+  "main": "index.js",
+  "scripts": {
+    "mocks": "pnpm exec esbuild src/mocks/browser.js --bundle --format=iife --outfile=resources/public/mocks-bundle.js",
+    "dev": "pnpm run mocks && echo '\n🚀 Demo will be available at http://localhost:8720\n' && pnpm exec shadow-cljs watch demo",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "dependencies": {
+    "react": "^19.2.4",
+    "react-dom": "^19.2.4"
+  },
+  "devDependencies": {
+    "esbuild": "^0.25.0",
+    "msw": "^2.12.10",
+    "shadow-cljs": "^3.3.6"
+  },
+  "msw": {
+    "workerDirectory": [
+      "resources/public"
+    ]
+  }
+}
