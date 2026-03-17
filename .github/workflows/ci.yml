@@ -45,4 +45,4 @@ jobs:
         run: pnpm install
 
       - name: Run ClojureScript tests
-        run: pnpm exec shadow-cljs compile test
+        run: pnpm test

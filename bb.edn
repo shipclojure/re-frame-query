@@ -12,5 +12,7 @@
           :task (clojure "-X:deploy")}
   format:check {:doc "Check code formatting with standard-clj"
                 :task (shell "standard-clj" "check" "src" "test" "portfolio")}
+  test {:doc "Run ClojureScript tests via shadow-cljs"
+        :task (shell "pnpm" "test")}
   format:project {:doc "Run standard-clojure formatting on the entire codebase"
                   :task (shell "standard-clj" "fix" "src" "test" "examples")}}}
