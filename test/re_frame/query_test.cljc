@@ -345,10 +345,10 @@
       (rf/reg-fx :test-http (fn [v] (reset! captured v)))
       ;; Set global effect-fn
       (rfq/set-default-effect-fn!
-       (fn [request on-success on-failure]
-         {:test-http (assoc request
-                            :on-success on-success
-                            :on-failure on-failure)}))
+        (fn [request on-success on-failure]
+          {:test-http (assoc request
+                             :on-success on-success
+                             :on-failure on-failure)}))
       ;; Register query — query-fn returns only the request description
       (rfq/reg-query :books/list
                      {:query-fn (fn [{:keys [page]}]
@@ -366,10 +366,10 @@
     (let [captured (atom nil)]
       (rf/reg-fx :test-http (fn [v] (reset! captured v)))
       (rfq/set-default-effect-fn!
-       (fn [request on-success on-failure]
-         {:test-http (assoc request
-                            :on-success on-success
-                            :on-failure on-failure)}))
+        (fn [request on-success on-failure]
+          {:test-http (assoc request
+                             :on-success on-success
+                             :on-failure on-failure)}))
       (rfq/reg-mutation :books/create
                         {:mutation-fn (fn [{:keys [title]}]
                                         {:method :post
@@ -389,10 +389,10 @@
       (rf/reg-fx :custom-http (fn [v] (reset! captured v)))
       ;; Global effect-fn (should NOT be used)
       (rfq/set-default-effect-fn!
-       (fn [request on-success on-failure]
-         {:global-http (assoc request
-                              :on-success on-success
-                              :on-failure on-failure)}))
+        (fn [request on-success on-failure]
+          {:global-http (assoc request
+                               :on-success on-success
+                               :on-failure on-failure)}))
       ;; Per-query effect-fn override
       (rfq/reg-query :books/special
                      {:query-fn  (fn [_] {:method :get :url "/api/special"})
@@ -442,22 +442,22 @@
     (let [captured (atom nil)]
       (rf/reg-fx :test-http (fn [v] (reset! captured v)))
       (rfq/init!
-       {:default-effect-fn (fn [request on-success on-failure]
-                             {:test-http (assoc request
-                                                :on-success on-success
-                                                :on-failure on-failure)})
-        :queries
-        {:books/list {:query-fn (fn [{:keys [page]}]
-                                  {:method :get
-                                   :url    (str "/api/books?page=" page)})
-                      :stale-time-ms 30000
-                      :tags (fn [_] [[:books]])}}
-        :mutations
-        {:books/create {:mutation-fn (fn [{:keys [title]}]
-                                       {:method :post
-                                        :url    "/api/books"
-                                        :body   {:title title}})
-                        :invalidates (fn [_] [[:books]])}}})
+        {:default-effect-fn (fn [request on-success on-failure]
+                              {:test-http (assoc request
+                                                 :on-success on-success
+                                                 :on-failure on-failure)})
+         :queries
+         {:books/list {:query-fn (fn [{:keys [page]}]
+                                   {:method :get
+                                    :url    (str "/api/books?page=" page)})
+                       :stale-time-ms 30000
+                       :tags (fn [_] [[:books]])}}
+         :mutations
+         {:books/create {:mutation-fn (fn [{:keys [title]}]
+                                        {:method :post
+                                         :url    "/api/books"
+                                         :body   {:title title}})
+                         :invalidates (fn [_] [[:books]])}}})
       ;; Query works
       (process-event [:re-frame.query/refetch-query :books/list {:page 1}])
       (is (= {:method     :get
@@ -482,7 +482,7 @@
     (rfq/reg-mutation :old/mutation {:mutation-fn (fn [_] {})})
     ;; Now init! with a fresh config
     (rfq/init!
-     {:queries {:new/query {:query-fn (fn [_] {:url "/new"})}}})
+      {:queries {:new/query {:query-fn (fn [_] {:url "/new"})}}})
     ;; Old registrations are gone
     (is (nil? (registry/get-query :old/query)))
     (is (nil? (registry/get-mutation :old/mutation)))
@@ -499,7 +499,7 @@
 (deftest init-incremental-after-init
   (testing "reg-query and reg-mutation still work after init!"
     (rfq/init!
-     {:queries {:books/list {:query-fn (fn [_] {:url "/books"})}}})
+      {:queries {:books/list {:query-fn (fn [_] {:url "/books"})}}})
     ;; Add another query incrementally
     (rfq/reg-query :books/detail {:query-fn (fn [{:keys [id]}] {:url (str "/books/" id)})})
     ;; Both exist
@@ -515,10 +515,10 @@
     (let [call-count (atom 0)]
       (rf/reg-fx :test-http (fn [_] (swap! call-count inc)))
       (rfq/set-default-effect-fn!
-       (fn [request on-success on-failure]
-         {:test-http (assoc request
-                            :on-success on-success
-                            :on-failure on-failure)}))
+        (fn [request on-success on-failure]
+          {:test-http (assoc request
+                             :on-success on-success
+                             :on-failure on-failure)}))
       (rfq/reg-query :books/list
                      {:query-fn (fn [_] {:method :get :url "/api/books"})})
       ;; First dispatch — should fire the effect
@@ -537,10 +537,10 @@
     (let [calls (atom [])]
       (rf/reg-fx :test-http (fn [v] (swap! calls conj v)))
       (rfq/set-default-effect-fn!
-       (fn [request on-success on-failure]
-         {:test-http (assoc request
-                            :on-success on-success
-                            :on-failure on-failure)}))
+        (fn [request on-success on-failure]
+          {:test-http (assoc request
+                             :on-success on-success
+                             :on-failure on-failure)}))
       (rfq/reg-query :books/detail
                      {:query-fn (fn [{:keys [id]}]
                                   {:method :get :url (str "/api/books/" id)})})
@@ -557,10 +557,10 @@
     (let [call-count (atom 0)]
       (rf/reg-fx :test-http (fn [_] (swap! call-count inc)))
       (rfq/set-default-effect-fn!
-       (fn [request on-success on-failure]
-         {:test-http (assoc request
-                            :on-success on-success
-                            :on-failure on-failure)}))
+        (fn [request on-success on-failure]
+          {:test-http (assoc request
+                             :on-success on-success
+                             :on-failure on-failure)}))
       (rfq/reg-query :books/list
                      {:query-fn      (fn [_] {:method :get :url "/api/books"})
                       :stale-time-ms 60000})
@@ -581,57 +581,57 @@
   (testing "Active queries matching invalidated tags are refetched;
             inactive queries are only marked stale."
     (rf-test/run-test-sync
-     (let [calls (atom [])]
-       (rf/reg-fx :test-http (fn [v] (swap! calls conj v)))
-       (rfq/set-default-effect-fn!
-        (fn [request on-success on-failure]
-          {:test-http (assoc request
-                             :on-success on-success
-                             :on-failure on-failure)}))
-       ;; Register two queries sharing the same tag
-       (rfq/reg-query :books/list
-                      {:query-fn (fn [_] {:method :get :url "/api/books"})
-                       :tags     (fn [_] [[:books :all]])})
-       (rfq/reg-query :books/detail
-                      {:query-fn (fn [{:keys [id]}] {:method :get :url (str "/api/books/" id)})
-                       :tags     (fn [{:keys [id]}] [[:books :all] [:books :id id]])})
-       ;; Populate both with data
-       (rf/dispatch [:re-frame.query/query-success :books/list {} [{:id 1}]])
-       (rf/dispatch [:re-frame.query/query-success :books/detail {:id 1} {:id 1 :title "Dune"}])
-       ;; Mark only list as active, detail stays inactive
-       (rf/dispatch [:re-frame.query/mark-active :books/list {}])
-       ;; Reset call log after setup
-       (reset! calls [])
-       ;; Invalidate — run-test-sync resolves the full chain:
-       ;; invalidate-tags → (marks stale) → refetch-query (for active only)
-       (rf/dispatch [:re-frame.query/invalidate-tags [[:books :all]]])
-       (let [list-qid   (util/query-id :books/list {})
-             detail-qid (util/query-id :books/detail {:id 1})]
-         ;; The active query was refetched automatically (stale? reset to false)
-         (is (true? (get-in (app-db) [:re-frame.query/queries list-qid :fetching?]))
-             "active query is now refetching")
-         (is (false? (get-in (app-db) [:re-frame.query/queries list-qid :stale?]))
-             "stale? reset to false by the refetch")
-         ;; The inactive query is just marked stale — no refetch
-         (is (true? (get-in (app-db) [:re-frame.query/queries detail-qid :stale?]))
-             "inactive query is marked stale")
-         (is (false? (get-in (app-db) [:re-frame.query/queries detail-qid :fetching?]))
-             "inactive query is NOT refetching")
-         ;; Only the active query triggered a refetch effect
-         (is (= 1 (count @calls))
-             "only one refetch effect fired (for the active query)")
-         (is (= "/api/books" (:url (first @calls)))
-             "the refetch effect is for the active query"))))))
+      (let [calls (atom [])]
+        (rf/reg-fx :test-http (fn [v] (swap! calls conj v)))
+        (rfq/set-default-effect-fn!
+          (fn [request on-success on-failure]
+            {:test-http (assoc request
+                               :on-success on-success
+                               :on-failure on-failure)}))
+        ;; Register two queries sharing the same tag
+        (rfq/reg-query :books/list
+                       {:query-fn (fn [_] {:method :get :url "/api/books"})
+                        :tags     (fn [_] [[:books :all]])})
+        (rfq/reg-query :books/detail
+                       {:query-fn (fn [{:keys [id]}] {:method :get :url (str "/api/books/" id)})
+                        :tags     (fn [{:keys [id]}] [[:books :all] [:books :id id]])})
+        ;; Populate both with data
+        (rf/dispatch [:re-frame.query/query-success :books/list {} [{:id 1}]])
+        (rf/dispatch [:re-frame.query/query-success :books/detail {:id 1} {:id 1 :title "Dune"}])
+        ;; Mark only list as active, detail stays inactive
+        (rf/dispatch [:re-frame.query/mark-active :books/list {}])
+        ;; Reset call log after setup
+        (reset! calls [])
+        ;; Invalidate — run-test-sync resolves the full chain:
+        ;; invalidate-tags → (marks stale) → refetch-query (for active only)
+        (rf/dispatch [:re-frame.query/invalidate-tags [[:books :all]]])
+        (let [list-qid   (util/query-id :books/list {})
+              detail-qid (util/query-id :books/detail {:id 1})]
+          ;; The active query was refetched automatically (stale? reset to false)
+          (is (true? (get-in (app-db) [:re-frame.query/queries list-qid :fetching?]))
+              "active query is now refetching")
+          (is (false? (get-in (app-db) [:re-frame.query/queries list-qid :stale?]))
+              "stale? reset to false by the refetch")
+          ;; The inactive query is just marked stale — no refetch
+          (is (true? (get-in (app-db) [:re-frame.query/queries detail-qid :stale?]))
+              "inactive query is marked stale")
+          (is (false? (get-in (app-db) [:re-frame.query/queries detail-qid :fetching?]))
+              "inactive query is NOT refetching")
+          ;; Only the active query triggered a refetch effect
+          (is (= 1 (count @calls))
+              "only one refetch effect fired (for the active query)")
+          (is (= "/api/books" (:url (first @calls)))
+              "the refetch effect is for the active query"))))))
 
 (deftest invalidation-does-not-refetch-inactive-queries
   (testing "Inactive queries get marked stale but no refetch dispatch happens"
     (let [call-count (atom 0)]
       (rf/reg-fx :test-http (fn [_] (swap! call-count inc)))
       (rfq/set-default-effect-fn!
-       (fn [request on-success on-failure]
-         {:test-http (assoc request
-                            :on-success on-success
-                            :on-failure on-failure)}))
+        (fn [request on-success on-failure]
+          {:test-http (assoc request
+                             :on-success on-success
+                             :on-failure on-failure)}))
       (rfq/reg-query :books/list
                      {:query-fn (fn [_] {:method :get :url "/api/books"})
                       :tags     (fn [_] [[:books :all]])})
@@ -693,45 +693,45 @@
 (deftest full-mutation-invalidation-cycle
   (testing "mutation-success → invalidate-tags → refetch active query → new data"
     (rf-test/run-test-sync
-     (let [calls (atom [])]
-       (rf/reg-fx :test-http (fn [v] (swap! calls conj v)))
-       (rfq/set-default-effect-fn!
-        (fn [request on-success on-failure]
-          {:test-http (assoc request
-                             :on-success on-success
-                             :on-failure on-failure)}))
-       (rfq/reg-query :books/list
-                      {:query-fn (fn [_] {:method :get :url "/api/books"})
-                       :tags     (fn [_] [[:books :all]])})
-       (rfq/reg-mutation :books/create
-                         {:mutation-fn (fn [{:keys [title]}]
-                                         {:method :post :url "/api/books" :body {:title title}})
-                          :invalidates (fn [_] [[:books :all]])})
-       ;; Populate list and mark active
-       (rf/dispatch [:re-frame.query/query-success :books/list {} [{:id 1}]])
-       (rf/dispatch [:re-frame.query/mark-active :books/list {}])
-       (reset! calls [])
-       ;; Mutation succeeds — run-test-sync resolves the full chain:
-       ;; mutation-success → invalidate-tags → refetch-query
-       (rf/dispatch [:re-frame.query/mutation-success :books/create {:title "Dune"} {:id 2}])
-       ;; Verify mutation state
-       (let [mid (util/query-id :books/create {:title "Dune"})]
-         (is (= :success (get-in (app-db) [:re-frame.query/mutations mid :status]))
-             "mutation is :success"))
-       ;; The full chain resolved: query should be refetching
-       (let [qid (util/query-id :books/list {})]
-         (is (true? (get-in (app-db) [:re-frame.query/queries qid :fetching?]))
-             "active query is refetching after mutation-triggered invalidation")
-         (is (= :success (get-in (app-db) [:re-frame.query/queries qid :status]))
-             "status stays :success during background refetch (stale data visible)")
-         (is (= 1 (count @calls))
-             "exactly one refetch effect fired")
-         (is (= "/api/books" (:url (first @calls))))
-         ;; Simulate the refetch completing with updated data
-         (rf/dispatch [:re-frame.query/query-success :books/list {} [{:id 1} {:id 2}]])
-         (is (= [{:id 1} {:id 2}]
-                (get-in (app-db) [:re-frame.query/queries qid :data]))
-             "cache now has the updated data"))))))
+      (let [calls (atom [])]
+        (rf/reg-fx :test-http (fn [v] (swap! calls conj v)))
+        (rfq/set-default-effect-fn!
+          (fn [request on-success on-failure]
+            {:test-http (assoc request
+                               :on-success on-success
+                               :on-failure on-failure)}))
+        (rfq/reg-query :books/list
+                       {:query-fn (fn [_] {:method :get :url "/api/books"})
+                        :tags     (fn [_] [[:books :all]])})
+        (rfq/reg-mutation :books/create
+                          {:mutation-fn (fn [{:keys [title]}]
+                                          {:method :post :url "/api/books" :body {:title title}})
+                           :invalidates (fn [_] [[:books :all]])})
+        ;; Populate list and mark active
+        (rf/dispatch [:re-frame.query/query-success :books/list {} [{:id 1}]])
+        (rf/dispatch [:re-frame.query/mark-active :books/list {}])
+        (reset! calls [])
+        ;; Mutation succeeds — run-test-sync resolves the full chain:
+        ;; mutation-success → invalidate-tags → refetch-query
+        (rf/dispatch [:re-frame.query/mutation-success :books/create {:title "Dune"} {:id 2}])
+        ;; Verify mutation state
+        (let [mid (util/query-id :books/create {:title "Dune"})]
+          (is (= :success (get-in (app-db) [:re-frame.query/mutations mid :status]))
+              "mutation is :success"))
+        ;; The full chain resolved: query should be refetching
+        (let [qid (util/query-id :books/list {})]
+          (is (true? (get-in (app-db) [:re-frame.query/queries qid :fetching?]))
+              "active query is refetching after mutation-triggered invalidation")
+          (is (= :success (get-in (app-db) [:re-frame.query/queries qid :status]))
+              "status stays :success during background refetch (stale data visible)")
+          (is (= 1 (count @calls))
+              "exactly one refetch effect fired")
+          (is (= "/api/books" (:url (first @calls))))
+          ;; Simulate the refetch completing with updated data
+          (rf/dispatch [:re-frame.query/query-success :books/list {} [{:id 1} {:id 2}]])
+          (is (= [{:id 1} {:id 2}]
+                 (get-in (app-db) [:re-frame.query/queries qid :data]))
+              "cache now has the updated data"))))))
 
 ;; ---------------------------------------------------------------------------
 ;; Full mutation lifecycle tests
@@ -747,10 +747,10 @@
                      (reset! captured-status
                              (get-in (app-db) [:re-frame.query/mutations mid :status])))))
       (rfq/set-default-effect-fn!
-       (fn [request on-success on-failure]
-         {:test-http (assoc request
-                            :on-success on-success
-                            :on-failure on-failure)}))
+        (fn [request on-success on-failure]
+          {:test-http (assoc request
+                             :on-success on-success
+                             :on-failure on-failure)}))
       (rfq/reg-mutation :books/create
                         {:mutation-fn (fn [{:keys [title]}]
                                         {:method :post :url "/api/books" :body {:title title}})})
@@ -807,10 +807,10 @@
     (let [captured (atom nil)]
       (rf/reg-fx :test-http (fn [v] (reset! captured v)))
       (rfq/set-default-effect-fn!
-       (fn [request on-success on-failure]
-         {:test-http (assoc request
-                            :on-success on-success
-                            :on-failure on-failure)}))
+        (fn [request on-success on-failure]
+          {:test-http (assoc request
+                             :on-success on-success
+                             :on-failure on-failure)}))
       (rfq/reg-mutation :books/create
                         {:mutation-fn (fn [{:keys [title]}]
                                         {:method :post
@@ -858,10 +858,10 @@
     (let [call-count (atom 0)]
       (rf/reg-fx :test-http (fn [_] (swap! call-count inc)))
       (rfq/set-default-effect-fn!
-       (fn [request on-success on-failure]
-         {:test-http (assoc request
-                            :on-success on-success
-                            :on-failure on-failure)}))
+        (fn [request on-success on-failure]
+          {:test-http (assoc request
+                             :on-success on-success
+                             :on-failure on-failure)}))
       (rfq/reg-mutation :books/create
                         {:mutation-fn (fn [{:keys [title]}]
                                         {:method :post :url "/api/books" :body {:title title}})})
@@ -889,10 +889,10 @@
     (let [call-count (atom 0)]
       (rf/reg-fx :test-http (fn [_] (swap! call-count inc)))
       (rfq/set-default-effect-fn!
-       (fn [request on-success on-failure]
-         {:test-http (assoc request
-                            :on-success on-success
-                            :on-failure on-failure)}))
+        (fn [request on-success on-failure]
+          {:test-http (assoc request
+                             :on-success on-success
+                             :on-failure on-failure)}))
       (rfq/reg-query :books/list
                      {:query-fn      (fn [_] {:method :get :url "/api/books"})
                       :stale-time-ms 60000})
@@ -914,10 +914,10 @@
     (let [call-count (atom 0)]
       (rf/reg-fx :test-http (fn [_] (swap! call-count inc)))
       (rfq/set-default-effect-fn!
-       (fn [request on-success on-failure]
-         {:test-http (assoc request
-                            :on-success on-success
-                            :on-failure on-failure)}))
+        (fn [request on-success on-failure]
+          {:test-http (assoc request
+                             :on-success on-success
+                             :on-failure on-failure)}))
       (rfq/reg-query :books/list
                      {:query-fn      (fn [_] {:method :get :url "/api/books"})
                       :stale-time-ms 60000})
@@ -939,10 +939,10 @@
     (let [call-count (atom 0)]
       (rf/reg-fx :test-http (fn [_] (swap! call-count inc)))
       (rfq/set-default-effect-fn!
-       (fn [request on-success on-failure]
-         {:test-http (assoc request
-                            :on-success on-success
-                            :on-failure on-failure)}))
+        (fn [request on-success on-failure]
+          {:test-http (assoc request
+                             :on-success on-success
+                             :on-failure on-failure)}))
       (rfq/reg-query :books/list
                      {:query-fn      (fn [_] {:method :get :url "/api/books"})
                       :stale-time-ms 30000})
@@ -976,10 +976,10 @@
     (let [call-count (atom 0)]
       (rf/reg-fx :test-http (fn [_] (swap! call-count inc)))
       (rfq/set-default-effect-fn!
-       (fn [request on-success on-failure]
-         {:test-http (assoc request
-                            :on-success on-success
-                            :on-failure on-failure)}))
+        (fn [request on-success on-failure]
+          {:test-http (assoc request
+                             :on-success on-success
+                             :on-failure on-failure)}))
       (rfq/reg-query :books/list
                      {:query-fn (fn [_] {:method :get
                                          :url "/api/books"})
@@ -1002,10 +1002,10 @@
     (let [call-count (atom 0)]
       (rf/reg-fx :test-http (fn [_] (swap! call-count inc)))
       (rfq/set-default-effect-fn!
-       (fn [request on-success on-failure]
-         {:test-http (assoc request
-                            :on-success on-success
-                            :on-failure on-failure)}))
+        (fn [request on-success on-failure]
+          {:test-http (assoc request
+                             :on-success on-success
+                             :on-failure on-failure)}))
       (rfq/reg-query :books/list
                      {:query-fn (fn [_] {:method :get
                                          :url "/api/books"})})
@@ -1080,10 +1080,10 @@
     (let [call-count (atom 0)]
       (rf/reg-fx :test-http (fn [_] (swap! call-count inc)))
       (rfq/set-default-effect-fn!
-       (fn [request on-success on-failure]
-         {:test-http (assoc request
-                            :on-success on-success
-                            :on-failure on-failure)}))
+        (fn [request on-success on-failure]
+          {:test-http (assoc request
+                             :on-success on-success
+                             :on-failure on-failure)}))
       (rfq/reg-query :books/list
                      {:query-fn      (fn [_] {:method :get :url "/api/books"})
                       :stale-time-ms 1000})
@@ -1146,31 +1146,31 @@
 (deftest ensure-query-throws-for-unregistered-key
   (testing "Dispatching ensure-query for an unregistered key throws an error"
     (is (thrown-with-msg?
-         #?(:clj clojure.lang.ExceptionInfo :cljs ExceptionInfo)
-         #"No query registered for key"
-         (process-event [:re-frame.query/ensure-query :nonexistent/query {}])))))
+          #?(:clj clojure.lang.ExceptionInfo :cljs ExceptionInfo)
+          #"No query registered for key"
+          (process-event [:re-frame.query/ensure-query :nonexistent/query {}])))))
 
 (deftest refetch-query-throws-for-unregistered-key
   (testing "Dispatching refetch-query for an unregistered key throws an error"
     (is (thrown-with-msg?
-         #?(:clj clojure.lang.ExceptionInfo :cljs ExceptionInfo)
-         #"No query registered for key"
-         (process-event [:re-frame.query/refetch-query :nonexistent/query {}])))))
+          #?(:clj clojure.lang.ExceptionInfo :cljs ExceptionInfo)
+          #"No query registered for key"
+          (process-event [:re-frame.query/refetch-query :nonexistent/query {}])))))
 
 (deftest execute-mutation-throws-for-unregistered-key
   (testing "Dispatching execute-mutation for an unregistered key throws an error"
     (is (thrown-with-msg?
-         #?(:clj clojure.lang.ExceptionInfo :cljs ExceptionInfo)
-         #"No mutation registered for key"
-         (process-event [:re-frame.query/execute-mutation :nonexistent/mutation {}])))))
+          #?(:clj clojure.lang.ExceptionInfo :cljs ExceptionInfo)
+          #"No mutation registered for key"
+          (process-event [:re-frame.query/execute-mutation :nonexistent/mutation {}])))))
 
 (deftest subscribe-query-throws-for-unregistered-key
   (testing "Subscribing to an unregistered query key throws because ensure-query is dispatched"
     (rf-test/run-test-sync
-     (is (thrown-with-msg?
-          #?(:clj clojure.lang.ExceptionInfo :cljs ExceptionInfo)
-          #"No query registered for key"
-          (rf/subscribe [:re-frame.query/query :nonexistent/query {}]))))))
+      (is (thrown-with-msg?
+            #?(:clj clojure.lang.ExceptionInfo :cljs ExceptionInfo)
+            #"No query registered for key"
+            (rf/subscribe [:re-frame.query/query :nonexistent/query {}]))))))
 
 ;; ---------------------------------------------------------------------------
 ;; Query state shape completeness tests
@@ -1425,21 +1425,21 @@
 (deftest per-query-timer-fires-and-evicts-async
   (testing "After cache-time-ms elapses, the real timer fires remove-query and evicts the query"
     (rf-test/run-test-async
-     (rfq/reg-query :books/list
-                    {:query-fn      (fn [_] {})
-                     :cache-time-ms 100})
-     (rf/dispatch-sync [:re-frame.query/query-success :books/list {} [{:id 1}]])
-     (let [qid (util/query-id :books/list {})]
-       (is (some? (get-in (app-db) [:re-frame.query/queries qid]))
-           "query exists before mark-inactive")
-       ;; Mark inactive — starts a real 100ms timer
-       (rf/dispatch-sync [:re-frame.query/mark-inactive :books/list {}])
-       (is (contains? (gc/active-timers) qid)
-           "GC timer is scheduled")
-       ;; Wait for the timer to fire remove-query
-       (rf-test/wait-for [:re-frame.query/remove-query]
-                         (is (nil? (get-in (app-db) [:re-frame.query/queries qid]))
-                             "query evicted after timer fires"))))))
+      (rfq/reg-query :books/list
+                     {:query-fn      (fn [_] {})
+                      :cache-time-ms 100})
+      (rf/dispatch-sync [:re-frame.query/query-success :books/list {} [{:id 1}]])
+      (let [qid (util/query-id :books/list {})]
+        (is (some? (get-in (app-db) [:re-frame.query/queries qid]))
+            "query exists before mark-inactive")
+        ;; Mark inactive — starts a real 100ms timer
+        (rf/dispatch-sync [:re-frame.query/mark-inactive :books/list {}])
+        (is (contains? (gc/active-timers) qid)
+            "GC timer is scheduled")
+        ;; Wait for the timer to fire remove-query
+        (rf-test/wait-for [:re-frame.query/remove-query]
+                          (is (nil? (get-in (app-db) [:re-frame.query/queries qid]))
+                              "query evicted after timer fires"))))))
 
 ;; ---------------------------------------------------------------------------
 ;; Polling tests
@@ -1551,26 +1551,26 @@
 (deftest polling-dispatches-refetch-async
   (testing "Polling timer dispatches refetch-query on each tick"
     (rf-test/run-test-async
-     (let [call-count (atom 0)]
-       (rf/reg-fx :test-http (fn [_] (swap! call-count inc)))
-       (rfq/set-default-effect-fn!
-        (fn [request on-success on-failure]
-          {:test-http (assoc request
-                             :on-success on-success
-                             :on-failure on-failure)}))
-       (rfq/reg-query :books/list
-                      {:query-fn (fn [_] {:method :get :url "/api/books"})})
-       ;; Populate with data first so refetches produce effects
-       (rf/dispatch-sync [:re-frame.query/query-success :books/list {} [{:id 1}]])
-       ;; Start polling at 100ms via subscriber API
-       (let [qid (util/query-id :books/list {})]
-         (polling/add-subscriber! qid :sub-1 :books/list {} 100)
-         ;; Wait for the first refetch-query to fire
-         (rf-test/wait-for [:re-frame.query/refetch-query]
-                           (is (>= @call-count 1)
-                               "at least one refetch effect fired from polling")
-                           ;; Clean up
-                           (polling/remove-subscriber! qid :sub-1)))))))
+      (let [call-count (atom 0)]
+        (rf/reg-fx :test-http (fn [_] (swap! call-count inc)))
+        (rfq/set-default-effect-fn!
+          (fn [request on-success on-failure]
+            {:test-http (assoc request
+                               :on-success on-success
+                               :on-failure on-failure)}))
+        (rfq/reg-query :books/list
+                       {:query-fn (fn [_] {:method :get :url "/api/books"})})
+        ;; Populate with data first so refetches produce effects
+        (rf/dispatch-sync [:re-frame.query/query-success :books/list {} [{:id 1}]])
+        ;; Start polling at 100ms via subscriber API
+        (let [qid (util/query-id :books/list {})]
+          (polling/add-subscriber! qid :sub-1 :books/list {} 100)
+          ;; Wait for the first refetch-query to fire
+          (rf-test/wait-for [:re-frame.query/refetch-query]
+                            (is (>= @call-count 1)
+                                "at least one refetch effect fired from polling")
+                            ;; Clean up
+                            (polling/remove-subscriber! qid :sub-1)))))))
 
 ;; ---------------------------------------------------------------------------
 ;; Polling e2e tests (through the subscription)
@@ -1579,77 +1579,198 @@
 (deftest subscription-with-polling-interval-starts-polling
   (testing "Subscribing with :polling-interval-ms starts polling automatically"
     (rf-test/run-test-sync
-     (rfq/reg-query :books/list {:query-fn (fn [_] {})})
-     (let [qid (util/query-id :books/list {})
-           sub (rf/subscribe [:re-frame.query/query :books/list {} {:polling-interval-ms 5000}])]
-       ;; Deref to activate the subscription
-       @sub
-       (is (contains? (polling/active-polls) qid)
-           "polling started via subscription")
-       (is (= 5000 (polling/current-interval qid))
-           "effective interval matches subscription option")))))
+      (rfq/reg-query :books/list {:query-fn (fn [_] {})})
+      (let [qid (util/query-id :books/list {})
+            sub (rf/subscribe [:re-frame.query/query :books/list {} {:polling-interval-ms 5000}])]
+        ;; Deref to activate the subscription
+        @sub
+        (is (contains? (polling/active-polls) qid)
+            "polling started via subscription")
+        (is (= 5000 (polling/current-interval qid))
+            "effective interval matches subscription option")))))
 
 (deftest subscription-query-level-polling-starts-automatically
   (testing "Query registered with :polling-interval-ms starts polling on subscribe"
     (rf-test/run-test-sync
-     (rfq/reg-query :books/list
-                    {:query-fn            (fn [_] {})
-                     :polling-interval-ms 3000})
-     (let [qid (util/query-id :books/list {})
-           sub (rf/subscribe [:re-frame.query/query :books/list {}])]
-       @sub
-       (is (contains? (polling/active-polls) qid)
-           "polling started from query-level config")
-       (is (= 3000 (polling/current-interval qid)))))))
+      (rfq/reg-query :books/list
+                     {:query-fn            (fn [_] {})
+                      :polling-interval-ms 3000})
+      (let [qid (util/query-id :books/list {})
+            sub (rf/subscribe [:re-frame.query/query :books/list {}])]
+        @sub
+        (is (contains? (polling/active-polls) qid)
+            "polling started from query-level config")
+        (is (= 3000 (polling/current-interval qid)))))))
 
 (deftest subscription-override-beats-query-level-polling
   (testing "Per-subscription interval overrides query-level default"
     (rf-test/run-test-sync
-     (rfq/reg-query :books/list
-                    {:query-fn            (fn [_] {})
-                     :polling-interval-ms 5000})
-     (let [qid (util/query-id :books/list {})
-           sub (rf/subscribe [:re-frame.query/query :books/list {} {:polling-interval-ms 1000}])]
-       @sub
-       (is (= 1000 (polling/current-interval qid))
-           "subscription-level override is used instead of query-level")))))
+      (rfq/reg-query :books/list
+                     {:query-fn            (fn [_] {})
+                      :polling-interval-ms 5000})
+      (let [qid (util/query-id :books/list {})
+            sub (rf/subscribe [:re-frame.query/query :books/list {} {:polling-interval-ms 1000}])]
+        @sub
+        (is (= 1000 (polling/current-interval qid))
+            "subscription-level override is used instead of query-level")))))
 
 (deftest subscription-without-polling-does-not-poll
   (testing "Subscribing without :polling-interval-ms does not start polling"
     (rf-test/run-test-sync
-     (rfq/reg-query :books/list {:query-fn (fn [_] {})})
-     (let [qid (util/query-id :books/list {})
-           sub (rf/subscribe [:re-frame.query/query :books/list {}])]
-       @sub
-       (is (not (contains? (polling/active-polls) qid))
-           "no polling without interval")))))
+      (rfq/reg-query :books/list {:query-fn (fn [_] {})})
+      (let [qid (util/query-id :books/list {})
+            sub (rf/subscribe [:re-frame.query/query :books/list {}])]
+        @sub
+        (is (not (contains? (polling/active-polls) qid))
+            "no polling without interval")))))
 
 #?(:cljs
    (deftest subscription-dispose-stops-polling
      (testing "Disposing the subscription stops polling"
        (rf-test/run-test-sync
-        (rfq/reg-query :books/list {:query-fn (fn [_] {})})
-        (let [qid (util/query-id :books/list {})
-              sub (rf/subscribe [:re-frame.query/query :books/list {} {:polling-interval-ms 5000}])]
-          @sub
-          (is (contains? (polling/active-polls) qid)
-              "polling is active before dispose")
-          ;; Dispose the reaction — triggers on-dispose callback
-          (ratom/dispose! sub)
-          (is (not (contains? (polling/active-polls) qid))
-              "polling stopped after subscription disposed"))))))
+         (rfq/reg-query :books/list {:query-fn (fn [_] {})})
+         (let [qid (util/query-id :books/list {})
+               sub (rf/subscribe [:re-frame.query/query :books/list {} {:polling-interval-ms 5000}])]
+           @sub
+           (is (contains? (polling/active-polls) qid)
+               "polling is active before dispose")
+           ;; Dispose the reaction — triggers on-dispose callback
+           (ratom/dispose! sub)
+           (is (not (contains? (polling/active-polls) qid))
+               "polling stopped after subscription disposed"))))))
 
 #?(:cljs
    (deftest subscription-dispose-with-query-level-polling-stops
      (testing "Disposing a subscription with query-level polling stops it"
        (rf-test/run-test-sync
-        (rfq/reg-query :books/list
-                       {:query-fn            (fn [_] {})
-                        :polling-interval-ms 3000})
-        (let [qid (util/query-id :books/list {})
-              sub (rf/subscribe [:re-frame.query/query :books/list {}])]
+         (rfq/reg-query :books/list
+                        {:query-fn            (fn [_] {})
+                         :polling-interval-ms 3000})
+         (let [qid (util/query-id :books/list {})
+               sub (rf/subscribe [:re-frame.query/query :books/list {}])]
+           @sub
+           (is (contains? (polling/active-polls) qid))
+           (ratom/dispose! sub)
+           (is (not (contains? (polling/active-polls) qid))
+               "polling stopped after dispose"))))))
+          ;; ---------------------------------------------------------------------------
+          ;; Conditional fetching (skip) tests
+          ;; ---------------------------------------------------------------------------
+(deftest skip-query-returns-idle-state
+  (testing "Subscribing with :skip? true returns idle state and does not fetch"
+    (rf-test/run-test-sync
+      (let [call-count (atom 0)]
+        (rf/reg-fx :test-http (fn [_] (swap! call-count inc)))
+        (rfq/set-default-effect-fn!
+          (fn [request on-success on-failure]
+            {:test-http (assoc request
+                          :on-success on-success
+                          :on-failure on-failure)}))
+        (rfq/reg-query :books/detail
+          {:query-fn (fn [{:keys [id]}]
+                       {:method :get :url (str "/api/books/" id)})})
+        (let [sub (rf/subscribe [:re-frame.query/query :books/detail {:id 1} {:skip? true}])]
+          (is (= {:status    :idle
+                  :data      nil
+                  :error     nil
+                  :fetching? false
+                  :stale?    true}
+                 @sub)
+              "returns idle state when skipped")
+          (is (zero? @call-count)
+              "no effect fired when skipped"))))))
+(deftest skip-query-does-not-mark-active
+  (testing "Subscribing with :skip? true does not mark the query active"
+    (rf-test/run-test-sync
+      (rfq/reg-query :books/detail {:query-fn (fn [_] {})})
+      (let [qid (util/query-id :books/detail {:id 1})
+            sub (rf/subscribe [:re-frame.query/query :books/detail {:id 1} {:skip? true}])]
+        @sub
+        (is (nil? (get-in (app-db) [:re-frame.query/queries qid :active?]))
+            "query is not marked active when skipped")))))
+(deftest skip-query-does-not-start-polling
+  (testing "Subscribing with :skip? true and :polling-interval-ms does not start polling"
+    (rf-test/run-test-sync
+      (rfq/reg-query :books/list {:query-fn (fn [_] {})})
+      (let [qid (util/query-id :books/list {})
+            sub (rf/subscribe [:re-frame.query/query :books/list {}
+                               {:skip? true :polling-interval-ms 5000}])]
+        @sub
+        (is (not (contains? (polling/active-polls) qid))
+            "no polling when skipped")))))
+
+(deftest non-skipped-query-fetches-normally
+  (testing "Subscribing with :skip? false (or omitted) fetches normally"
+    (rf-test/run-test-sync
+      (let [call-count (atom 0)]
+        (rf/reg-fx :test-http (fn [_] (swap! call-count inc)))
+        (rfq/set-default-effect-fn!
+          (fn [request on-success on-failure]
+            {:test-http (assoc request
+                          :on-success on-success
+                          :on-failure on-failure)}))
+        (rfq/reg-query :books/detail
+          {:query-fn (fn [{:keys [id]}]
+                       {:method :get :url (str "/api/books/" id)})})
+        ;; Explicit :skip? false
+        (let [sub (rf/subscribe [:re-frame.query/query :books/detail {:id 1} {:skip? false}])]
           @sub
-          (is (contains? (polling/active-polls) qid))
-          (ratom/dispose! sub)
-          (is (not (contains? (polling/active-polls) qid))
-              "polling stopped after dispose"))))))
+          (is (= 1 @call-count)
+              "effect fires when :skip? is false"))))))
+
+(deftest skip-toggle-triggers-fetch
+  (testing "Changing from :skip? true to :skip? false triggers the fetch"
+    (rf-test/run-test-sync
+      (let [call-count (atom 0)]
+        (rf/reg-fx :test-http (fn [_] (swap! call-count inc)))
+        (rfq/set-default-effect-fn!
+          (fn [request on-success on-failure]
+            {:test-http (assoc request
+                          :on-success on-success
+                          :on-failure on-failure)}))
+        (rfq/reg-query :books/detail
+          {:query-fn (fn [{:keys [id]}]
+                       {:method :get :url (str "/api/books/" id)})})
+        ;; First subscribe with skip
+        (let [sub-skipped (rf/subscribe [:re-frame.query/query :books/detail {:id 1} {:skip? true}])]
+          @sub-skipped
+          (is (zero? @call-count) "no fetch when skipped"))
+        ;; Now subscribe without skip — same query key, different opts
+        (let [sub-active (rf/subscribe [:re-frame.query/query :books/detail {:id 1}])]
+          @sub-active
+          (is (= 1 @call-count) "fetch fires when skip is removed"))))))
+
+(deftest dependent-query-pattern
+  (testing "Query B skips until query A has data, then fetches with A's result"
+    (rf-test/run-test-sync
+      (let [calls (atom [])]
+        (rf/reg-fx :test-http (fn [v] (swap! calls conj v)))
+        (rfq/set-default-effect-fn!
+          (fn [request on-success on-failure]
+            {:test-http (assoc request
+                          :on-success on-success
+                          :on-failure on-failure)}))
+        (rfq/reg-query :user/current
+          {:query-fn (fn [_] {:method :get :url "/api/me"})})
+        (rfq/reg-query :user/todos
+          {:query-fn (fn [{:keys [user-id]}]
+                       {:method :get :url (str "/api/users/" user-id "/todos")})})
+        ;; Query A: fetch current user
+        (let [user-sub (rf/subscribe [:re-frame.query/query :user/current {}])]
+          @user-sub
+          (is (= 1 (count @calls)) "user query fires"))
+        ;; Query B: skip until we have user data
+        (let [user-id  nil ;; no data yet
+              todos-sub (rf/subscribe [:re-frame.query/query :user/todos {:user-id user-id}
+                                       {:skip? (nil? user-id)}])]
+          @todos-sub
+          (is (= 1 (count @calls)) "todos query skipped — still only 1 call"))
+        ;; Simulate user query success
+        (rf/dispatch [:re-frame.query/query-success :user/current {} {:id 42}])
+        ;; Now query B subscribes without skip
+        (let [user-id  42
+              todos-sub (rf/subscribe [:re-frame.query/query :user/todos {:user-id user-id}])]
+          @todos-sub
+          (is (= 2 (count @calls)) "todos query fires with user-id")
+          (is (= "/api/users/42/todos" (:url (second @calls)))
+              "todos query uses the correct user-id from query A"))))))

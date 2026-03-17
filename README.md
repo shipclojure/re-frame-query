@@ -9,6 +9,7 @@ Declarative data fetching and caching for [re-frame](https://github.com/day8/re-
 - **Tag-based cache invalidation** with automatic refetching of active queries
 - **Per-query garbage collection** — inactive queries are cleaned up after `cache-time-ms` via per-query timers (same model as TanStack Query)
 - **Polling** — automatic refetch intervals with per-subscriber or per-query config; multiple subscribers use the lowest non-zero interval
+- **Conditional fetching** — skip queries with `:skip? true` until a condition is met (e.g., dependent queries)
 - **Smart status tracking** — distinguishes initial loading from background refetching
 - **Transport-agnostic** — works with any re-frame effect (HTTP, GraphQL, WebSocket, etc.)
 - **All state in re-frame DB** — predictable, inspectable, time-travel debuggable
@@ -196,6 +197,30 @@ Override or set the interval for a specific subscriber via the opts map:
 
 Polling stops automatically when all subscribers with a polling interval unmount. No manual cleanup needed.
 
+## Conditional Fetching (Skip)
+
+Use `:skip? true` in the subscription opts to prevent a query from firing. This is useful for **dependent queries** — where query B needs data from query A before it can fetch.
+
+```clojure
+(defn user-todos []
+  (let [{:keys [data]}   @(rf/subscribe [::rfq/query :user/current {}])
+        user-id          (:id data)
+        {:keys [status]} @(rf/subscribe [::rfq/query :user/todos {:user-id user-id}
+                                         {:skip? (nil? user-id)}])]
+    (case status
+      :idle    [:div "Waiting for user..."]
+      :loading [:div "Loading todos..."]
+      :success [:ul ...])))
+```
+
+When `:skip?` is `true`:
+- No fetch is triggered
+- The query is not marked active
+- Polling does not start (even if `:polling-interval-ms` is set)
+- The subscription returns `{:status :idle :data nil :error nil :fetching? false :stale? true}`
+
+When the component re-renders with `:skip? false` (or without the `:skip?` key), the query fires automatically.
+
 ## API Reference
 
 ### Setup
@@ -264,7 +289,7 @@ With `(:require [re-frame.query :as rfq])`, use `::rfq/` shorthand:
 | Subscription | Triggers fetch? | Returns |
 |---|---|---|
 | `[::rfq/query k params]` | ✅ Yes | Full query state map |
-| `[::rfq/query k params opts]` | ✅ Yes | Full query state map (with per-sub options, e.g. `{:polling-interval-ms 5000}`) |
+| `[::rfq/query k params opts]` | ✅ Yes | Full query state map (opts: `{:polling-interval-ms 5000, :skip? false}`) |
 | `[::rfq/query-data k params]` | ❌ No | Just the `:data` |
 | `[::rfq/query-status k params]` | ❌ No | Just the `:status` (`:idle`, `:loading`, `:success`, `:error`) |
 | `[::rfq/query-fetching? k params]` | ❌ No | Boolean — is a request in flight? |
