@@ -67,10 +67,11 @@
                     :stale-time-ms 1000})
     ;; Fetch successfully first
     (process-event [:re-frame.query/query-success :books/list {} [{:id 1}]])
-    ;; Make it stale by pushing fetched-at into the past
+    ;; Make it stale: fetched-at=0, now-ms returns 1001 (past stale-time of 1000)
     (let [qid (util/query-id :books/list {})]
       (swap! rf-db/app-db assoc-in [:re-frame.query/queries qid :fetched-at] 0)
-      (process-event [:re-frame.query/ensure-query :books/list {}])
+      (with-redefs [util/now-ms (constantly 1001)]
+        (process-event [:re-frame.query/ensure-query :books/list {}]))
       (let [query (get-in (app-db) [:re-frame.query/queries qid])]
         (is (= :success (:status query))
             "status stays :success so components keep showing stale data")
@@ -942,25 +943,28 @@
       (rfq/reg-query :books/list
                      {:query-fn      (fn [_] {:method :get :url "/api/books"})
                       :stale-time-ms 30000})
-      ;; First fetch succeeds
-      (process-event [:re-frame.query/query-success :books/list {} [{:id 1}]])
+      ;; First fetch succeeds at time 1000
+      (with-redefs [util/now-ms (constantly 1000)]
+        (process-event [:re-frame.query/query-success :books/list {} [{:id 1}]]))
       (let [qid        (util/query-id :books/list {})
             fetched-at (get-in (app-db) [:re-frame.query/queries qid :fetched-at])]
-        (is (number? fetched-at) "fetched-at is recorded")
-        ;; Push fetched-at into the past so it becomes stale
-        (swap! rf-db/app-db assoc-in [:re-frame.query/queries qid :fetched-at] 0)
+        (is (= 1000 fetched-at) "fetched-at is recorded at controlled time")
         (reset! call-count 0)
-        ;; ensure-query should detect staleness and refetch
-        (process-event [:re-frame.query/ensure-query :books/list {}])
+        ;; ensure-query at time 31001 (31001 - 1000 = 30001 > stale-time 30000)
+        (with-redefs [util/now-ms (constantly 31001)]
+          (process-event [:re-frame.query/ensure-query :books/list {}]))
         (is (= 1 @call-count) "stale data triggers a refetch")
-        ;; Simulate success — fetched-at should update
-        (process-event [:re-frame.query/query-success :books/list {} [{:id 1} {:id 2}]])
+        ;; Simulate success at time 31001 — fetched-at should update
+        (with-redefs [util/now-ms (constantly 31001)]
+          (process-event [:re-frame.query/query-success :books/list {} [{:id 1} {:id 2}]]))
         (let [new-fetched-at (get-in (app-db) [:re-frame.query/queries qid :fetched-at])]
-          (is (> new-fetched-at 0) "fetched-at was updated to a recent timestamp")
-          (is (>= new-fetched-at fetched-at) "new fetched-at is at least as recent as the original")
-          ;; Now the data is fresh again — ensure-query should be a no-op
+          (is (= 31001 new-fetched-at) "fetched-at is set to the controlled timestamp")
+          (is (> new-fetched-at fetched-at) "new fetched-at is more recent than the original")
+          ;; Now the data is fresh — ensure-query at 31002 should be a no-op
+          ;; (31002 - 31001 = 1ms, well within stale-time of 30000ms)
           (reset! call-count 0)
-          (process-event [:re-frame.query/ensure-query :books/list {}])
+          (with-redefs [util/now-ms (constantly 31002)]
+            (process-event [:re-frame.query/ensure-query :books/list {}]))
           (is (zero? @call-count)
               "data is fresh after refetch — no effect produced"))))))
 
@@ -983,8 +987,9 @@
         (swap! rf-db/app-db assoc-in
                [:re-frame.query/queries qid :fetched-at] 1000)
         (reset! call-count 0)
-        ;; ensure-query with stale-time-ms=1000, fetched-at=1000, now >> 2000
-        (process-event [:re-frame.query/ensure-query :books/list {}])
+        ;; ensure-query at time 2001: (2001 - 1000) = 1001 > stale-time-ms 1000
+        (with-redefs [util/now-ms (constantly 2001)]
+          (process-event [:re-frame.query/ensure-query :books/list {}]))
         (is (= 1 @call-count)
             "effect fires because stale-time has elapsed")
         (is (true? (get-in (app-db) [:re-frame.query/queries qid :fetching?])))))))
@@ -1007,8 +1012,9 @@
         (swap! rf-db/app-db assoc-in
                [:re-frame.query/queries qid :fetched-at] 0)
         (reset! call-count 0)
-        ;; ensure-query — no stale-time-ms, so data is NOT stale by time
-        (process-event [:re-frame.query/ensure-query :books/list {}])
+        ;; ensure-query at time 999999 — no stale-time-ms, so NOT stale by time
+        (with-redefs [util/now-ms (constantly 999999)]
+          (process-event [:re-frame.query/ensure-query :books/list {}]))
         (is (zero? @call-count)
             "no effect — query without stale-time-ms never auto-stales")))))
 
@@ -1082,11 +1088,12 @@
         ;; 1. Initial success
         (process-event [:re-frame.query/query-success :books/list {} [{:id 1}]])
         (is (= :success (get-in (app-db) [:re-frame.query/queries qid :status])))
-        ;; 2. Make stale
+        ;; 2. Make stale: fetched-at=0, now-ms=1001 (past stale-time of 1000)
         (swap! rf-db/app-db assoc-in [:re-frame.query/queries qid :fetched-at] 0)
         (reset! call-count 0)
         ;; 3. ensure-query detects staleness → refetch
-        (process-event [:re-frame.query/ensure-query :books/list {}])
+        (with-redefs [util/now-ms (constantly 1001)]
+          (process-event [:re-frame.query/ensure-query :books/list {}]))
         (is (= 1 @call-count))
         ;; 4. Refetch fails
         (process-event [:re-frame.query/query-failure :books/list {} {:status 500}])
@@ -1136,31 +1143,32 @@
 (deftest ensure-query-throws-for-unregistered-key
   (testing "Dispatching ensure-query for an unregistered key throws an error"
     (is (thrown-with-msg?
-          #?(:clj clojure.lang.ExceptionInfo :cljs ExceptionInfo)
-          #"No query registered for key"
-          (process-event [:re-frame.query/ensure-query :nonexistent/query {}])))))
+         #?(:clj clojure.lang.ExceptionInfo :cljs ExceptionInfo)
+         #"No query registered for key"
+         (process-event [:re-frame.query/ensure-query :nonexistent/query {}])))))
 
 (deftest refetch-query-throws-for-unregistered-key
   (testing "Dispatching refetch-query for an unregistered key throws an error"
     (is (thrown-with-msg?
-          #?(:clj clojure.lang.ExceptionInfo :cljs ExceptionInfo)
-          #"No query registered for key"
-          (process-event [:re-frame.query/refetch-query :nonexistent/query {}])))))
+         #?(:clj clojure.lang.ExceptionInfo :cljs ExceptionInfo)
+         #"No query registered for key"
+         (process-event [:re-frame.query/refetch-query :nonexistent/query {}])))))
 
 (deftest execute-mutation-throws-for-unregistered-key
   (testing "Dispatching execute-mutation for an unregistered key throws an error"
     (is (thrown-with-msg?
-          #?(:clj clojure.lang.ExceptionInfo :cljs ExceptionInfo)
-          #"No mutation registered for key"
-          (process-event [:re-frame.query/execute-mutation :nonexistent/mutation {}])))))
+         #?(:clj clojure.lang.ExceptionInfo :cljs ExceptionInfo)
+         #"No mutation registered for key"
+         (process-event [:re-frame.query/execute-mutation :nonexistent/mutation {}])))))
 
 (deftest subscribe-query-throws-for-unregistered-key
   (testing "Subscribing to an unregistered query key throws because ensure-query is dispatched"
     (rf-test/run-test-sync
-      (is (thrown-with-msg?
-            #?(:clj clojure.lang.ExceptionInfo :cljs ExceptionInfo)
-            #"No query registered for key"
-            (rf/subscribe [:re-frame.query/query :nonexistent/query {}]))))))
+     (is (thrown-with-msg?
+          #?(:clj clojure.lang.ExceptionInfo :cljs ExceptionInfo)
+          #"No query registered for key"
+          (rf/subscribe [:re-frame.query/query :nonexistent/query {}]))))))
+
 ;; ---------------------------------------------------------------------------
 ;; Query state shape completeness tests
 ;; ---------------------------------------------------------------------------
