@@ -69,7 +69,7 @@
           now          (util/now-ms)
           tags-fn      (or (:tags query-config) (constantly []))
           tags         (set (tags-fn params))]
-      (update-in db [:re-frame.query/queries qid] merge
+      (update-in db [:re-frame.query/queries qid] util/merge-with-default
                  {:status        :success
                   :data          data
                   :error         nil
@@ -85,7 +85,7 @@
   :re-frame.query/query-failure
   (fn [db [_ k params error]]
     (let [qid (util/query-id k params)]
-      (update-in db [:re-frame.query/queries qid] merge
+      (update-in db [:re-frame.query/queries qid] util/merge-with-default
                  {:status    :error
                   :error     error
                   :fetching? false}))))
@@ -109,7 +109,7 @@
                           (effect-fn request
                                      [:re-frame.query/mutation-success k params]
                                      [:re-frame.query/mutation-failure k params])
-                          ;; Legacy: mutation-fn returns a full effects map
+                          ;; mutation-fn returns a full effects map
                           request)]
         (merge
           {:db (assoc-in db [:re-frame.query/mutations mid]

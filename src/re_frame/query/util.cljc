@@ -1,6 +1,19 @@
 (ns re-frame.query.util
   "Internal utility functions for re-frame-query.")
 
+(def default-query
+  {:status    :idle
+   :data      nil
+   :error     nil
+   :fetching? false
+   :stale?    true
+   :active?   false
+   :tags      #{}})
+
+(defn merge-with-default
+  [& maps]
+  (apply merge (into [default-query] maps)))
+
 (defn now-ms
   "Returns current time in milliseconds since epoch."
   []
