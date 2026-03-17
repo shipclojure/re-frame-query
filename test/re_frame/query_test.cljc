@@ -348,7 +348,7 @@
         {:query-fn (fn [{:keys [page]}]
                      {:method :get
                       :url    (str "/api/books?page=" page)})})
-      (process-event [:re-frame.query/execute-query-effect :books/list {:page 1}])
+      (process-event [:re-frame.query/refetch-query :books/list {:page 1}])
       (is (= {:method     :get
               :url        "/api/books?page=1"
               :on-success [:re-frame.query/query-success :books/list {:page 1}]
@@ -394,7 +394,7 @@
                       {:custom-http (assoc request
                                       :on-success on-success
                                       :on-failure on-failure)})})
-      (process-event [:re-frame.query/execute-query-effect :books/special {}])
+      (process-event [:re-frame.query/refetch-query :books/special {}])
       (is (= {:method     :get
               :url        "/api/special"
               :on-success [:re-frame.query/query-success :books/special {}]
@@ -412,7 +412,7 @@
                                   :url        "/api/books"
                                   :on-success [:re-frame.query/query-success :books/legacy {:page page}]
                                   :on-failure [:re-frame.query/query-failure :books/legacy {:page page}]}})})
-      (process-event [:re-frame.query/execute-query-effect :books/legacy {:page 1}])
+      (process-event [:re-frame.query/refetch-query :books/legacy {:page 1}])
       (is (= {:method     :get
               :url        "/api/books"
               :on-success [:re-frame.query/query-success :books/legacy {:page 1}]
