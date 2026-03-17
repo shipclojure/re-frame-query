@@ -10,25 +10,36 @@
 ;; Query Events
 ;; ---------------------------------------------------------------------------
 
+(defn- build-query-effects [query-config k params]
+  (let [query-fn     (:query-fn query-config)
+        effect-fn    (or (:effect-fn query-config)
+                         (registry/get-default-effect-fn))
+        request      (query-fn params)]
+    (if effect-fn
+      (effect-fn request
+                 [:re-frame.query/query-success k params]
+                 [:re-frame.query/query-failure k params])
+      request)))
+
 (rf/reg-event-fx
   :re-frame.query/ensure-query
   (fn [{:keys [db]} [_ k params]]
-    (let [qid    (util/query-id k params)
-          query  (get-in db [:re-frame.query/queries qid])
-          now    (util/now-ms)]
-      (if (and (util/stale? query now)
-               (not (:fetching? query)))
-        (let [query-config (registry/get-query k)
-              refreshing?  (and (= :success (:status query))
-                                (some? (:data query)))]
-          (when-not query-config
-            (throw (ex-info (str "No query registered for key: " k) {:key k})))
-          {:db (update-in db [:re-frame.query/queries qid] merge
+    (let [query-config (registry/get-query k)]
+      (when-not query-config
+        (throw (ex-info (str "No query registered for key: " k) {:key k})))
+      (let [qid    (util/query-id k params)
+            query  (get-in db [:re-frame.query/queries qid])
+            now    (util/now-ms)]
+        (if (and (util/stale? query now)
+                 (not (:fetching? query)))
+          (let [refreshing?  (and (= :success (:status query))
+                                  (some? (:data query)))]
+            (merge {:db (update-in db [:re-frame.query/queries qid] util/merge-with-default
                           {:status    (if refreshing? :success :loading)
                            :fetching? true
-                           :stale?    false})
-           :fx [[:dispatch [:re-frame.query/execute-query-effect k params]]]})
-        {:db db}))))
+                           :stale?    false})}
+                   (build-query-effects query-config k params)))
+          {:db db})))))
 
 (rf/reg-event-fx
   :re-frame.query/refetch-query
@@ -40,26 +51,11 @@
           query-config (registry/get-query k)]
       (when-not query-config
         (throw (ex-info (str "No query registered for key: " k) {:key k})))
-      {:db (update-in db [:re-frame.query/queries qid] merge
-                      {:status    (if refreshing? :success :loading)
-                       :fetching? true
-                       :stale?    false})
-       :fx [[:dispatch [:re-frame.query/execute-query-effect k params]]]})))
-
-(rf/reg-event-fx
-  :re-frame.query/execute-query-effect
-  (fn [_ [_ k params]]
-    (let [query-config (registry/get-query k)
-          query-fn     (:query-fn query-config)
-          effect-fn    (or (:effect-fn query-config)
-                           (registry/get-default-effect-fn))
-          request      (query-fn params)]
-      (if effect-fn
-        (effect-fn request
-                   [:re-frame.query/query-success k params]
-                   [:re-frame.query/query-failure k params])
-        ;; Legacy: query-fn returns a full effects map with manual callbacks
-        request))))
+      (merge {:db (update-in db [:re-frame.query/queries qid] merge
+                    {:status    (if refreshing? :success :loading)
+                     :fetching? true
+                     :stale?    false})}
+        (build-query-effects query-config k params)))))
 
 (rf/reg-event-db
   :re-frame.query/query-success
