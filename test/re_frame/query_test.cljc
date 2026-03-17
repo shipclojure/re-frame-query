@@ -1161,3 +1161,131 @@
             #?(:clj clojure.lang.ExceptionInfo :cljs ExceptionInfo)
             #"No query registered for key"
             (rf/subscribe [:re-frame.query/query :nonexistent/query {}]))))))
+;; ---------------------------------------------------------------------------
+;; Query state shape completeness tests
+;; ---------------------------------------------------------------------------
+
+(deftest query-state-nil-before-any-fetch
+  (testing "Before any fetch, query state is nil in app-db"
+    (rfq/reg-query :books/list {:query-fn (fn [_] {})})
+    (let [qid (util/query-id :books/list {})]
+      (is (nil? (get-in (app-db) [:re-frame.query/queries qid]))
+          "query state does not exist before any event is dispatched"))))
+
+(deftest mutation-state-nil-before-any-execution
+  (testing "Before any execution, mutation state is nil in app-db"
+    (rfq/reg-mutation :books/create {:mutation-fn (fn [_] {})})
+    (let [mid (util/query-id :books/create {})]
+      (is (nil? (get-in (app-db) [:re-frame.query/mutations mid]))
+          "mutation state does not exist before any event is dispatched"))))
+
+(deftest query-loading-state-shape
+  (testing "Full state shape after ensure-query (initial load, no prior data)"
+    (rfq/reg-query :books/list {:query-fn (fn [_] {})})
+    (process-event [:re-frame.query/ensure-query :books/list {}])
+    (let [qid   (util/query-id :books/list {})
+          query (get-in (app-db) [:re-frame.query/queries qid])]
+      (is (= {:status    :loading
+              :data      nil
+              :error     nil
+              :fetching? true
+              :stale?    false
+              :active?   false
+              :tags      #{}}
+             query)))))
+
+(deftest query-success-state-shape
+  (testing "Full state shape after query-success"
+    (rfq/reg-query :books/list
+                   {:query-fn      (fn [_] {})
+                    :stale-time-ms 30000
+                    :cache-time-ms 300000
+                    :tags          (fn [_] [[:books :all]])})
+    (process-event [:re-frame.query/query-success :books/list {} [{:id 1 :title "Dune"}]])
+    (let [qid   (util/query-id :books/list {})
+          query (get-in (app-db) [:re-frame.query/queries qid])]
+      (is (= {:status        :success
+              :data          [{:id 1 :title "Dune"}]
+              :error         nil
+              :fetching?     false
+              :stale?        false
+              :active?       false
+              :tags          #{[:books :all]}
+              :stale-time-ms 30000
+              :cache-time-ms 300000}
+             (dissoc query :fetched-at)))
+      (is (number? (:fetched-at query))
+          "fetched-at is a numeric timestamp"))))
+
+(deftest query-error-state-shape
+  (testing "Full state shape after query-failure"
+    (rfq/reg-query :books/list {:query-fn (fn [_] {})})
+    (process-event [:re-frame.query/query-failure :books/list {} {:status 500 :body "error"}])
+    (let [qid   (util/query-id :books/list {})
+          query (get-in (app-db) [:re-frame.query/queries qid])]
+      (is (= {:status    :error
+              :data      nil
+              :error     {:status 500 :body "error"}
+              :fetching? false
+              :stale?    true
+              :active?   false
+              :tags      #{}}
+             query)))))
+
+(deftest query-background-refetch-state-shape
+  (testing "Full state shape during a background refetch (stale data visible)"
+    (rfq/reg-query :books/list
+                   {:query-fn      (fn [_] {})
+                    :stale-time-ms 1000
+                    :cache-time-ms 300000
+                    :tags          (fn [_] [[:books :all]])})
+    ;; Initial success
+    (process-event [:re-frame.query/query-success :books/list {} [{:id 1}]])
+    ;; Make stale: fetched-at=0, now-ms=1001 (past stale-time of 1000)
+    (let [qid (util/query-id :books/list {})]
+      (swap! rf-db/app-db assoc-in [:re-frame.query/queries qid :fetched-at] 0)
+      (with-redefs [util/now-ms (constantly 1001)]
+        (process-event [:re-frame.query/ensure-query :books/list {}]))
+      (let [query (get-in (app-db) [:re-frame.query/queries qid])]
+        (is (= {:status        :success
+                :data          [{:id 1}]
+                :error         nil
+                :fetching?     true
+                :stale?        false
+                :active?       false
+                :tags          #{[:books :all]}
+                :stale-time-ms 1000
+                :cache-time-ms 300000}
+               (dissoc query :fetched-at))
+            "status stays :success, fetching? true, stale data preserved")))))
+
+(deftest mutation-loading-state-shape
+  (testing "Full state shape after execute-mutation"
+    (rfq/reg-mutation :books/create {:mutation-fn (fn [_] {})})
+    (process-event [:re-frame.query/execute-mutation :books/create {:title "Dune"}])
+    (let [mid      (util/query-id :books/create {:title "Dune"})
+          mutation (get-in (app-db) [:re-frame.query/mutations mid])]
+      (is (= {:status :loading
+              :error  nil}
+             mutation)))))
+
+(deftest mutation-success-state-shape
+  (testing "Full state shape after mutation-success"
+    (rfq/reg-mutation :books/create {:mutation-fn (fn [_] {})})
+    (process-event [:re-frame.query/mutation-success :books/create {:title "Dune"} {:id 1 :title "Dune"}])
+    (let [mid      (util/query-id :books/create {:title "Dune"})
+          mutation (get-in (app-db) [:re-frame.query/mutations mid])]
+      (is (= {:status :success
+              :data   {:id 1 :title "Dune"}
+              :error  nil}
+             mutation)))))
+
+(deftest mutation-error-state-shape
+  (testing "Full state shape after mutation-failure"
+    (rfq/reg-mutation :books/create {:mutation-fn (fn [_] {})})
+    (process-event [:re-frame.query/mutation-failure :books/create {:title "Dune"} {:status 422 :body "Unprocessable"}])
+    (let [mid      (util/query-id :books/create {:title "Dune"})
+          mutation (get-in (app-db) [:re-frame.query/mutations mid])]
+      (is (= {:status :error
+              :error  {:status 422 :body "Unprocessable"}}
+             mutation)))))
