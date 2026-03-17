@@ -1128,3 +1128,36 @@
       (is (= :success (get-in (app-db) [:re-frame.query/mutations mid :status])))
       (is (= {:id 1} (get-in (app-db) [:re-frame.query/mutations mid :data])))
       (is (nil? (get-in (app-db) [:re-frame.query/mutations mid :error]))))))
+
+;; ---------------------------------------------------------------------------
+;; Registration error handling tests
+;; ---------------------------------------------------------------------------
+
+(deftest ensure-query-throws-for-unregistered-key
+  (testing "Dispatching ensure-query for an unregistered key throws an error"
+    (is (thrown-with-msg?
+          #?(:clj clojure.lang.ExceptionInfo :cljs ExceptionInfo)
+          #"No query registered for key"
+          (process-event [:re-frame.query/ensure-query :nonexistent/query {}])))))
+
+(deftest refetch-query-throws-for-unregistered-key
+  (testing "Dispatching refetch-query for an unregistered key throws an error"
+    (is (thrown-with-msg?
+          #?(:clj clojure.lang.ExceptionInfo :cljs ExceptionInfo)
+          #"No query registered for key"
+          (process-event [:re-frame.query/refetch-query :nonexistent/query {}])))))
+
+(deftest execute-mutation-throws-for-unregistered-key
+  (testing "Dispatching execute-mutation for an unregistered key throws an error"
+    (is (thrown-with-msg?
+          #?(:clj clojure.lang.ExceptionInfo :cljs ExceptionInfo)
+          #"No mutation registered for key"
+          (process-event [:re-frame.query/execute-mutation :nonexistent/mutation {}])))))
+
+(deftest subscribe-query-throws-for-unregistered-key
+  (testing "Subscribing to an unregistered query key throws because ensure-query is dispatched"
+    (rf-test/run-test-sync
+      (is (thrown-with-msg?
+            #?(:clj clojure.lang.ExceptionInfo :cljs ExceptionInfo)
+            #"No query registered for key"
+            (rf/subscribe [:re-frame.query/query :nonexistent/query {}]))))))
