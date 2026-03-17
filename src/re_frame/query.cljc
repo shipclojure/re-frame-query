@@ -27,6 +27,7 @@
    [re-frame.core :as rf]
    [re-frame.query.events]
    [re-frame.query.gc]
+   [re-frame.query.polling]
    ;; Functional requires
    [re-frame.query.registry :as registry]
    [re-frame.query.subs]))
@@ -58,13 +59,17 @@
   Arguments:
     k      - Keyword identifying the query (e.g. :todos/list)
     config - Map with:
-      :query-fn      (fn [params] -> request-map)  REQUIRED
-                     Returns a request description map. The library auto-injects
-                     success/failure callbacks via the configured effect-fn.
-      :effect-fn     Optional per-query effect adapter (overrides global)
-      :cache-time-ms  Milliseconds before inactive query is GC'd (default: 300000 / 5 min)
-      :stale-time-ms  Milliseconds before query auto-becomes stale
-      :tags           (fn [params] -> [[tag ...] ...]) for invalidation
+      :query-fn             (fn [params] -> request-map)  REQUIRED
+                            Returns a request description map. The library auto-injects
+                            success/failure callbacks via the configured effect-fn.
+      :effect-fn            Optional per-query effect adapter (overrides global)
+      :cache-time-ms        Milliseconds before inactive query is GC'd (default: 300000 / 5 min)
+      :stale-time-ms        Milliseconds before query auto-becomes stale
+      :tags                 (fn [params] -> [[tag ...] ...]) for invalidation
+      :polling-interval-ms  Default polling interval for this query. When set,
+                            every subscription to this query will poll at this
+                            interval unless overridden per-subscription. Multiple
+                            subscribers with different intervals use the lowest.
 
   Returns the query key."
   registry/reg-query)

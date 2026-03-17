@@ -6,8 +6,10 @@
    [re-frame.db :as rf-db]
    [re-frame.query :as rfq]
    [re-frame.query.gc :as gc]
+   [re-frame.query.polling :as polling]
    [re-frame.query.registry :as registry]
-   [re-frame.query.util :as util]))
+   [re-frame.query.util :as util]
+   #?(:cljs [reagent.ratom :as ratom])))
 
 ;; ---------------------------------------------------------------------------
 ;; Test helpers
@@ -16,7 +18,8 @@
 (defn reset-db! []
   (reset! rf-db/app-db {})
   (rfq/clear-registry!)
-  (gc/cancel-all!))
+  (gc/cancel-all!)
+  (polling/cancel-all!))
 
 (use-fixtures :each
   {:before reset-db!
@@ -1305,8 +1308,8 @@
 (deftest zero-cache-time-does-not-schedule-gc-timer
   (testing "With cache-time-ms 0, no GC timer is scheduled (pos? guard in schedule-gc!)"
     (rfq/reg-query :books/list
-      {:query-fn      (fn [_] {})
-       :cache-time-ms 0})
+                   {:query-fn      (fn [_] {})
+                    :cache-time-ms 0})
     (process-event [:re-frame.query/query-success :books/list {} [{:id 1}]])
     (process-event [:re-frame.query/mark-inactive :books/list {}])
     (let [qid (util/query-id :books/list {})]
@@ -1318,14 +1321,14 @@
 (deftest gc-removes-query-only-when-expired-and-inactive
   (testing "GC skips queries that are expired but active, or inactive but not expired"
     (rfq/reg-query :books/active
-      {:query-fn      (fn [_] {})
-       :cache-time-ms 1000})
+                   {:query-fn      (fn [_] {})
+                    :cache-time-ms 1000})
     (rfq/reg-query :books/fresh
-      {:query-fn      (fn [_] {})
-       :cache-time-ms 60000})
+                   {:query-fn      (fn [_] {})
+                    :cache-time-ms 60000})
     (rfq/reg-query :books/expired
-      {:query-fn      (fn [_] {})
-       :cache-time-ms 1000})
+                   {:query-fn      (fn [_] {})
+                    :cache-time-ms 1000})
     ;; All fetched at time 1000
     (with-redefs [util/now-ms (constantly 1000)]
       (process-event [:re-frame.query/query-success :books/active {} [{:id 1}]])
@@ -1349,8 +1352,8 @@
 (deftest mark-active-after-inactive-preserves-query
   (testing "Re-subscribing before GC fires keeps the query alive"
     (rfq/reg-query :books/list
-      {:query-fn      (fn [_] {})
-       :cache-time-ms 60000})
+                   {:query-fn      (fn [_] {})
+                    :cache-time-ms 60000})
     (process-event [:re-frame.query/query-success :books/list {} [{:id 1}]])
     (let [qid (util/query-id :books/list {})]
       ;; Subscribe → unsubscribe (timer starts)
@@ -1370,8 +1373,8 @@
 (deftest per-query-cleanup-lifecycle
   (testing "Full per-query cleanup: mark-inactive → timer → remove-query → evicted"
     (rfq/reg-query :books/list
-      {:query-fn      (fn [_] {})
-       :cache-time-ms 60000})
+                   {:query-fn      (fn [_] {})
+                    :cache-time-ms 60000})
     (process-event [:re-frame.query/query-success :books/list {} [{:id 1}]])
     (process-event [:re-frame.query/mark-active :books/list {}])
     (let [qid (util/query-id :books/list {})]
@@ -1392,8 +1395,8 @@
 (deftest remove-query-noop-if-resubscribed
   (testing "remove-query is a no-op if the query became active again before timer fires"
     (rfq/reg-query :books/list
-      {:query-fn      (fn [_] {})
-       :cache-time-ms 60000})
+                   {:query-fn      (fn [_] {})
+                    :cache-time-ms 60000})
     (process-event [:re-frame.query/query-success :books/list {} [{:id 1}]])
     (let [qid (util/query-id :books/list {})]
       ;; Unsubscribe → timer starts
@@ -1422,18 +1425,231 @@
 (deftest per-query-timer-fires-and-evicts-async
   (testing "After cache-time-ms elapses, the real timer fires remove-query and evicts the query"
     (rf-test/run-test-async
+     (rfq/reg-query :books/list
+                    {:query-fn      (fn [_] {})
+                     :cache-time-ms 100})
+     (rf/dispatch-sync [:re-frame.query/query-success :books/list {} [{:id 1}]])
+     (let [qid (util/query-id :books/list {})]
+       (is (some? (get-in (app-db) [:re-frame.query/queries qid]))
+           "query exists before mark-inactive")
+       ;; Mark inactive — starts a real 100ms timer
+       (rf/dispatch-sync [:re-frame.query/mark-inactive :books/list {}])
+       (is (contains? (gc/active-timers) qid)
+           "GC timer is scheduled")
+       ;; Wait for the timer to fire remove-query
+       (rf-test/wait-for [:re-frame.query/remove-query]
+                         (is (nil? (get-in (app-db) [:re-frame.query/queries qid]))
+                             "query evicted after timer fires"))))))
+
+;; ---------------------------------------------------------------------------
+;; Polling tests
+;; ---------------------------------------------------------------------------
+
+(deftest add-subscriber-starts-polling
+  (testing "add-subscriber! with a positive interval starts polling"
+    (let [qid (util/query-id :books/list {})]
+      (polling/add-subscriber! qid :sub-1 :books/list {} 5000)
+      (is (contains? (polling/active-polls) qid)
+          "polling timer is active")
+      (is (= 5000 (polling/current-interval qid))
+          "effective interval matches the subscriber")
+      (polling/remove-subscriber! qid :sub-1)
+      (is (not (contains? (polling/active-polls) qid))
+          "polling stopped after last subscriber removed"))))
+
+(deftest add-subscriber-noop-for-zero-or-nil
+  (testing "add-subscriber! is a no-op for zero, nil, or negative intervals"
+    (let [qid (util/query-id :books/list {})]
+      (polling/add-subscriber! qid :sub-1 :books/list {} 0)
+      (is (empty? (polling/active-polls))
+          "zero interval does not start polling")
+      (polling/add-subscriber! qid :sub-2 :books/list {} nil)
+      (is (empty? (polling/active-polls))
+          "nil interval does not start polling")
+      (polling/add-subscriber! qid :sub-3 :books/list {} -1000)
+      (is (empty? (polling/active-polls))
+          "negative interval does not start polling"))))
+
+(deftest multiple-subscribers-use-lowest-interval
+  (testing "Effective interval is the minimum of all active positive subscriber intervals"
+    (let [qid (util/query-id :books/list {})]
+      ;; First subscriber at 5000ms
+      (polling/add-subscriber! qid :sub-1 :books/list {} 5000)
+      (is (= 5000 (polling/current-interval qid)))
+      ;; Second subscriber at 1000ms → effective becomes 1000
+      (polling/add-subscriber! qid :sub-2 :books/list {} 1000)
+      (is (= 1000 (polling/current-interval qid))
+          "effective interval is the lowest non-zero")
+      (is (= 2 (polling/subscriber-count qid)))
+      ;; Third subscriber at 3000ms → still 1000
+      (polling/add-subscriber! qid :sub-3 :books/list {} 3000)
+      (is (= 1000 (polling/current-interval qid))
+          "adding a slower subscriber doesn't change the effective interval"))))
+
+(deftest removing-fastest-subscriber-recalculates-interval
+  (testing "Removing the fastest subscriber recalculates to the next lowest"
+    (let [qid (util/query-id :books/list {})]
+      (polling/add-subscriber! qid :sub-1 :books/list {} 5000)
+      (polling/add-subscriber! qid :sub-2 :books/list {} 1000)
+      (is (= 1000 (polling/current-interval qid)))
+      ;; Remove the faster subscriber
+      (polling/remove-subscriber! qid :sub-2)
+      (is (= 5000 (polling/current-interval qid))
+          "effective interval recalculated to remaining subscriber")
+      (is (contains? (polling/active-polls) qid)
+          "polling still active with remaining subscriber"))))
+
+(deftest removing-all-subscribers-stops-polling
+  (testing "Removing all subscribers stops polling entirely"
+    (let [qid (util/query-id :books/list {})]
+      (polling/add-subscriber! qid :sub-1 :books/list {} 5000)
+      (polling/add-subscriber! qid :sub-2 :books/list {} 1000)
+      (is (contains? (polling/active-polls) qid))
+      (polling/remove-subscriber! qid :sub-1)
+      (polling/remove-subscriber! qid :sub-2)
+      (is (not (contains? (polling/active-polls) qid))
+          "polling stopped after all subscribers removed")
+      (is (nil? (polling/current-interval qid))))))
+
+(deftest remove-subscriber-noop-for-nonexistent
+  (testing "remove-subscriber! is a no-op for a subscriber that doesn't exist"
+    (let [qid (util/query-id :books/list {})]
+      (polling/remove-subscriber! qid :nonexistent)
+      (is (empty? (polling/active-polls))
+          "no error when removing non-existent subscriber"))))
+
+(deftest query-level-polling-interval
+  (testing "Query registered with :polling-interval-ms starts polling when subscribed"
+    (let [qid (util/query-id :books/list {})]
+      ;; Simulate what the subscription does: read query config, add subscriber
       (rfq/reg-query :books/list
-        {:query-fn      (fn [_] {})
-         :cache-time-ms 100})
-      (rf/dispatch-sync [:re-frame.query/query-success :books/list {} [{:id 1}]])
-      (let [qid (util/query-id :books/list {})]
-        (is (some? (get-in (app-db) [:re-frame.query/queries qid]))
-            "query exists before mark-inactive")
-        ;; Mark inactive — starts a real 100ms timer
-        (rf/dispatch-sync [:re-frame.query/mark-inactive :books/list {}])
-        (is (contains? (gc/active-timers) qid)
-            "GC timer is scheduled")
-        ;; Wait for the timer to fire remove-query
-        (rf-test/wait-for [:re-frame.query/remove-query]
-          (is (nil? (get-in (app-db) [:re-frame.query/queries qid]))
-              "query evicted after timer fires"))))))
+                     {:query-fn              (fn [_] {})
+                      :polling-interval-ms   5000})
+      (let [config (registry/get-query :books/list)]
+        (polling/add-subscriber! qid :sub-1 :books/list {}
+                                 (:polling-interval-ms config)))
+      (is (contains? (polling/active-polls) qid)
+          "polling started from query-level config")
+      (is (= 5000 (polling/current-interval qid))))))
+
+(deftest subscription-level-overrides-query-level
+  (testing "Per-subscription interval overrides query-level default"
+    (let [qid (util/query-id :books/list {})]
+      (rfq/reg-query :books/list
+                     {:query-fn              (fn [_] {})
+                      :polling-interval-ms   5000})
+      ;; Subscriber 1 uses query-level default
+      (let [config (registry/get-query :books/list)]
+        (polling/add-subscriber! qid :sub-1 :books/list {}
+                                 (:polling-interval-ms config)))
+      (is (= 5000 (polling/current-interval qid)))
+      ;; Subscriber 2 overrides with faster interval
+      (polling/add-subscriber! qid :sub-2 :books/list {} 1000)
+      (is (= 1000 (polling/current-interval qid))
+          "subscription-level override wins (lowest interval)"))))
+
+(deftest polling-dispatches-refetch-async
+  (testing "Polling timer dispatches refetch-query on each tick"
+    (rf-test/run-test-async
+     (let [call-count (atom 0)]
+       (rf/reg-fx :test-http (fn [_] (swap! call-count inc)))
+       (rfq/set-default-effect-fn!
+        (fn [request on-success on-failure]
+          {:test-http (assoc request
+                             :on-success on-success
+                             :on-failure on-failure)}))
+       (rfq/reg-query :books/list
+                      {:query-fn (fn [_] {:method :get :url "/api/books"})})
+       ;; Populate with data first so refetches produce effects
+       (rf/dispatch-sync [:re-frame.query/query-success :books/list {} [{:id 1}]])
+       ;; Start polling at 100ms via subscriber API
+       (let [qid (util/query-id :books/list {})]
+         (polling/add-subscriber! qid :sub-1 :books/list {} 100)
+         ;; Wait for the first refetch-query to fire
+         (rf-test/wait-for [:re-frame.query/refetch-query]
+                           (is (>= @call-count 1)
+                               "at least one refetch effect fired from polling")
+                           ;; Clean up
+                           (polling/remove-subscriber! qid :sub-1)))))))
+
+;; ---------------------------------------------------------------------------
+;; Polling e2e tests (through the subscription)
+;; ---------------------------------------------------------------------------
+
+(deftest subscription-with-polling-interval-starts-polling
+  (testing "Subscribing with :polling-interval-ms starts polling automatically"
+    (rf-test/run-test-sync
+     (rfq/reg-query :books/list {:query-fn (fn [_] {})})
+     (let [qid (util/query-id :books/list {})
+           sub (rf/subscribe [:re-frame.query/query :books/list {} {:polling-interval-ms 5000}])]
+       ;; Deref to activate the subscription
+       @sub
+       (is (contains? (polling/active-polls) qid)
+           "polling started via subscription")
+       (is (= 5000 (polling/current-interval qid))
+           "effective interval matches subscription option")))))
+
+(deftest subscription-query-level-polling-starts-automatically
+  (testing "Query registered with :polling-interval-ms starts polling on subscribe"
+    (rf-test/run-test-sync
+     (rfq/reg-query :books/list
+                    {:query-fn            (fn [_] {})
+                     :polling-interval-ms 3000})
+     (let [qid (util/query-id :books/list {})
+           sub (rf/subscribe [:re-frame.query/query :books/list {}])]
+       @sub
+       (is (contains? (polling/active-polls) qid)
+           "polling started from query-level config")
+       (is (= 3000 (polling/current-interval qid)))))))
+
+(deftest subscription-override-beats-query-level-polling
+  (testing "Per-subscription interval overrides query-level default"
+    (rf-test/run-test-sync
+     (rfq/reg-query :books/list
+                    {:query-fn            (fn [_] {})
+                     :polling-interval-ms 5000})
+     (let [qid (util/query-id :books/list {})
+           sub (rf/subscribe [:re-frame.query/query :books/list {} {:polling-interval-ms 1000}])]
+       @sub
+       (is (= 1000 (polling/current-interval qid))
+           "subscription-level override is used instead of query-level")))))
+
+(deftest subscription-without-polling-does-not-poll
+  (testing "Subscribing without :polling-interval-ms does not start polling"
+    (rf-test/run-test-sync
+     (rfq/reg-query :books/list {:query-fn (fn [_] {})})
+     (let [qid (util/query-id :books/list {})
+           sub (rf/subscribe [:re-frame.query/query :books/list {}])]
+       @sub
+       (is (not (contains? (polling/active-polls) qid))
+           "no polling without interval")))))
+
+#?(:cljs
+   (deftest subscription-dispose-stops-polling
+     (testing "Disposing the subscription stops polling"
+       (rf-test/run-test-sync
+        (rfq/reg-query :books/list {:query-fn (fn [_] {})})
+        (let [qid (util/query-id :books/list {})
+              sub (rf/subscribe [:re-frame.query/query :books/list {} {:polling-interval-ms 5000}])]
+          @sub
+          (is (contains? (polling/active-polls) qid)
+              "polling is active before dispose")
+          ;; Dispose the reaction — triggers on-dispose callback
+          (ratom/dispose! sub)
+          (is (not (contains? (polling/active-polls) qid))
+              "polling stopped after subscription disposed"))))))
+
+#?(:cljs
+   (deftest subscription-dispose-with-query-level-polling-stops
+     (testing "Disposing a subscription with query-level polling stops it"
+       (rf-test/run-test-sync
+        (rfq/reg-query :books/list
+                       {:query-fn            (fn [_] {})
+                        :polling-interval-ms 3000})
+        (let [qid (util/query-id :books/list {})
+              sub (rf/subscribe [:re-frame.query/query :books/list {}])]
+          @sub
+          (is (contains? (polling/active-polls) qid))
+          (ratom/dispose! sub)
+          (is (not (contains? (polling/active-polls) qid))
+              "polling stopped after dispose"))))))

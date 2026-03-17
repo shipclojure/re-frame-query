@@ -8,6 +8,7 @@ Declarative data fetching and caching for [re-frame](https://github.com/day8/re-
 - **Automatic callback wiring** — no manual `:on-success` / `:on-failure` plumbing
 - **Tag-based cache invalidation** with automatic refetching of active queries
 - **Per-query garbage collection** — inactive queries are cleaned up after `cache-time-ms` via per-query timers (same model as TanStack Query)
+- **Polling** — automatic refetch intervals with per-subscriber or per-query config; multiple subscribers use the lowest non-zero interval
 - **Smart status tracking** — distinguishes initial loading from background refetching
 - **Transport-agnostic** — works with any re-frame effect (HTTP, GraphQL, WebSocket, etc.)
 - **All state in re-frame DB** — predictable, inspectable, time-travel debuggable
@@ -148,6 +149,53 @@ Inactive queries (no subscribers) are automatically garbage-collected after thei
 
 Timer handles are stored in a side-channel atom (not in `app-db`) to keep the re-frame store fully serializable.
 
+## Polling
+
+Queries can automatically refetch on an interval. Polling is configured via `:polling-interval-ms`, either at the **query level** (default for all subscribers) or at the **subscription level** (per-component override). When multiple subscribers have different intervals, the **lowest non-zero** interval wins.
+
+### Query-level polling
+
+Set a default polling interval when registering the query:
+
+```clojure
+(rfq/reg-query :stocks/prices
+  {:query-fn            (fn [_] {:method :get :url "/api/stocks"})
+   :polling-interval-ms 5000}) ;; every 5 seconds
+```
+
+Every subscription to `:stocks/prices` will poll at 5s automatically:
+
+```clojure
+;; Starts polling at 5s — no extra config needed
+@(rf/subscribe [::rfq/query :stocks/prices {}])
+```
+
+### Per-subscription polling
+
+Override or set the interval for a specific subscriber via the opts map:
+
+```clojure
+;; This component polls at 1s, regardless of the query-level default
+@(rf/subscribe [::rfq/query :stocks/prices {} {:polling-interval-ms 1000}])
+```
+
+### Multiple subscribers → lowest interval wins
+
+```clojure
+;; Component A — polls at 5s (query-level default)
+@(rf/subscribe [::rfq/query :stocks/prices {}])
+
+;; Component B — polls at 1s (per-subscription override)
+@(rf/subscribe [::rfq/query :stocks/prices {} {:polling-interval-ms 1000}])
+
+;; Effective interval: 1s (the lowest non-zero)
+;; When Component B unmounts → interval reverts to 5s
+```
+
+### Stopping polling
+
+Polling stops automatically when all subscribers with a polling interval unmount. No manual cleanup needed.
+
 ## API Reference
 
 ### Setup
@@ -183,6 +231,7 @@ Use these to add queries/mutations one at a time, either standalone or after `in
 | `:cache-time-ms` | | Milliseconds before inactive query is GC'd (default: 5 min) |
 | `:tags` | | `(fn [params] -> [[tag ...] ...])` — for cache invalidation |
 | `:effect-fn` | | Per-query effect adapter (overrides global) |
+| `:polling-interval-ms` | | Default polling interval for all subscribers (ms). Multiple subscribers use the lowest non-zero interval. |
 
 #### `reg-mutation` config keys
 
@@ -215,6 +264,7 @@ With `(:require [re-frame.query :as rfq])`, use `::rfq/` shorthand:
 | Subscription | Triggers fetch? | Returns |
 |---|---|---|
 | `[::rfq/query k params]` | ✅ Yes | Full query state map |
+| `[::rfq/query k params opts]` | ✅ Yes | Full query state map (with per-sub options, e.g. `{:polling-interval-ms 5000}`) |
 | `[::rfq/query-data k params]` | ❌ No | Just the `:data` |
 | `[::rfq/query-status k params]` | ❌ No | Just the `:status` (`:idle`, `:loading`, `:success`, `:error`) |
 | `[::rfq/query-fetching? k params]` | ❌ No | Boolean — is a request in flight? |

@@ -4,6 +4,8 @@
    automatically track active queries via the Reagent Reaction lifecycle."
   (:require
    [re-frame.core :as rf]
+   [re-frame.query.polling :as polling]
+   [re-frame.query.registry :as registry]
    [re-frame.query.util :as util]
    #?(:cljs [reagent.ratom :as ratom])))
 
@@ -27,12 +29,20 @@
 
 (rf/reg-sub-raw
   :re-frame.query/query
-  (fn [app-db [_ k params]]
-    (let [qid (util/query-id k params)]
+  (fn [app-db [_ k params opts]]
+    (let [qid           (util/query-id k params)
+          sub-id        (gensym "poll-sub-")
+          query-config  (registry/get-query k)
+          ;; Per-subscription interval overrides query-level default
+          interval-ms   (or (:polling-interval-ms opts)
+                            (:polling-interval-ms query-config))]
       ;; Automatically fetch the query and mark it active when subscribed.
       ;; This is the core ergonomic win — subscribing is all you need.
       (rf/dispatch [:re-frame.query/ensure-query k params])
       (rf/dispatch [:re-frame.query/mark-active k params])
+      ;; Register this subscriber's polling interval. The polling system
+      ;; computes the effective interval as min of all active subscribers.
+      (polling/add-subscriber! qid sub-id k params interval-ms)
       (let [reaction
             #?(:cljs
                (ratom/make-reaction
@@ -64,11 +74,13 @@
                       :error     nil
                       :fetching? false
                       :stale?    true}))))]
-        ;; Mark inactive when the Reaction is disposed
-        ;; (all subscribing components have unmounted)
+        ;; When the Reaction is disposed (all subscribing components unmounted):
+        ;; unregister this subscriber's poll and mark the query inactive.
         #?(:cljs (ratom/add-on-dispose!
                    reaction
-                   (fn [] (rf/dispatch [:re-frame.query/mark-inactive k params]))))
+                   (fn []
+                     (polling/remove-subscriber! qid sub-id)
+                     (rf/dispatch [:re-frame.query/mark-inactive k params]))))
         reaction))))
 
 ;; ---------------------------------------------------------------------------
