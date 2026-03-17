@@ -13,8 +13,8 @@ with React hooks instead of Reagent's reactive atoms:
 
 ```bash
 cd examples/uix-app
-npm install        # only needed once — installs shadow-cljs + react
-npx shadow-cljs watch demo
+pnpm install        # only needed once — installs shadow-cljs + react
+pnpm exec shadow-cljs watch demo
 ```
 
 Then open [http://localhost:8720](http://localhost:8720) in your browser.

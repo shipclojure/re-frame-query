@@ -279,17 +279,17 @@ Both use [MSW (Mock Service Worker)](https://mswjs.io/) to intercept fetch reque
 ```bash
 cd examples/reagent-app   # or examples/uix-app
 
-# Install npm dependencies (once)
-npm install
+# Install dependencies (once)
+pnpm install
 
 # Bundle MSW mock handlers
-npm run mocks
+pnpm run mocks
 
 # Start shadow-cljs dev server
-npx shadow-cljs watch demo
+pnpm exec shadow-cljs watch demo
 
 # Or do both in one step:
-npm run dev
+pnpm run dev
 ```
 
 Then open <http://localhost:8710> (Reagent) or <http://localhost:8720> (UIx).
@@ -301,7 +301,7 @@ Then open <http://localhost:8710> (Reagent) or <http://localhost:8720> (UIx).
 clj -A:dev -P
 
 # Run tests (shadow-cljs node-test)
-npx shadow-cljs compile test
+pnpm exec shadow-cljs compile test
 ```
 
 ## License

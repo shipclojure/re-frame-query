@@ -11,8 +11,8 @@ A minimal Reagent app demonstrating **re-frame-query** features:
 
 ```bash
 cd examples/reagent-app
-npm install        # only needed once — installs shadow-cljs + react
-npx shadow-cljs watch demo
+pnpm install        # only needed once — installs shadow-cljs + react
+pnpm exec shadow-cljs watch demo
 ```
 
 Then open [http://localhost:8710](http://localhost:8710) in your browser.

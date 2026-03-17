@@ -1,0 +1,8 @@
+packages:
+  - "examples/*"
+
+nodeLinker: hoisted
+
+onlyBuiltDependencies:
+  - esbuild
+  - msw

@@ -1,5 +1,7 @@
 {:deps true
 
+ :js-options {:js-package-dirs ["../../node_modules"]}
+
  :builds
  {:demo
   {:target :browser
