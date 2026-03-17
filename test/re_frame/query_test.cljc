@@ -500,3 +500,70 @@
     ;; Both exist
     (is (some? (registry/get-query :books/list)))
     (is (some? (registry/get-query :books/detail)))))
+
+;; ---------------------------------------------------------------------------
+;; Query deduplication tests
+;; ---------------------------------------------------------------------------
+
+(deftest ensure-query-deduplicates-inflight-requests
+  (testing "ensure-query is a no-op when the query is already fetching"
+    (let [call-count (atom 0)]
+      (rf/reg-fx :test-http (fn [_] (swap! call-count inc)))
+      (rfq/set-default-effect-fn!
+        (fn [request on-success on-failure]
+          {:test-http (assoc request
+                        :on-success on-success
+                        :on-failure on-failure)}))
+      (rfq/reg-query :books/list
+        {:query-fn (fn [_] {:method :get :url "/api/books"})})
+      ;; First dispatch — should fire the effect
+      (process-event [:re-frame.query/ensure-query :books/list {}])
+      (is (= 1 @call-count) "first ensure-query fires the effect")
+      ;; Verify fetching? is now true
+      (let [qid (util/query-id :books/list {})]
+        (is (true? (get-in (app-db) [:re-frame.query/queries qid :fetching?]))))
+      ;; Second dispatch — should be a no-op because fetching? is true
+      (process-event [:re-frame.query/ensure-query :books/list {}])
+      (is (= 1 @call-count)
+          "second ensure-query is a no-op while already fetching"))))
+
+(deftest ensure-query-different-params-are-independent
+  (testing "ensure-query with different params produces separate effects"
+    (let [calls (atom [])]
+      (rf/reg-fx :test-http (fn [v] (swap! calls conj v)))
+      (rfq/set-default-effect-fn!
+        (fn [request on-success on-failure]
+          {:test-http (assoc request
+                        :on-success on-success
+                        :on-failure on-failure)}))
+      (rfq/reg-query :books/detail
+        {:query-fn (fn [{:keys [id]}]
+                     {:method :get :url (str "/api/books/" id)})})
+      ;; Two dispatches with different params
+      (process-event [:re-frame.query/ensure-query :books/detail {:id 1}])
+      (process-event [:re-frame.query/ensure-query :books/detail {:id 2}])
+      (is (= 2 (count @calls))
+          "different params produce separate effects")
+      (is (= "/api/books/1" (:url (first @calls))))
+      (is (= "/api/books/2" (:url (second @calls)))))))
+
+(deftest ensure-query-fresh-cache-produces-no-effect
+  (testing "ensure-query does nothing when cached data is within stale-time"
+    (let [call-count (atom 0)]
+      (rf/reg-fx :test-http (fn [_] (swap! call-count inc)))
+      (rfq/set-default-effect-fn!
+        (fn [request on-success on-failure]
+          {:test-http (assoc request
+                        :on-success on-success
+                        :on-failure on-failure)}))
+      (rfq/reg-query :books/list
+        {:query-fn      (fn [_] {:method :get :url "/api/books"})
+         :stale-time-ms 60000})
+      ;; Populate cache with fresh data
+      (process-event [:re-frame.query/query-success :books/list {} [{:id 1}]])
+      ;; Reset counter after the setup
+      (reset! call-count 0)
+      ;; ensure-query on fresh data — should produce no effect
+      (process-event [:re-frame.query/ensure-query :books/list {}])
+      (is (zero? @call-count)
+          "no effect produced when data is fresh"))))
