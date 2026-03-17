@@ -854,13 +854,13 @@
     (let [call-count (atom 0)]
       (rf/reg-fx :test-http (fn [_] (swap! call-count inc)))
       (rfq/set-default-effect-fn!
-        (fn [request on-success on-failure]
-          {:test-http (assoc request
-                        :on-success on-success
-                        :on-failure on-failure)}))
+       (fn [request on-success on-failure]
+         {:test-http (assoc request
+                            :on-success on-success
+                            :on-failure on-failure)}))
       (rfq/reg-mutation :books/create
-        {:mutation-fn (fn [{:keys [title]}]
-                        {:method :post :url "/api/books" :body {:title title}})})
+                        {:mutation-fn (fn [{:keys [title]}]
+                                        {:method :post :url "/api/books" :body {:title title}})})
       ;; First execution
       (process-event [:re-frame.query/execute-mutation :books/create {:title "Dune"}])
       (is (= 1 @call-count) "first mutation fires the effect")
@@ -875,3 +875,139 @@
       (let [mid (util/query-id :books/create {:title "Dune"})]
         (is (= :loading (get-in (app-db) [:re-frame.query/mutations mid :status]))
             "status resets to :loading for the new execution")))))
+
+;; ---------------------------------------------------------------------------
+;; Stale-time integration tests
+;; ---------------------------------------------------------------------------
+
+(deftest ensure-query-skips-fresh-data
+  (testing "ensure-query produces no effect when data is within stale-time"
+    (let [call-count (atom 0)]
+      (rf/reg-fx :test-http (fn [_] (swap! call-count inc)))
+      (rfq/set-default-effect-fn!
+       (fn [request on-success on-failure]
+         {:test-http (assoc request
+                            :on-success on-success
+                            :on-failure on-failure)}))
+      (rfq/reg-query :books/list
+                     {:query-fn      (fn [_] {:method :get :url "/api/books"})
+                      :stale-time-ms 60000})
+      ;; Populate with fresh data
+      (process-event [:re-frame.query/query-success :books/list {} [{:id 1}]])
+      (reset! call-count 0)
+      ;; ensure-query — data is fresh, should be a no-op
+      (process-event [:re-frame.query/ensure-query :books/list {}])
+      (let [qid (util/query-id :books/list {})]
+        (is (zero? @call-count)
+            "no effect produced for fresh data")
+        (is (false? (get-in (app-db) [:re-frame.query/queries qid :fetching?]))
+            "fetching? remains false")
+        (is (= :success (get-in (app-db) [:re-frame.query/queries qid :status]))
+            "status remains :success")))))
+
+(deftest refetch-query-ignores-freshness
+  (testing "refetch-query always fires, even when data is within stale-time"
+    (let [call-count (atom 0)]
+      (rf/reg-fx :test-http (fn [_] (swap! call-count inc)))
+      (rfq/set-default-effect-fn!
+       (fn [request on-success on-failure]
+         {:test-http (assoc request
+                            :on-success on-success
+                            :on-failure on-failure)}))
+      (rfq/reg-query :books/list
+                     {:query-fn      (fn [_] {:method :get :url "/api/books"})
+                      :stale-time-ms 60000})
+      ;; Populate with fresh data
+      (process-event [:re-frame.query/query-success :books/list {} [{:id 1}]])
+      (reset! call-count 0)
+      ;; refetch-query — should fire regardless of freshness
+      (process-event [:re-frame.query/refetch-query :books/list {}])
+      (let [qid (util/query-id :books/list {})]
+        (is (= 1 @call-count)
+            "effect fires even though data is fresh")
+        (is (true? (get-in (app-db) [:re-frame.query/queries qid :fetching?]))
+            "fetching? is true")
+        (is (= :success (get-in (app-db) [:re-frame.query/queries qid :status]))
+            "status stays :success during background refetch")))))
+
+(deftest stale-time-resets-on-success
+  (testing "After a successful fetch, the stale-time window restarts from the new fetched-at"
+    (let [call-count (atom 0)]
+      (rf/reg-fx :test-http (fn [_] (swap! call-count inc)))
+      (rfq/set-default-effect-fn!
+       (fn [request on-success on-failure]
+         {:test-http (assoc request
+                            :on-success on-success
+                            :on-failure on-failure)}))
+      (rfq/reg-query :books/list
+                     {:query-fn      (fn [_] {:method :get :url "/api/books"})
+                      :stale-time-ms 30000})
+      ;; First fetch succeeds
+      (process-event [:re-frame.query/query-success :books/list {} [{:id 1}]])
+      (let [qid        (util/query-id :books/list {})
+            fetched-at (get-in (app-db) [:re-frame.query/queries qid :fetched-at])]
+        (is (number? fetched-at) "fetched-at is recorded")
+        ;; Push fetched-at into the past so it becomes stale
+        (swap! rf-db/app-db assoc-in [:re-frame.query/queries qid :fetched-at] 0)
+        (reset! call-count 0)
+        ;; ensure-query should detect staleness and refetch
+        (process-event [:re-frame.query/ensure-query :books/list {}])
+        (is (= 1 @call-count) "stale data triggers a refetch")
+        ;; Simulate success — fetched-at should update
+        (process-event [:re-frame.query/query-success :books/list {} [{:id 1} {:id 2}]])
+        (let [new-fetched-at (get-in (app-db) [:re-frame.query/queries qid :fetched-at])]
+          (is (> new-fetched-at 0) "fetched-at was updated to a recent timestamp")
+          (is (>= new-fetched-at fetched-at) "new fetched-at is at least as recent as the original")
+          ;; Now the data is fresh again — ensure-query should be a no-op
+          (reset! call-count 0)
+          (process-event [:re-frame.query/ensure-query :books/list {}])
+          (is (zero? @call-count)
+              "data is fresh after refetch — no effect produced"))))))
+
+(deftest ensure-query-fires-when-stale-time-elapsed
+  (testing "ensure-query refetches when stale-time has elapsed since last fetch"
+    (let [call-count (atom 0)]
+      (rf/reg-fx :test-http (fn [_] (swap! call-count inc)))
+      (rfq/set-default-effect-fn!
+       (fn [request on-success on-failure]
+         {:test-http (assoc request
+                            :on-success on-success
+                            :on-failure on-failure)}))
+      (rfq/reg-query :books/list
+                     {:query-fn (fn [_] {:method :get
+                                         :url "/api/books"})
+                      :stale-time-ms 1000})
+      ;; Populate and push fetched-at far into the past
+      (process-event [:re-frame.query/query-success :books/list {} [{:id 1}]])
+      (let [qid (util/query-id :books/list {})]
+        (swap! rf-db/app-db assoc-in
+               [:re-frame.query/queries qid :fetched-at] 1000)
+        (reset! call-count 0)
+        ;; ensure-query with stale-time-ms=1000, fetched-at=1000, now >> 2000
+        (process-event [:re-frame.query/ensure-query :books/list {}])
+        (is (= 1 @call-count)
+            "effect fires because stale-time has elapsed")
+        (is (true? (get-in (app-db) [:re-frame.query/queries qid :fetching?])))))))
+
+(deftest no-stale-time-means-never-auto-stale
+  (testing "Without stale-time-ms, a successful query is never considered stale by time"
+    (let [call-count (atom 0)]
+      (rf/reg-fx :test-http (fn [_] (swap! call-count inc)))
+      (rfq/set-default-effect-fn!
+       (fn [request on-success on-failure]
+         {:test-http (assoc request
+                            :on-success on-success
+                            :on-failure on-failure)}))
+      (rfq/reg-query :books/list
+                     {:query-fn (fn [_] {:method :get
+                                         :url "/api/books"})})
+      ;; Populate and push fetched-at far into the past
+      (process-event [:re-frame.query/query-success :books/list {} [{:id 1}]])
+      (let [qid (util/query-id :books/list {})]
+        (swap! rf-db/app-db assoc-in
+               [:re-frame.query/queries qid :fetched-at] 0)
+        (reset! call-count 0)
+        ;; ensure-query — no stale-time-ms, so data is NOT stale by time
+        (process-event [:re-frame.query/ensure-query :books/list {}])
+        (is (zero? @call-count)
+            "no effect — query without stale-time-ms never auto-stales")))))
