@@ -1011,3 +1011,120 @@
         (process-event [:re-frame.query/ensure-query :books/list {}])
         (is (zero? @call-count)
             "no effect — query without stale-time-ms never auto-stales")))))
+
+;; ---------------------------------------------------------------------------
+;; Error recovery cycle tests
+;; ---------------------------------------------------------------------------
+
+(deftest query-error-then-success-clears-error
+  (testing "After a failed query, a successful retry clears the error and restores :success"
+    (rfq/reg-query :books/list {:query-fn (fn [_] {})})
+    (let [qid (util/query-id :books/list {})]
+      ;; Initial failure
+      (process-event [:re-frame.query/query-failure :books/list {} {:status 500 :body "Internal Server Error"}])
+      (is (= :error (get-in (app-db) [:re-frame.query/queries qid :status])))
+      (is (= {:status 500 :body "Internal Server Error"}
+             (get-in (app-db) [:re-frame.query/queries qid :error])))
+      ;; Retry succeeds
+      (process-event [:re-frame.query/query-success :books/list {} [{:id 1}]])
+      (let [query (get-in (app-db) [:re-frame.query/queries qid])]
+        (is (= :success (:status query))
+            "status transitions to :success")
+        (is (= [{:id 1}] (:data query))
+            "data is stored")
+        (is (nil? (:error query))
+            "error is cleared on success")
+        (is (false? (:fetching? query)))))))
+
+(deftest query-repeated-failures-update-error
+  (testing "Each failure updates the error value, not accumulates"
+    (rfq/reg-query :books/list {:query-fn (fn [_] {})})
+    (let [qid (util/query-id :books/list {})]
+      ;; First failure
+      (process-event [:re-frame.query/query-failure :books/list {} {:status 500}])
+      (is (= {:status 500} (get-in (app-db) [:re-frame.query/queries qid :error])))
+      ;; Second failure with different error
+      (process-event [:re-frame.query/query-failure :books/list {} {:status 503}])
+      (is (= {:status 503} (get-in (app-db) [:re-frame.query/queries qid :error]))
+          "error is replaced, not accumulated")
+      (is (= :error (get-in (app-db) [:re-frame.query/queries qid :status]))))))
+
+(deftest query-success-then-failure-preserves-data
+  (testing "After success then failure, data persists but status is :error"
+    (rfq/reg-query :books/list {:query-fn (fn [_] {})})
+    (let [qid (util/query-id :books/list {})]
+      ;; Success first
+      (process-event [:re-frame.query/query-success :books/list {} [{:id 1}]])
+      (is (= :success (get-in (app-db) [:re-frame.query/queries qid :status])))
+      ;; Then a refetch fails
+      (process-event [:re-frame.query/query-failure :books/list {} {:status 502}])
+      (let [query (get-in (app-db) [:re-frame.query/queries qid])]
+        (is (= :error (:status query))
+            "status is :error")
+        (is (= {:status 502} (:error query))
+            "error is stored")
+        (is (= [{:id 1}] (:data query))
+            "previous data is preserved across failure")))))
+
+(deftest query-full-error-recovery-cycle
+  (testing "Full cycle: success → stale → refetch fails → retry → success with new data"
+    (let [call-count (atom 0)]
+      (rf/reg-fx :test-http (fn [_] (swap! call-count inc)))
+      (rfq/set-default-effect-fn!
+       (fn [request on-success on-failure]
+         {:test-http (assoc request
+                            :on-success on-success
+                            :on-failure on-failure)}))
+      (rfq/reg-query :books/list
+                     {:query-fn      (fn [_] {:method :get :url "/api/books"})
+                      :stale-time-ms 1000})
+      (let [qid (util/query-id :books/list {})]
+        ;; 1. Initial success
+        (process-event [:re-frame.query/query-success :books/list {} [{:id 1}]])
+        (is (= :success (get-in (app-db) [:re-frame.query/queries qid :status])))
+        ;; 2. Make stale
+        (swap! rf-db/app-db assoc-in [:re-frame.query/queries qid :fetched-at] 0)
+        (reset! call-count 0)
+        ;; 3. ensure-query detects staleness → refetch
+        (process-event [:re-frame.query/ensure-query :books/list {}])
+        (is (= 1 @call-count))
+        ;; 4. Refetch fails
+        (process-event [:re-frame.query/query-failure :books/list {} {:status 500}])
+        (is (= :error (get-in (app-db) [:re-frame.query/queries qid :status])))
+        (is (= [{:id 1}] (get-in (app-db) [:re-frame.query/queries qid :data]))
+            "stale data preserved after failure")
+        ;; 5. Retry — error status is stale, so ensure-query triggers
+        (reset! call-count 0)
+        (process-event [:re-frame.query/ensure-query :books/list {}])
+        (is (= 1 @call-count) "retry fires because error status is stale")
+        (is (= :loading (get-in (app-db) [:re-frame.query/queries qid :status]))
+            "status resets to :loading on retry after error")
+        ;; 6. Success with new data
+        (process-event [:re-frame.query/query-success :books/list {} [{:id 1} {:id 2}]])
+        (let [query (get-in (app-db) [:re-frame.query/queries qid])]
+          (is (= :success (:status query)))
+          (is (= [{:id 1} {:id 2}] (:data query)))
+          (is (nil? (:error query))
+              "error is cleared after successful recovery"))))))
+
+(deftest mutation-error-then-retry-success
+  (testing "A failed mutation followed by re-execution transitions to :success"
+    (rfq/reg-mutation :books/create
+                      {:mutation-fn (fn [{:keys [title]}]
+                                      {:method :post :url "/api/books" :body {:title title}})})
+    (let [mid (util/query-id :books/create {:title "Dune"})]
+      ;; First attempt fails
+      (process-event [:re-frame.query/execute-mutation :books/create {:title "Dune"}])
+      (process-event [:re-frame.query/mutation-failure :books/create {:title "Dune"} {:status 500}])
+      (is (= :error (get-in (app-db) [:re-frame.query/mutations mid :status])))
+      (is (= {:status 500} (get-in (app-db) [:re-frame.query/mutations mid :error])))
+      ;; Retry succeeds
+      (process-event [:re-frame.query/execute-mutation :books/create {:title "Dune"}])
+      (is (= :loading (get-in (app-db) [:re-frame.query/mutations mid :status]))
+          "status resets to :loading")
+      (is (nil? (get-in (app-db) [:re-frame.query/mutations mid :error]))
+          "error cleared on retry")
+      (process-event [:re-frame.query/mutation-success :books/create {:title "Dune"} {:id 1}])
+      (is (= :success (get-in (app-db) [:re-frame.query/mutations mid :status])))
+      (is (= {:id 1} (get-in (app-db) [:re-frame.query/mutations mid :data])))
+      (is (nil? (get-in (app-db) [:re-frame.query/mutations mid :error]))))))
