@@ -36,13 +36,13 @@
 (deftest reg-query-test
   (testing "registers a query and returns the key"
     (let [k (rfq/reg-query :todos/list
-              {:query-fn (fn [_] {})})]
+                           {:query-fn (fn [_] {})})]
       (is (= :todos/list k)))))
 
 (deftest reg-mutation-test
   (testing "registers a mutation and returns the key"
     (let [k (rfq/reg-mutation :todos/add
-              {:mutation-fn (fn [_] {})})]
+                              {:mutation-fn (fn [_] {})})]
       (is (= :todos/add k)))))
 
 ;; ---------------------------------------------------------------------------
@@ -52,7 +52,7 @@
 (deftest ensure-query-sets-loading-for-initial-fetch-test
   (testing "ensure-query sets status to :loading when no data exists"
     (rfq/reg-query :books/list
-      {:query-fn (fn [_] {})})
+                   {:query-fn (fn [_] {})})
     (process-event [:re-frame.query/ensure-query :books/list {}])
     (let [qid   (util/query-id :books/list {})
           query (get-in (app-db) [:re-frame.query/queries qid])]
@@ -63,8 +63,8 @@
 (deftest ensure-query-keeps-success-on-refetch-test
   (testing "ensure-query keeps :success status when stale data exists"
     (rfq/reg-query :books/list
-      {:query-fn      (fn [_] {})
-       :stale-time-ms 1000})
+                   {:query-fn      (fn [_] {})
+                    :stale-time-ms 1000})
     ;; Fetch successfully first
     (process-event [:re-frame.query/query-success :books/list {} [{:id 1}]])
     ;; Make it stale by pushing fetched-at into the past
@@ -82,7 +82,7 @@
 (deftest refetch-query-keeps-success-when-data-exists-test
   (testing "refetch-query keeps :success status when data exists"
     (rfq/reg-query :books/list
-      {:query-fn (fn [_] {})})
+                   {:query-fn (fn [_] {})})
     ;; Fetch successfully first
     (process-event [:re-frame.query/query-success :books/list {} [{:id 1}]])
     ;; Force refetch
@@ -97,7 +97,7 @@
 (deftest refetch-query-sets-loading-when-no-data-test
   (testing "refetch-query sets :loading when no prior data exists"
     (rfq/reg-query :books/list
-      {:query-fn (fn [_] {})})
+                   {:query-fn (fn [_] {})})
     (process-event [:re-frame.query/refetch-query :books/list {}])
     (let [qid   (util/query-id :books/list {})
           query (get-in (app-db) [:re-frame.query/queries qid])]
@@ -117,8 +117,8 @@
 
   (testing "ensure-query sets :loading after error even when stale data exists"
     (rfq/reg-query :books/detail
-      {:query-fn      (fn [_] {})
-       :stale-time-ms 1000})
+                   {:query-fn      (fn [_] {})
+                    :stale-time-ms 1000})
     ;; First fetch succeeds
     (process-event [:re-frame.query/query-success :books/detail {} {:title "Dune"}])
     (let [qid (util/query-id :books/detail {})]
@@ -150,10 +150,10 @@
 (deftest query-success-test
   (testing "query-success stores data and metadata"
     (rfq/reg-query :books/list
-      {:query-fn      (fn [_] {})
-       :stale-time-ms 30000
-       :cache-time-ms 300000
-       :tags          (fn [_] [[:books :all]])})
+                   {:query-fn      (fn [_] {})
+                    :stale-time-ms 30000
+                    :cache-time-ms 300000
+                    :tags          (fn [_] [[:books :all]])})
     ;; Simulate success
     (process-event [:re-frame.query/query-success :books/list {} [{:id 1 :title "Dune"}]])
     (let [qid   (util/query-id :books/list {})
@@ -170,7 +170,7 @@
 (deftest query-success-uses-default-cache-time-test
   (testing "query-success stores default cache-time-ms when not specified in config"
     (rfq/reg-query :books/detail
-      {:query-fn (fn [_] {})})
+                   {:query-fn (fn [_] {})})
     (process-event [:re-frame.query/query-success :books/detail {:id 1} {:title "Dune"}])
     (let [qid   (util/query-id :books/detail {:id 1})
           query (get-in (app-db) [:re-frame.query/queries qid])]
@@ -193,8 +193,8 @@
 (deftest mutation-success-test
   (testing "mutation-success sets status and triggers invalidation dispatch"
     (rfq/reg-mutation :books/create
-      {:mutation-fn (fn [_] {})
-       :invalidates (fn [_] [[:books :all]])})
+                      {:mutation-fn (fn [_] {})
+                       :invalidates (fn [_] [[:books :all]])})
     (process-event [:re-frame.query/mutation-success :books/create {} {:id 2}])
     (let [mid      (util/query-id :books/create {})
           mutation (get-in (app-db) [:re-frame.query/mutations mid])]
@@ -216,8 +216,8 @@
 (deftest invalidate-tags-marks-matching-queries-stale
   (testing "invalidate-tags marks queries with matching tags as stale"
     (rfq/reg-query :books/list
-      {:query-fn (fn [_] {})
-       :tags     (fn [_] [[:books :all]])})
+                   {:query-fn (fn [_] {})
+                    :tags     (fn [_] [[:books :all]])})
     ;; Set up a cached query
     (process-event [:re-frame.query/query-success :books/list {} [{:id 1}]])
     ;; Invalidate
@@ -233,8 +233,8 @@
 (deftest garbage-collect-removes-expired-inactive-queries
   (testing "GC removes expired inactive queries"
     (rfq/reg-query :books/list
-      {:query-fn      (fn [_] {})
-       :cache-time-ms 1000})
+                   {:query-fn      (fn [_] {})
+                    :cache-time-ms 1000})
     ;; Simulate a query that was fetched 2 seconds ago
     (process-event [:re-frame.query/query-success :books/list {} [{:id 1}]])
     ;; Manually set fetched-at to the past
@@ -247,8 +247,8 @@
 (deftest garbage-collect-keeps-active-queries
   (testing "GC keeps active queries even if expired"
     (rfq/reg-query :books/list
-      {:query-fn      (fn [_] {})
-       :cache-time-ms 1000})
+                   {:query-fn      (fn [_] {})
+                    :cache-time-ms 1000})
     (process-event [:re-frame.query/query-success :books/list {} [{:id 1}]])
     (let [qid (util/query-id :books/list {})]
       (swap! rf-db/app-db assoc-in [:re-frame.query/queries qid :fetched-at] 1000)
@@ -280,8 +280,8 @@
 (deftest mark-inactive-schedules-gc-timer
   (testing "mark-inactive schedules a GC timer when query has cache-time-ms"
     (rfq/reg-query :books/list
-      {:query-fn      (fn [_] {})
-       :cache-time-ms 60000})
+                   {:query-fn      (fn [_] {})
+                    :cache-time-ms 60000})
     (process-event [:re-frame.query/query-success :books/list {} [{:id 1}]])
     (process-event [:re-frame.query/mark-inactive :books/list {}])
     (let [qid (util/query-id :books/list {})]
@@ -298,8 +298,8 @@
 (deftest mark-active-cancels-gc-timer
   (testing "mark-active cancels any pending GC timer"
     (rfq/reg-query :books/list
-      {:query-fn      (fn [_] {})
-       :cache-time-ms 60000})
+                   {:query-fn      (fn [_] {})
+                    :cache-time-ms 60000})
     (process-event [:re-frame.query/query-success :books/list {} [{:id 1}]])
     ;; Go inactive → timer starts
     (process-event [:re-frame.query/mark-inactive :books/list {}])
@@ -341,15 +341,15 @@
       (rf/reg-fx :test-http (fn [v] (reset! captured v)))
       ;; Set global effect-fn
       (rfq/set-default-effect-fn!
-        (fn [request on-success on-failure]
-          {:test-http (assoc request
-                        :on-success on-success
-                        :on-failure on-failure)}))
+       (fn [request on-success on-failure]
+         {:test-http (assoc request
+                            :on-success on-success
+                            :on-failure on-failure)}))
       ;; Register query — query-fn returns only the request description
       (rfq/reg-query :books/list
-        {:query-fn (fn [{:keys [page]}]
-                     {:method :get
-                      :url    (str "/api/books?page=" page)})})
+                     {:query-fn (fn [{:keys [page]}]
+                                  {:method :get
+                                   :url    (str "/api/books?page=" page)})})
       (process-event [:re-frame.query/refetch-query :books/list {:page 1}])
       (is (= {:method     :get
               :url        "/api/books?page=1"
@@ -362,15 +362,15 @@
     (let [captured (atom nil)]
       (rf/reg-fx :test-http (fn [v] (reset! captured v)))
       (rfq/set-default-effect-fn!
-        (fn [request on-success on-failure]
-          {:test-http (assoc request
-                        :on-success on-success
-                        :on-failure on-failure)}))
+       (fn [request on-success on-failure]
+         {:test-http (assoc request
+                            :on-success on-success
+                            :on-failure on-failure)}))
       (rfq/reg-mutation :books/create
-        {:mutation-fn (fn [{:keys [title]}]
-                        {:method :post
-                         :url    "/api/books"
-                         :body   {:title title}})})
+                        {:mutation-fn (fn [{:keys [title]}]
+                                        {:method :post
+                                         :url    "/api/books"
+                                         :body   {:title title}})})
       (process-event [:re-frame.query/execute-mutation :books/create {:title "Dune"}])
       (is (= {:method     :post
               :url        "/api/books"
@@ -385,17 +385,17 @@
       (rf/reg-fx :custom-http (fn [v] (reset! captured v)))
       ;; Global effect-fn (should NOT be used)
       (rfq/set-default-effect-fn!
-        (fn [request on-success on-failure]
-          {:global-http (assoc request
-                          :on-success on-success
-                          :on-failure on-failure)}))
+       (fn [request on-success on-failure]
+         {:global-http (assoc request
+                              :on-success on-success
+                              :on-failure on-failure)}))
       ;; Per-query effect-fn override
       (rfq/reg-query :books/special
-        {:query-fn  (fn [_] {:method :get :url "/api/special"})
-         :effect-fn (fn [request on-success on-failure]
-                      {:custom-http (assoc request
-                                      :on-success on-success
-                                      :on-failure on-failure)})})
+                     {:query-fn  (fn [_] {:method :get :url "/api/special"})
+                      :effect-fn (fn [request on-success on-failure]
+                                   {:custom-http (assoc request
+                                                        :on-success on-success
+                                                        :on-failure on-failure)})})
       (process-event [:re-frame.query/refetch-query :books/special {}])
       (is (= {:method     :get
               :url        "/api/special"
@@ -409,11 +409,11 @@
       (rf/reg-fx :test-http (fn [v] (reset! captured v)))
       ;; No set-default-effect-fn! call — legacy mode
       (rfq/reg-query :books/legacy
-        {:query-fn (fn [{:keys [page]}]
-                     {:test-http {:method     :get
-                                  :url        "/api/books"
-                                  :on-success [:re-frame.query/query-success :books/legacy {:page page}]
-                                  :on-failure [:re-frame.query/query-failure :books/legacy {:page page}]}})})
+                     {:query-fn (fn [{:keys [page]}]
+                                  {:test-http {:method     :get
+                                               :url        "/api/books"
+                                               :on-success [:re-frame.query/query-success :books/legacy {:page page}]
+                                               :on-failure [:re-frame.query/query-failure :books/legacy {:page page}]}})})
       (process-event [:re-frame.query/refetch-query :books/legacy {:page 1}])
       (is (= {:method     :get
               :url        "/api/books"
@@ -438,22 +438,22 @@
     (let [captured (atom nil)]
       (rf/reg-fx :test-http (fn [v] (reset! captured v)))
       (rfq/init!
-        {:default-effect-fn (fn [request on-success on-failure]
-                              {:test-http (assoc request
-                                            :on-success on-success
-                                            :on-failure on-failure)})
-         :queries
-         {:books/list {:query-fn (fn [{:keys [page]}]
-                                   {:method :get
-                                    :url    (str "/api/books?page=" page)})
-                       :stale-time-ms 30000
-                       :tags (fn [_] [[:books]])}}
-         :mutations
-         {:books/create {:mutation-fn (fn [{:keys [title]}]
+       {:default-effect-fn (fn [request on-success on-failure]
+                             {:test-http (assoc request
+                                                :on-success on-success
+                                                :on-failure on-failure)})
+        :queries
+        {:books/list {:query-fn (fn [{:keys [page]}]
+                                  {:method :get
+                                   :url    (str "/api/books?page=" page)})
+                      :stale-time-ms 30000
+                      :tags (fn [_] [[:books]])}}
+        :mutations
+        {:books/create {:mutation-fn (fn [{:keys [title]}]
                                        {:method :post
                                         :url    "/api/books"
                                         :body   {:title title}})
-                         :invalidates (fn [_] [[:books]])}}})
+                        :invalidates (fn [_] [[:books]])}}})
       ;; Query works
       (process-event [:re-frame.query/refetch-query :books/list {:page 1}])
       (is (= {:method     :get
@@ -478,7 +478,7 @@
     (rfq/reg-mutation :old/mutation {:mutation-fn (fn [_] {})})
     ;; Now init! with a fresh config
     (rfq/init!
-      {:queries {:new/query {:query-fn (fn [_] {:url "/new"})}}})
+     {:queries {:new/query {:query-fn (fn [_] {:url "/new"})}}})
     ;; Old registrations are gone
     (is (nil? (registry/get-query :old/query)))
     (is (nil? (registry/get-mutation :old/mutation)))
@@ -495,7 +495,7 @@
 (deftest init-incremental-after-init
   (testing "reg-query and reg-mutation still work after init!"
     (rfq/init!
-      {:queries {:books/list {:query-fn (fn [_] {:url "/books"})}}})
+     {:queries {:books/list {:query-fn (fn [_] {:url "/books"})}}})
     ;; Add another query incrementally
     (rfq/reg-query :books/detail {:query-fn (fn [{:keys [id]}] {:url (str "/books/" id)})})
     ;; Both exist
@@ -511,12 +511,12 @@
     (let [call-count (atom 0)]
       (rf/reg-fx :test-http (fn [_] (swap! call-count inc)))
       (rfq/set-default-effect-fn!
-        (fn [request on-success on-failure]
-          {:test-http (assoc request
-                        :on-success on-success
-                        :on-failure on-failure)}))
+       (fn [request on-success on-failure]
+         {:test-http (assoc request
+                            :on-success on-success
+                            :on-failure on-failure)}))
       (rfq/reg-query :books/list
-        {:query-fn (fn [_] {:method :get :url "/api/books"})})
+                     {:query-fn (fn [_] {:method :get :url "/api/books"})})
       ;; First dispatch — should fire the effect
       (process-event [:re-frame.query/ensure-query :books/list {}])
       (is (= 1 @call-count) "first ensure-query fires the effect")
@@ -533,13 +533,13 @@
     (let [calls (atom [])]
       (rf/reg-fx :test-http (fn [v] (swap! calls conj v)))
       (rfq/set-default-effect-fn!
-        (fn [request on-success on-failure]
-          {:test-http (assoc request
-                        :on-success on-success
-                        :on-failure on-failure)}))
+       (fn [request on-success on-failure]
+         {:test-http (assoc request
+                            :on-success on-success
+                            :on-failure on-failure)}))
       (rfq/reg-query :books/detail
-        {:query-fn (fn [{:keys [id]}]
-                     {:method :get :url (str "/api/books/" id)})})
+                     {:query-fn (fn [{:keys [id]}]
+                                  {:method :get :url (str "/api/books/" id)})})
       ;; Two dispatches with different params
       (process-event [:re-frame.query/ensure-query :books/detail {:id 1}])
       (process-event [:re-frame.query/ensure-query :books/detail {:id 2}])
@@ -553,13 +553,13 @@
     (let [call-count (atom 0)]
       (rf/reg-fx :test-http (fn [_] (swap! call-count inc)))
       (rfq/set-default-effect-fn!
-        (fn [request on-success on-failure]
-          {:test-http (assoc request
-                        :on-success on-success
-                        :on-failure on-failure)}))
+       (fn [request on-success on-failure]
+         {:test-http (assoc request
+                            :on-success on-success
+                            :on-failure on-failure)}))
       (rfq/reg-query :books/list
-        {:query-fn      (fn [_] {:method :get :url "/api/books"})
-         :stale-time-ms 60000})
+                     {:query-fn      (fn [_] {:method :get :url "/api/books"})
+                      :stale-time-ms 60000})
       ;; Populate cache with fresh data
       (process-event [:re-frame.query/query-success :books/list {} [{:id 1}]])
       ;; Reset counter after the setup
@@ -577,60 +577,60 @@
   (testing "Active queries matching invalidated tags are refetched;
             inactive queries are only marked stale."
     (rf-test/run-test-sync
-      (let [calls (atom [])]
-        (rf/reg-fx :test-http (fn [v] (swap! calls conj v)))
-        (rfq/set-default-effect-fn!
-          (fn [request on-success on-failure]
-            {:test-http (assoc request
-                          :on-success on-success
-                          :on-failure on-failure)}))
-        ;; Register two queries sharing the same tag
-        (rfq/reg-query :books/list
-          {:query-fn (fn [_] {:method :get :url "/api/books"})
-           :tags     (fn [_] [[:books :all]])})
-        (rfq/reg-query :books/detail
-          {:query-fn (fn [{:keys [id]}] {:method :get :url (str "/api/books/" id)})
-           :tags     (fn [{:keys [id]}] [[:books :all] [:books :id id]])})
-        ;; Populate both with data
-        (rf/dispatch [:re-frame.query/query-success :books/list {} [{:id 1}]])
-        (rf/dispatch [:re-frame.query/query-success :books/detail {:id 1} {:id 1 :title "Dune"}])
-        ;; Mark only list as active, detail stays inactive
-        (rf/dispatch [:re-frame.query/mark-active :books/list {}])
-        ;; Reset call log after setup
-        (reset! calls [])
-        ;; Invalidate — run-test-sync resolves the full chain:
-        ;; invalidate-tags → (marks stale) → refetch-query (for active only)
-        (rf/dispatch [:re-frame.query/invalidate-tags [[:books :all]]])
-        (let [list-qid   (util/query-id :books/list {})
-              detail-qid (util/query-id :books/detail {:id 1})]
-          ;; The active query was refetched automatically (stale? reset to false)
-          (is (true? (get-in (app-db) [:re-frame.query/queries list-qid :fetching?]))
-              "active query is now refetching")
-          (is (false? (get-in (app-db) [:re-frame.query/queries list-qid :stale?]))
-              "stale? reset to false by the refetch")
-          ;; The inactive query is just marked stale — no refetch
-          (is (true? (get-in (app-db) [:re-frame.query/queries detail-qid :stale?]))
-              "inactive query is marked stale")
-          (is (false? (get-in (app-db) [:re-frame.query/queries detail-qid :fetching?]))
-              "inactive query is NOT refetching")
-          ;; Only the active query triggered a refetch effect
-          (is (= 1 (count @calls))
-              "only one refetch effect fired (for the active query)")
-          (is (= "/api/books" (:url (first @calls)))
-              "the refetch effect is for the active query"))))))
+     (let [calls (atom [])]
+       (rf/reg-fx :test-http (fn [v] (swap! calls conj v)))
+       (rfq/set-default-effect-fn!
+        (fn [request on-success on-failure]
+          {:test-http (assoc request
+                             :on-success on-success
+                             :on-failure on-failure)}))
+       ;; Register two queries sharing the same tag
+       (rfq/reg-query :books/list
+                      {:query-fn (fn [_] {:method :get :url "/api/books"})
+                       :tags     (fn [_] [[:books :all]])})
+       (rfq/reg-query :books/detail
+                      {:query-fn (fn [{:keys [id]}] {:method :get :url (str "/api/books/" id)})
+                       :tags     (fn [{:keys [id]}] [[:books :all] [:books :id id]])})
+       ;; Populate both with data
+       (rf/dispatch [:re-frame.query/query-success :books/list {} [{:id 1}]])
+       (rf/dispatch [:re-frame.query/query-success :books/detail {:id 1} {:id 1 :title "Dune"}])
+       ;; Mark only list as active, detail stays inactive
+       (rf/dispatch [:re-frame.query/mark-active :books/list {}])
+       ;; Reset call log after setup
+       (reset! calls [])
+       ;; Invalidate — run-test-sync resolves the full chain:
+       ;; invalidate-tags → (marks stale) → refetch-query (for active only)
+       (rf/dispatch [:re-frame.query/invalidate-tags [[:books :all]]])
+       (let [list-qid   (util/query-id :books/list {})
+             detail-qid (util/query-id :books/detail {:id 1})]
+         ;; The active query was refetched automatically (stale? reset to false)
+         (is (true? (get-in (app-db) [:re-frame.query/queries list-qid :fetching?]))
+             "active query is now refetching")
+         (is (false? (get-in (app-db) [:re-frame.query/queries list-qid :stale?]))
+             "stale? reset to false by the refetch")
+         ;; The inactive query is just marked stale — no refetch
+         (is (true? (get-in (app-db) [:re-frame.query/queries detail-qid :stale?]))
+             "inactive query is marked stale")
+         (is (false? (get-in (app-db) [:re-frame.query/queries detail-qid :fetching?]))
+             "inactive query is NOT refetching")
+         ;; Only the active query triggered a refetch effect
+         (is (= 1 (count @calls))
+             "only one refetch effect fired (for the active query)")
+         (is (= "/api/books" (:url (first @calls)))
+             "the refetch effect is for the active query"))))))
 
 (deftest invalidation-does-not-refetch-inactive-queries
   (testing "Inactive queries get marked stale but no refetch dispatch happens"
     (let [call-count (atom 0)]
       (rf/reg-fx :test-http (fn [_] (swap! call-count inc)))
       (rfq/set-default-effect-fn!
-        (fn [request on-success on-failure]
-          {:test-http (assoc request
-                        :on-success on-success
-                        :on-failure on-failure)}))
+       (fn [request on-success on-failure]
+         {:test-http (assoc request
+                            :on-success on-success
+                            :on-failure on-failure)}))
       (rfq/reg-query :books/list
-        {:query-fn (fn [_] {:method :get :url "/api/books"})
-         :tags     (fn [_] [[:books :all]])})
+                     {:query-fn (fn [_] {:method :get :url "/api/books"})
+                      :tags     (fn [_] [[:books :all]])})
       ;; Populate with data but do NOT mark active
       (process-event [:re-frame.query/query-success :books/list {} [{:id 1}]])
       (reset! call-count 0)
@@ -645,14 +645,14 @@
 (deftest invalidation-with-multiple-tag-types
   (testing "Exact tag match, partial tag match, and non-matching tags"
     (rfq/reg-query :books/list
-      {:query-fn (fn [_] {})
-       :tags     (fn [_] [[:books :all]])})
+                   {:query-fn (fn [_] {})
+                    :tags     (fn [_] [[:books :all]])})
     (rfq/reg-query :books/detail
-      {:query-fn (fn [_] {})
-       :tags     (fn [{:keys [id]}] [[:books :id id]])})
+                   {:query-fn (fn [_] {})
+                    :tags     (fn [{:keys [id]}] [[:books :id id]])})
     (rfq/reg-query :authors/list
-      {:query-fn (fn [_] {})
-       :tags     (fn [_] [[:authors :all]])})
+                   {:query-fn (fn [_] {})
+                    :tags     (fn [_] [[:authors :all]])})
     ;; Populate all three
     (process-event [:re-frame.query/query-success :books/list {} [{:id 1}]])
     (process-event [:re-frame.query/query-success :books/detail {:id 1} {:title "Dune"}])
@@ -672,8 +672,8 @@
 (deftest invalidation-with-id-specific-tags
   (testing "Invalidating a specific id tag only affects the matching detail query"
     (rfq/reg-query :books/detail
-      {:query-fn (fn [_] {})
-       :tags     (fn [{:keys [id]}] [[:books :id id]])})
+                   {:query-fn (fn [_] {})
+                    :tags     (fn [{:keys [id]}] [[:books :id id]])})
     ;; Populate two detail queries
     (process-event [:re-frame.query/query-success :books/detail {:id 1} {:title "Dune"}])
     (process-event [:re-frame.query/query-success :books/detail {:id 2} {:title "Foundation"}])
@@ -689,42 +689,189 @@
 (deftest full-mutation-invalidation-cycle
   (testing "mutation-success → invalidate-tags → refetch active query → new data"
     (rf-test/run-test-sync
-      (let [calls (atom [])]
-        (rf/reg-fx :test-http (fn [v] (swap! calls conj v)))
-        (rfq/set-default-effect-fn!
-          (fn [request on-success on-failure]
-            {:test-http (assoc request
-                          :on-success on-success
-                          :on-failure on-failure)}))
-        (rfq/reg-query :books/list
-          {:query-fn (fn [_] {:method :get :url "/api/books"})
-           :tags     (fn [_] [[:books :all]])})
-        (rfq/reg-mutation :books/create
-          {:mutation-fn (fn [{:keys [title]}]
-                          {:method :post :url "/api/books" :body {:title title}})
-           :invalidates (fn [_] [[:books :all]])})
-        ;; Populate list and mark active
-        (rf/dispatch [:re-frame.query/query-success :books/list {} [{:id 1}]])
-        (rf/dispatch [:re-frame.query/mark-active :books/list {}])
-        (reset! calls [])
-        ;; Mutation succeeds — run-test-sync resolves the full chain:
-        ;; mutation-success → invalidate-tags → refetch-query
-        (rf/dispatch [:re-frame.query/mutation-success :books/create {:title "Dune"} {:id 2}])
-        ;; Verify mutation state
-        (let [mid (util/query-id :books/create {:title "Dune"})]
-          (is (= :success (get-in (app-db) [:re-frame.query/mutations mid :status]))
-              "mutation is :success"))
-        ;; The full chain resolved: query should be refetching
-        (let [qid (util/query-id :books/list {})]
-          (is (true? (get-in (app-db) [:re-frame.query/queries qid :fetching?]))
-              "active query is refetching after mutation-triggered invalidation")
-          (is (= :success (get-in (app-db) [:re-frame.query/queries qid :status]))
-              "status stays :success during background refetch (stale data visible)")
-          (is (= 1 (count @calls))
-              "exactly one refetch effect fired")
-          (is (= "/api/books" (:url (first @calls))))
-          ;; Simulate the refetch completing with updated data
-          (rf/dispatch [:re-frame.query/query-success :books/list {} [{:id 1} {:id 2}]])
-          (is (= [{:id 1} {:id 2}]
-                 (get-in (app-db) [:re-frame.query/queries qid :data]))
-              "cache now has the updated data"))))))
+     (let [calls (atom [])]
+       (rf/reg-fx :test-http (fn [v] (swap! calls conj v)))
+       (rfq/set-default-effect-fn!
+        (fn [request on-success on-failure]
+          {:test-http (assoc request
+                             :on-success on-success
+                             :on-failure on-failure)}))
+       (rfq/reg-query :books/list
+                      {:query-fn (fn [_] {:method :get :url "/api/books"})
+                       :tags     (fn [_] [[:books :all]])})
+       (rfq/reg-mutation :books/create
+                         {:mutation-fn (fn [{:keys [title]}]
+                                         {:method :post :url "/api/books" :body {:title title}})
+                          :invalidates (fn [_] [[:books :all]])})
+       ;; Populate list and mark active
+       (rf/dispatch [:re-frame.query/query-success :books/list {} [{:id 1}]])
+       (rf/dispatch [:re-frame.query/mark-active :books/list {}])
+       (reset! calls [])
+       ;; Mutation succeeds — run-test-sync resolves the full chain:
+       ;; mutation-success → invalidate-tags → refetch-query
+       (rf/dispatch [:re-frame.query/mutation-success :books/create {:title "Dune"} {:id 2}])
+       ;; Verify mutation state
+       (let [mid (util/query-id :books/create {:title "Dune"})]
+         (is (= :success (get-in (app-db) [:re-frame.query/mutations mid :status]))
+             "mutation is :success"))
+       ;; The full chain resolved: query should be refetching
+       (let [qid (util/query-id :books/list {})]
+         (is (true? (get-in (app-db) [:re-frame.query/queries qid :fetching?]))
+             "active query is refetching after mutation-triggered invalidation")
+         (is (= :success (get-in (app-db) [:re-frame.query/queries qid :status]))
+             "status stays :success during background refetch (stale data visible)")
+         (is (= 1 (count @calls))
+             "exactly one refetch effect fired")
+         (is (= "/api/books" (:url (first @calls))))
+         ;; Simulate the refetch completing with updated data
+         (rf/dispatch [:re-frame.query/query-success :books/list {} [{:id 1} {:id 2}]])
+         (is (= [{:id 1} {:id 2}]
+                (get-in (app-db) [:re-frame.query/queries qid :data]))
+             "cache now has the updated data"))))))
+
+;; ---------------------------------------------------------------------------
+;; Full mutation lifecycle tests
+;; ---------------------------------------------------------------------------
+
+(deftest execute-mutation-sets-loading
+  (testing "execute-mutation immediately sets :loading before the effect fires"
+    (let [captured-status (atom nil)]
+      (rf/reg-fx :test-http
+                 (fn [_]
+                   ;; Capture the mutation status at the moment the effect fires
+                   (let [mid (util/query-id :books/create {:title "Dune"})]
+                     (reset! captured-status
+                             (get-in (app-db) [:re-frame.query/mutations mid :status])))))
+      (rfq/set-default-effect-fn!
+       (fn [request on-success on-failure]
+         {:test-http (assoc request
+                            :on-success on-success
+                            :on-failure on-failure)}))
+      (rfq/reg-mutation :books/create
+                        {:mutation-fn (fn [{:keys [title]}]
+                                        {:method :post :url "/api/books" :body {:title title}})})
+      (process-event [:re-frame.query/execute-mutation :books/create {:title "Dune"}])
+      (let [mid (util/query-id :books/create {:title "Dune"})]
+        (is (= :loading (get-in (app-db) [:re-frame.query/mutations mid :status]))
+            "status is :loading after execute-mutation")
+        (is (nil? (get-in (app-db) [:re-frame.query/mutations mid :error]))
+            "error is nil during :loading")
+        (is (= :loading @captured-status)
+            "status was :loading when the effect fired")))))
+
+(deftest mutation-success-stores-response-data
+  (testing "mutation-success stores the response data in the mutation state"
+    (rfq/reg-mutation :books/create
+                      {:mutation-fn (fn [_] {})})
+    (process-event [:re-frame.query/mutation-success :books/create {:title "Dune"} {:id 2 :title "Dune"}])
+    (let [mid      (util/query-id :books/create {:title "Dune"})
+          mutation (get-in (app-db) [:re-frame.query/mutations mid])]
+      (is (= :success (:status mutation)))
+      (is (= {:id 2 :title "Dune"} (:data mutation))
+          "response data is stored")
+      (is (nil? (:error mutation))
+          "error is cleared on success"))))
+
+(deftest independent-mutations-have-separate-state
+  (testing "Two mutations with different params track independent status"
+    (rfq/reg-mutation :books/update
+                      {:mutation-fn (fn [{:keys [id title]}]
+                                      {:method :put :url (str "/api/books/" id) :body {:title title}})})
+    ;; Start two mutations
+    (process-event [:re-frame.query/execute-mutation :books/update {:id 1 :title "Dune Revised"}])
+    (process-event [:re-frame.query/execute-mutation :books/update {:id 2 :title "Foundation Revised"}])
+    (let [mid-1 (util/query-id :books/update {:id 1 :title "Dune Revised"})
+          mid-2 (util/query-id :books/update {:id 2 :title "Foundation Revised"})]
+      ;; Both should be :loading independently
+      (is (= :loading (get-in (app-db) [:re-frame.query/mutations mid-1 :status])))
+      (is (= :loading (get-in (app-db) [:re-frame.query/mutations mid-2 :status])))
+      ;; First one succeeds
+      (process-event [:re-frame.query/mutation-success :books/update {:id 1 :title "Dune Revised"} {:id 1}])
+      (is (= :success (get-in (app-db) [:re-frame.query/mutations mid-1 :status]))
+          "mutation 1 is :success")
+      (is (= :loading (get-in (app-db) [:re-frame.query/mutations mid-2 :status]))
+          "mutation 2 is still :loading")
+      ;; Second one fails
+      (process-event [:re-frame.query/mutation-failure :books/update {:id 2 :title "Foundation Revised"} {:status 500}])
+      (is (= :success (get-in (app-db) [:re-frame.query/mutations mid-1 :status]))
+          "mutation 1 still :success")
+      (is (= :error (get-in (app-db) [:re-frame.query/mutations mid-2 :status]))
+          "mutation 2 is :error"))))
+
+(deftest mutation-full-lifecycle-loading-to-success
+  (testing "Full lifecycle: execute → :loading → success → :success with data"
+    (let [captured (atom nil)]
+      (rf/reg-fx :test-http (fn [v] (reset! captured v)))
+      (rfq/set-default-effect-fn!
+       (fn [request on-success on-failure]
+         {:test-http (assoc request
+                            :on-success on-success
+                            :on-failure on-failure)}))
+      (rfq/reg-mutation :books/create
+                        {:mutation-fn (fn [{:keys [title]}]
+                                        {:method :post
+                                         :url "/api/books"
+                                         :body {:title title}})})
+      ;; Execute
+      (process-event [:re-frame.query/execute-mutation :books/create {:title "Dune"}])
+      (let [mid (util/query-id :books/create {:title "Dune"})]
+        (is (= :loading (get-in (app-db) [:re-frame.query/mutations mid :status])))
+        ;; Verify the effect was captured with correct callbacks
+        (is (= [:re-frame.query/mutation-success :books/create {:title "Dune"}]
+               (:on-success @captured)))
+        ;; Simulate success
+        (process-event [:re-frame.query/mutation-success :books/create {:title "Dune"} {:id 1 :title "Dune"}])
+        (let [mutation (get-in (app-db) [:re-frame.query/mutations mid])]
+          (is (= :success (:status mutation)))
+          (is (= {:id 1 :title "Dune"} (:data mutation)))
+          (is (nil? (:error mutation))))))))
+
+(deftest mutation-full-lifecycle-error-then-retry-success
+  (testing "Full lifecycle: execute → :error → re-execute → :loading → :success"
+    (rfq/reg-mutation :books/create
+                      {:mutation-fn (fn [{:keys [title]}]
+                                      {:method :post :url "/api/books" :body {:title title}})})
+    (let [mid (util/query-id :books/create {:title "Dune"})]
+      ;; First attempt fails
+      (process-event [:re-frame.query/execute-mutation :books/create {:title "Dune"}])
+      (is (= :loading (get-in (app-db) [:re-frame.query/mutations mid :status])))
+      (process-event [:re-frame.query/mutation-failure :books/create {:title "Dune"} {:status 500}])
+      (is (= :error (get-in (app-db) [:re-frame.query/mutations mid :status])))
+      (is (= {:status 500} (get-in (app-db) [:re-frame.query/mutations mid :error])))
+      ;; Retry — should go back to :loading
+      (process-event [:re-frame.query/execute-mutation :books/create {:title "Dune"}])
+      (is (= :loading (get-in (app-db) [:re-frame.query/mutations mid :status]))
+          "status resets to :loading on retry")
+      (is (nil? (get-in (app-db) [:re-frame.query/mutations mid :error]))
+          "error is cleared on retry")
+      ;; This time it succeeds
+      (process-event [:re-frame.query/mutation-success :books/create {:title "Dune"} {:id 1 :title "Dune"}])
+      (is (= :success (get-in (app-db) [:re-frame.query/mutations mid :status])))
+      (is (= {:id 1 :title "Dune"} (get-in (app-db) [:re-frame.query/mutations mid :data]))))))
+
+(deftest mutations-do-not-deduplicate
+  (testing "Unlike queries, mutations always fire — even with the same params after success"
+    (let [call-count (atom 0)]
+      (rf/reg-fx :test-http (fn [_] (swap! call-count inc)))
+      (rfq/set-default-effect-fn!
+        (fn [request on-success on-failure]
+          {:test-http (assoc request
+                        :on-success on-success
+                        :on-failure on-failure)}))
+      (rfq/reg-mutation :books/create
+        {:mutation-fn (fn [{:keys [title]}]
+                        {:method :post :url "/api/books" :body {:title title}})})
+      ;; First execution
+      (process-event [:re-frame.query/execute-mutation :books/create {:title "Dune"}])
+      (is (= 1 @call-count) "first mutation fires the effect")
+      ;; Complete it
+      (process-event [:re-frame.query/mutation-success :books/create {:title "Dune"} {:id 1}])
+      (let [mid (util/query-id :books/create {:title "Dune"})]
+        (is (= :success (get-in (app-db) [:re-frame.query/mutations mid :status]))))
+      ;; Execute the exact same mutation again — should fire again, no dedup
+      (process-event [:re-frame.query/execute-mutation :books/create {:title "Dune"}])
+      (is (= 2 @call-count)
+          "second mutation fires the effect again (no deduplication)")
+      (let [mid (util/query-id :books/create {:title "Dune"})]
+        (is (= :loading (get-in (app-db) [:re-frame.query/mutations mid :status]))
+            "status resets to :loading for the new execution")))))
