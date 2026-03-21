@@ -32,6 +32,11 @@
   [event]
   (rf/dispatch-sync event))
 
+(def noop-effect-fn
+  "No-op effect adapter for tests that need an effect-fn
+   but don't care about the actual HTTP effects."
+  (fn [_ _ _] {}))
+
 ;; ---------------------------------------------------------------------------
 ;; Registration tests
 ;; ---------------------------------------------------------------------------
@@ -761,6 +766,7 @@
 
 (deftest independent-mutations-have-separate-state
   (testing "Two mutations with different params track independent status"
+    (rfq/set-default-effect-fn! noop-effect-fn)
     (rfq/reg-mutation :books/update
                       {:mutation-fn (fn [{:keys [id title]}]
                                       {:method :put :url (str "/api/books/" id) :body {:title title}})})
@@ -1096,6 +1102,7 @@
 
 (deftest mutation-error-then-retry-success
   (testing "A failed mutation followed by re-execution transitions to :success"
+    (rfq/set-default-effect-fn! noop-effect-fn)
     (rfq/reg-mutation :books/create
                       {:mutation-fn (fn [{:keys [title]}]
                                       {:method :post :url "/api/books" :body {:title title}})})
