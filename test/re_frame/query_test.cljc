@@ -1704,3 +1704,193 @@
           (is (= 2 (count @calls)) "todos query fires with user-id")
           (is (= "/api/users/42/todos" (:url (second @calls)))
               "todos query uses the correct user-id from query A"))))))
+
+;; ---------------------------------------------------------------------------
+;; Transform response tests
+;; ---------------------------------------------------------------------------
+
+(deftest transform-response-query-test
+  (testing "transform-response unwraps nested data before caching"
+    (rfq/reg-query :books/list
+                   {:query-fn           (fn [_] {})
+                    :transform-response (fn [response _params]
+                                          (:data response))})
+    (process-event [:re-frame.query/query-success
+                    :books/list {} {:data [{:id 1} {:id 2}] :meta {:total 2}}])
+    (let [qid (util/query-id :books/list {})]
+      (is (= [{:id 1} {:id 2}]
+             (get-in (app-db) [:re-frame.query/queries qid :data]))
+          "only the :data key is stored, :meta is stripped")))
+
+  (testing "transform-response receives params for context-dependent transforms"
+    (rfq/reg-query :book/detail
+                   {:query-fn           (fn [_] {})
+                    :transform-response (fn [response params]
+                                          (assoc response :requested-id (:id params)))})
+    (process-event [:re-frame.query/query-success
+                    :book/detail {:id 42} {:title "Dune"}])
+    (let [qid (util/query-id :book/detail {:id 42})]
+      (is (= {:title "Dune" :requested-id 42}
+             (get-in (app-db) [:re-frame.query/queries qid :data]))
+          "params are passed to transform-response")))
+
+  (testing "transform-response can normalize into a lookup map"
+    (rfq/reg-query :books/list
+                   {:query-fn           (fn [_] {})
+                    :transform-response (fn [items _params]
+                                          (into {} (map (juxt :id identity)) items))})
+    (process-event [:re-frame.query/query-success
+                    :books/list {} [{:id 1 :title "Dune"} {:id 2 :title "Foundation"}]])
+    (let [qid (util/query-id :books/list {})]
+      (is (= {1 {:id 1 :title "Dune"}
+              2 {:id 2 :title "Foundation"}}
+             (get-in (app-db) [:re-frame.query/queries qid :data])))))
+
+  (testing "without transform-response, data passes through unchanged"
+    (rfq/reg-query :books/plain
+                   {:query-fn (fn [_] {})})
+    (process-event [:re-frame.query/query-success
+                    :books/plain {} {:raw "data" :nested {:deep true}}])
+    (let [qid (util/query-id :books/plain {})]
+      (is (= {:raw "data" :nested {:deep true}}
+             (get-in (app-db) [:re-frame.query/queries qid :data]))
+          "data stored as-is when no transform-response"))))
+
+(deftest transform-error-query-test
+  (testing "transform-error normalizes error before storing"
+    (rfq/reg-query :books/list
+                   {:query-fn        (fn [_] {})
+                    :transform-error (fn [error _params]
+                                       {:message (or (:body error) "Unknown error")
+                                        :code    (:status error)})})
+    (process-event [:re-frame.query/query-failure
+                    :books/list {} {:status 500 :body "Internal Server Error"}])
+    (let [qid (util/query-id :books/list {})]
+      (is (= {:message "Internal Server Error" :code 500}
+             (get-in (app-db) [:re-frame.query/queries qid :error])))))
+
+  (testing "transform-error receives params"
+    (rfq/reg-query :book/detail
+                   {:query-fn        (fn [_] {})
+                    :transform-error (fn [error params]
+                                       {:message (str "Failed to load book " (:id params))
+                                        :original error})})
+    (process-event [:re-frame.query/query-failure
+                    :book/detail {:id 42} {:status 404}])
+    (let [qid (util/query-id :book/detail {:id 42})]
+      (is (= {:message "Failed to load book 42"
+              :original {:status 404}}
+             (get-in (app-db) [:re-frame.query/queries qid :error])))))
+
+  (testing "without transform-error, error passes through unchanged"
+    (rfq/reg-query :books/plain
+                   {:query-fn (fn [_] {})})
+    (process-event [:re-frame.query/query-failure
+                    :books/plain {} {:status 503 :body "Service Unavailable"}])
+    (let [qid (util/query-id :books/plain {})]
+      (is (= {:status 503 :body "Service Unavailable"}
+             (get-in (app-db) [:re-frame.query/queries qid :error]))))))
+
+(deftest transform-response-mutation-test
+  (testing "transform-response unwraps mutation success data"
+    (rfq/reg-mutation :books/create
+                      {:mutation-fn        (fn [_] {})
+                       :transform-response (fn [response _params]
+                                             (:book response))})
+    (process-event [:re-frame.query/mutation-success
+                    :books/create {:title "Dune"} {:book {:id 1 :title "Dune"} :status "created"}])
+    (let [mid (util/query-id :books/create {:title "Dune"})]
+      (is (= {:id 1 :title "Dune"}
+             (get-in (app-db) [:re-frame.query/mutations mid :data]))
+          "only the :book key is stored")))
+
+  (testing "mutation transform-response receives params"
+    (rfq/reg-mutation :books/update
+                      {:mutation-fn        (fn [_] {})
+                       :transform-response (fn [response params]
+                                             (merge response
+                                                    (select-keys params [:id])))})
+    (process-event [:re-frame.query/mutation-success
+                    :books/update {:id 42 :title "Dune Revised"} {:title "Dune Revised"}])
+    (let [mid (util/query-id :books/update {:id 42 :title "Dune Revised"})]
+      (is (= {:id 42 :title "Dune Revised"}
+             (get-in (app-db) [:re-frame.query/mutations mid :data])))))
+
+  (testing "without mutation transform-response, data passes through unchanged"
+    (rfq/reg-mutation :books/plain
+                      {:mutation-fn (fn [_] {})})
+    (process-event [:re-frame.query/mutation-success
+                    :books/plain {} {:raw "response"}])
+    (let [mid (util/query-id :books/plain {})]
+      (is (= {:raw "response"}
+             (get-in (app-db) [:re-frame.query/mutations mid :data]))))))
+
+(deftest transform-error-mutation-test
+  (testing "transform-error normalizes mutation error"
+    (rfq/reg-mutation :books/create
+                      {:mutation-fn     (fn [_] {})
+                       :transform-error (fn [error _params]
+                                          (:body error))})
+    (process-event [:re-frame.query/mutation-failure
+                    :books/create {:title "Dune"} {:status 422 :body "Validation failed"}])
+    (let [mid (util/query-id :books/create {:title "Dune"})]
+      (is (= "Validation failed"
+             (get-in (app-db) [:re-frame.query/mutations mid :error])))))
+
+  (testing "mutation transform-error receives params"
+    (rfq/reg-mutation :books/update
+                      {:mutation-fn     (fn [_] {})
+                       :transform-error (fn [error params]
+                                          {:message (str "Failed to update book " (:id params))
+                                           :code    (:status error)})})
+    (process-event [:re-frame.query/mutation-failure
+                    :books/update {:id 42} {:status 500}])
+    (let [mid (util/query-id :books/update {:id 42})]
+      (is (= {:message "Failed to update book 42" :code 500}
+             (get-in (app-db) [:re-frame.query/mutations mid :error])))))
+
+  (testing "without mutation transform-error, error passes through unchanged"
+    (rfq/reg-mutation :books/plain
+                      {:mutation-fn (fn [_] {})})
+    (process-event [:re-frame.query/mutation-failure
+                    :books/plain {} {:status 500 :body "error"}])
+    (let [mid (util/query-id :books/plain {})]
+      (is (= {:status 500 :body "error"}
+             (get-in (app-db) [:re-frame.query/mutations mid :error]))))))
+
+(deftest transform-response-with-invalidation-test
+  (testing "transform-response works together with tag invalidation on mutations"
+    (rf-test/run-test-sync
+      (let [calls (atom [])]
+        (rf/reg-fx :test-http (fn [v] (swap! calls conj v)))
+        (rfq/set-default-effect-fn!
+          (fn [request on-success on-failure]
+            {:test-http (assoc request
+                               :on-success on-success
+                               :on-failure on-failure)}))
+        (rfq/reg-query :books/list
+                       {:query-fn           (fn [_] {:method :get :url "/api/books"})
+                        :transform-response (fn [response _params] (:items response))
+                        :tags               (fn [_] [[:books :all]])})
+        (rfq/reg-mutation :books/create
+                          {:mutation-fn        (fn [{:keys [title]}]
+                                                 {:method :post :url "/api/books" :body {:title title}})
+                           :transform-response (fn [response _params] (:book response))
+                           :invalidates        (fn [_] [[:books :all]])})
+        ;; Populate list with transformed data and mark active
+        (rf/dispatch [:re-frame.query/query-success
+                      :books/list {} {:items [{:id 1}] :total 1}])
+        (rf/dispatch [:re-frame.query/mark-active :books/list {}])
+        (let [qid (util/query-id :books/list {})]
+          (is (= [{:id 1}] (get-in (app-db) [:re-frame.query/queries qid :data]))
+              "query data is transformed"))
+        (reset! calls [])
+        ;; Mutation success → invalidation → refetch
+        (rf/dispatch [:re-frame.query/mutation-success
+                      :books/create {:title "Dune"} {:book {:id 2 :title "Dune"} :meta "extra"}])
+        (let [mid (util/query-id :books/create {:title "Dune"})]
+          (is (= {:id 2 :title "Dune"}
+                 (get-in (app-db) [:re-frame.query/mutations mid :data]))
+              "mutation data is transformed"))
+        (is (= 1 (count @calls))
+            "active query was refetched after invalidation")))))

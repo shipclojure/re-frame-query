@@ -70,6 +70,11 @@
                             every subscription to this query will poll at this
                             interval unless overridden per-subscription. Multiple
                             subscribers with different intervals use the lowest.
+      :transform-response   (fn [data params] -> data')  Optional.
+                            Applied to raw success data before caching. Use to
+                            unwrap nested responses, normalize into lookup maps, etc.
+      :transform-error      (fn [error params] -> error')  Optional.
+                            Applied to raw error data before storing.
 
   Returns the query key."
   registry/reg-query)
@@ -80,11 +85,15 @@
   Arguments:
     k      - Keyword identifying the mutation (e.g. :todos/add)
     config - Map with:
-      :mutation-fn  (fn [params] -> request-map)  REQUIRED
-                    Returns a request description map. The library auto-injects
-                    success/failure callbacks via the configured effect-fn.
-      :effect-fn    Optional per-mutation effect adapter (overrides global)
-      :invalidates  (fn [params] -> [[tag ...] ...]) tags to invalidate on success
+      :mutation-fn        (fn [params] -> request-map)  REQUIRED
+                          Returns a request description map. The library auto-injects
+                          success/failure callbacks via the configured effect-fn.
+      :effect-fn          Optional per-mutation effect adapter (overrides global)
+      :invalidates        (fn [params] -> [[tag ...] ...]) tags to invalidate on success
+      :transform-response (fn [data params] -> data')  Optional.
+                          Applied to raw mutation success data before storing.
+      :transform-error    (fn [error params] -> error')  Optional.
+                          Applied to raw mutation error before storing.
 
   Returns the mutation key."
   registry/reg-mutation)

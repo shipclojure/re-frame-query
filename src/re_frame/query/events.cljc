@@ -55,19 +55,21 @@
                     {:status    (if refreshing? :success :loading)
                      :fetching? true
                      :stale?    false})}
-        (build-query-effects query-config k params)))))
+             (build-query-effects query-config k params)))))
 
 (rf/reg-event-db
   :re-frame.query/query-success
   (fn [db [_ k params data]]
-    (let [qid          (util/query-id k params)
-          query-config (registry/get-query k)
-          now          (util/now-ms)
-          tags-fn      (or (:tags query-config) (constantly []))
-          tags         (set (tags-fn params))]
-      (update-in db [:re-frame.query/queries qid] util/merge-with-default
+    (let [qid            (util/query-id k params)
+          query-config   (registry/get-query k)
+          now            (util/now-ms)
+          tags-fn        (or (:tags query-config) (constantly []))
+          tags           (set (tags-fn params))
+          transform-fn   (:transform-response query-config)]
+      (update-in db [:re-frame.query/queries qid]
+                 util/merge-with-default
                  {:status        :success
-                  :data          data
+                  :data          (cond-> data (fn? transform-fn) (transform-fn params))
                   :error         nil
                   :fetching?     false
                   :fetched-at    now
@@ -80,10 +82,12 @@
 (rf/reg-event-db
   :re-frame.query/query-failure
   (fn [db [_ k params error]]
-    (let [qid (util/query-id k params)]
+    (let [qid          (util/query-id k params)
+          query-config (registry/get-query k)
+          transform-fn (:transform-error query-config)]
       (update-in db [:re-frame.query/queries qid] util/merge-with-default
                  {:status    :error
-                  :error     error
+                  :error     (cond-> error (fn? transform-fn) (transform-fn params))
                   :fetching? false}))))
 
 ;; ---------------------------------------------------------------------------
@@ -119,20 +123,23 @@
     (let [mutation-config (registry/get-mutation k)
           mid             (util/query-id k params)
           invalidates-fn  (or (:invalidates mutation-config) (constantly []))
-          tags            (invalidates-fn params)]
+          tags            (invalidates-fn params)
+          transform-fn    (:transform-response mutation-config)]
       (cond-> {:db (assoc-in db [:re-frame.query/mutations mid]
                              {:status :success
-                              :data   data
+                              :data   (cond-> data (fn? transform-fn) (transform-fn params))
                               :error  nil})}
         (seq tags) (assoc :fx [[:dispatch [:re-frame.query/invalidate-tags tags]]])))))
 
 (rf/reg-event-db
   :re-frame.query/mutation-failure
   (fn [db [_ k params error]]
-    (let [mid (util/query-id k params)]
+    (let [mid             (util/query-id k params)
+          mutation-config (registry/get-mutation k)
+          transform-fn    (:transform-error mutation-config)]
       (assoc-in db [:re-frame.query/mutations mid]
                 {:status :error
-                 :error  error}))))
+                 :error  (cond-> error (fn? transform-fn) (transform-fn params))}))))
 
 ;; ---------------------------------------------------------------------------
 ;; Invalidation

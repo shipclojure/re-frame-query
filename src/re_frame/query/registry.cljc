@@ -12,14 +12,19 @@
 
   `k`      - Namespaced keyword identifying the query (e.g. :todos/list)
   `config` - Map with keys:
-    :query-fn      (fn [params] -> request-map) — REQUIRED
-                   Returns a request description. When an effect-fn is configured
-                   (see `set-default-effect-fn!`), the library auto-injects
-                   success/failure callbacks. Without effect-fn, must return a
-                   full re-frame effects map with manual callbacks (legacy).
-    :cache-time-ms — ms before an inactive query is garbage-collected (default: 300000 / 5 min)
-    :stale-time-ms — ms before a query is considered stale
-    :tags          (fn [params] -> [[tag-tuple] ...]) — for invalidation matching"
+    :query-fn           (fn [params] -> request-map) — REQUIRED
+                        Returns a request description. When an effect-fn is configured
+                        (see `set-default-effect-fn!`), the library auto-injects
+                        success/failure callbacks. Without effect-fn, must return a
+                        full re-frame effects map with manual callbacks (legacy).
+    :cache-time-ms      — ms before an inactive query is garbage-collected (default: 300000 / 5 min)
+    :stale-time-ms      — ms before a query is considered stale
+    :tags               (fn [params] -> [[tag-tuple] ...]) — for invalidation matching
+    :transform-response (fn [data params] -> data') — optional, applied to raw success
+                        data before caching. Use to unwrap, reshape, or normalize
+                        server responses.
+    :transform-error    (fn [error params] -> error') — optional, applied to raw error
+                        before storing. Use to normalize error shapes."
   [k config]
   {:pre [(keyword? k) (fn? (:query-fn config))]}
   (swap! registry assoc-in [:queries k] config)
@@ -30,12 +35,16 @@
 
   `k`      - Namespaced keyword identifying the mutation (e.g. :todos/add)
   `config` - Map with keys:
-    :mutation-fn (fn [params] -> request-map) — REQUIRED
-                 Returns a request description. When an effect-fn is configured
-                 (see `set-default-effect-fn!`), the library auto-injects
-                 success/failure callbacks. Without effect-fn, must return a
-                 full re-frame effects map with manual callbacks (legacy).
-    :invalidates (fn [params] -> [[tag-tuple] ...]) — tags to invalidate on success"
+    :mutation-fn        (fn [params] -> request-map) — REQUIRED
+                        Returns a request description. When an effect-fn is configured
+                        (see `set-default-effect-fn!`), the library auto-injects
+                        success/failure callbacks. Without effect-fn, must return a
+                        full re-frame effects map with manual callbacks (legacy).
+    :invalidates        (fn [params] -> [[tag-tuple] ...]) — tags to invalidate on success
+    :transform-response (fn [data params] -> data') — optional, applied to raw success
+                        data before storing.
+    :transform-error    (fn [error params] -> error') — optional, applied to raw error
+                        before storing."
   [k config]
   {:pre [(keyword? k) (fn? (:mutation-fn config))]}
   (swap! registry assoc-in [:mutations k] config)
