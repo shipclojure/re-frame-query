@@ -7,9 +7,8 @@ on:
     branches: [main]
 
 jobs:
-  test:
+  unit-tests:
     runs-on: ubuntu-latest
-
     steps:
       - uses: actions/checkout@v4
 
@@ -47,24 +46,67 @@ jobs:
       - name: Run ClojureScript tests
         run: pnpm test
 
+  e2e-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - name: Setup Clojure
+        uses: DeLaGuardo/setup-clojure@13.4
+        with:
+          cli: latest
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: latest
+
+      - name: Cache Maven deps
+        uses: actions/cache@v4
+        with:
+          path: ~/.m2/repository
+          key: ${{ runner.os }}-maven-${{ hashFiles('deps.edn') }}
+          restore-keys: ${{ runner.os }}-maven-
+
+      - name: Install root npm dependencies
+        run: pnpm install
+
       - name: Install Playwright browsers
         run: npx playwright install chromium --with-deps
 
-      - name: Build example apps (mocks + ClojureScript)
+      - name: Build reagent example app
         run: |
-          cd examples/reagent-app && pnpm install && pnpm run mocks && pnpm exec shadow-cljs compile demo && cd ../..
-          cd examples/uix-app && pnpm install && pnpm run mocks && pnpm exec shadow-cljs compile demo && cd ../..
+          cd examples/reagent-app
+          pnpm install
+          pnpm run mocks
+          pnpm exec shadow-cljs compile demo
 
-      - name: Start example app servers
+      - name: Build UIx example app
         run: |
-          npx serve examples/reagent-app/resources/public -l 8710 --no-clipboard &
-          npx serve examples/uix-app/resources/public -l 8720 --no-clipboard &
-          # Wait for servers to be ready
+          cd examples/uix-app
+          pnpm install
+          pnpm run mocks
+          pnpm exec shadow-cljs compile demo
+
+      - name: Start servers and run Playwright tests
+        run: |
+          python3 -m http.server 8710 -d examples/reagent-app/resources/public &
+          python3 -m http.server 8720 -d examples/uix-app/resources/public &
+          # Wait for servers
           for port in 8710 8720; do
-            for i in $(seq 1 30); do
-              curl -s http://localhost:$port > /dev/null && break || sleep 1
+            for i in $(seq 1 15); do
+              curl -sf http://localhost:$port > /dev/null && break || sleep 1
             done
           done
-
-      - name: Run Playwright e2e tests
-        run: pnpm test:e2e
+          pnpm test:e2e
