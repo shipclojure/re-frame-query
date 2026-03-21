@@ -14,8 +14,9 @@
     (let [qid  [:todos/list {}]
           old  (get-in db [:re-frame.query/queries qid :data])
           new  (mapv #(if (= (:id %) id) (assoc % :done done) %) old)]
-      {:db       (assoc-in db [:snapshots qid] old)
-       :dispatch [:re-frame.query/set-query-data :todos/list {} new]})))
+      {:db            (assoc-in db [:snapshots qid] old)
+       :abort-request qid                                        ;; cancel in-flight refetch
+       :dispatch      [:re-frame.query/set-query-data :todos/list {} new]})))
 
 (rf/reg-event-fx :todos/rollback
   (fn [{:keys [db]} [_ _params _error]]
