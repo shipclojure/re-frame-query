@@ -65,6 +65,114 @@ test.describe("Basic CRUD", () => {
 });
 
 // ---------------------------------------------------------------------------
+// Caching & invalidation (network-level assertions)
+// ---------------------------------------------------------------------------
+
+test.describe("Caching & Invalidation", () => {
+  test("creating a book invalidates list queries exactly once each", async ({ page, baseURL }) => {
+    await page.goto(baseURL);
+    await waitForApp(page);
+    await selectTab(page, "Basic CRUD");
+
+    // Wait for initial data to fully load
+    await expect(page.getByRole("heading", { name: "📚 Books" })).toBeVisible();
+    await expect(page.locator(".book-card", { hasText: "Dune" }).first()).toBeVisible();
+    await expect(page.getByText("Page 1 of 4")).toBeVisible();
+    // Let all initial fetches settle
+    await page.waitForLoadState("networkidle");
+
+    // Start counting API requests
+    const apiRequests = [];
+    page.on("request", (req) => {
+      const url = req.url();
+      if (url.includes("/api/books") && req.method() === "GET") {
+        apiRequests.push(url);
+      }
+    });
+
+    // Fill form and create a book
+    await page.getByPlaceholder("e.g. The Left Hand of Darkness").fill("Test Book");
+    await page.getByPlaceholder("e.g. Ursula K. Le Guin").fill("Test Author");
+    await page.getByRole("button", { name: "Add Book" }).click();
+
+    // Wait for the mutation to complete and invalidation refetches to finish
+    await expect(page.locator(".book-card", { hasText: "Test Book" }).first()).toBeVisible({ timeout: 5000 });
+    await page.waitForLoadState("networkidle");
+
+    // Count refetch requests by type
+    const listRequests = apiRequests.filter((u) => u.match(/\/api\/books(\?|$)/) && !u.includes("page="));
+    const pageRequests = apiRequests.filter((u) => u.includes("page="));
+
+    // The books/list query should have been refetched exactly once
+    expect(listRequests.length).toBe(1);
+    // The books/page query (page 1 is active) should have been refetched exactly once
+    expect(pageRequests.length).toBe(1);
+  });
+
+  test("switching tabs and returning does not re-fetch fresh data", async ({ page, baseURL }) => {
+    await page.goto(baseURL);
+    await waitForApp(page);
+    await selectTab(page, "Basic CRUD");
+
+    // Wait for initial data to fully load
+    await expect(page.locator(".book-card", { hasText: "Dune" }).first()).toBeVisible();
+    await page.waitForLoadState("networkidle");
+
+    // Start counting API requests after initial load
+    const apiRequests = [];
+    page.on("request", (req) => {
+      const url = req.url();
+      if (url.includes("/api/books")) {
+        apiRequests.push(url);
+      }
+    });
+
+    // Switch to Dependent Queries tab and back to Basic CRUD
+    await selectTab(page, "Dependent Queries");
+    await expect(page.getByRole("heading", { name: "👤 Current User" })).toBeVisible({ timeout: 5000 });
+    await selectTab(page, "Basic CRUD");
+
+    // Data should appear immediately from cache (no loading state)
+    await expect(page.locator(".book-card", { hasText: "Dune" }).first()).toBeVisible();
+    await page.waitForLoadState("networkidle");
+
+    // No book API requests should have fired — data is still fresh (stale-time: 30s)
+    const bookRequests = apiRequests.filter((u) => u.includes("/api/books"));
+    expect(bookRequests.length).toBe(0);
+  });
+
+  test("prefetch cache hit produces zero network requests on click", async ({ page, baseURL }) => {
+    await page.goto(baseURL);
+    await waitForApp(page);
+    await selectTab(page, "Prefetching");
+
+    await expect(page.locator(".book-card", { hasText: "Dune" }).first()).toBeVisible({ timeout: 5000 });
+
+    // Hover to prefetch Dune's detail
+    const duneCard = page.locator(".book-card", { hasText: "Dune" }).first();
+    await duneCard.hover();
+    // Wait for prefetch to complete
+    await page.waitForTimeout(1500);
+    await page.waitForLoadState("networkidle");
+
+    // Now start counting — clicking should produce ZERO /api/books/:id requests
+    const detailRequests = [];
+    page.on("request", (req) => {
+      if (req.url().match(/\/api\/books\/\d+/)) {
+        detailRequests.push(req.url());
+      }
+    });
+
+    await duneCard.click();
+    await expect(page.getByRole("heading", { name: "Book Detail" })).toBeVisible();
+    await expect(page.getByText("Frank Herbert")).toBeVisible();
+
+    // No detail request — served from prefetch cache
+    expect(detailRequests.length).toBe(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
 // Polling tab
 // ---------------------------------------------------------------------------
 
@@ -95,6 +203,45 @@ test.describe("Polling", () => {
     await expect(page.getByRole("heading", { name: /Fast Stats/ })).toBeVisible();
     await page.getByRole("button", { name: /Hide Fast Subscriber/ }).click();
     await expect(page.getByRole("heading", { name: /Fast Stats/ })).not.toBeVisible();
+  });
+
+  test("fast subscriber increases polling frequency to ~1s", async ({ page, baseURL }) => {
+    await page.goto(baseURL);
+    await waitForApp(page);
+    await selectTab(page, "Polling");
+
+    // Wait for initial data to settle
+    await expect(page.getByText("Uptime:")).toBeVisible();
+    await page.waitForLoadState("networkidle");
+
+    // Count requests at the default 2s interval over 3 seconds
+    let slowRequests = [];
+    const slowHandler = (req) => {
+      if (req.url().includes("/api/server-stats")) slowRequests.push(Date.now());
+    };
+    page.on("request", slowHandler);
+    await page.waitForTimeout(3000);
+    page.off("request", slowHandler);
+    const slowCount = slowRequests.length;
+
+    // Enable the fast subscriber (1s interval — lowest wins)
+    await page.getByRole("button", { name: /Show Fast Subscriber/ }).click();
+    await expect(page.getByRole("heading", { name: /Fast Stats/ })).toBeVisible();
+    await page.waitForTimeout(500); // let interval switch settle
+
+    // Count requests at the fast 1s interval over 3 seconds
+    let fastRequests = [];
+    const fastHandler = (req) => {
+      if (req.url().includes("/api/server-stats")) fastRequests.push(Date.now());
+    };
+    page.on("request", fastHandler);
+    await page.waitForTimeout(3000);
+    page.off("request", fastHandler);
+    const fastCount = fastRequests.length;
+
+    // Fast subscriber should produce more requests than slow
+    // At 2s interval: ~1-2 requests in 3s. At 1s interval: ~2-3 requests in 3s.
+    expect(fastCount).toBeGreaterThan(slowCount);
   });
 });
 
