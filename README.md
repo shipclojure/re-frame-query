@@ -507,6 +507,56 @@ Use lifecycle hooks + `set-query-data` to build optimistic updates in pure re-fr
 
 The checkbox toggles instantly. If the server rejects, the snapshot is restored. No library magic — just re-frame events and data.
 
+> **Race condition note:** If a query has active polling or an in-flight refetch, the refetch response could briefly overwrite your optimistic data before the mutation completes. In practice this race is rare and self-correcting — the mutation's `:invalidates` triggers a fresh refetch with correct server data immediately after success. If you need to guard against it, see the cancellation recipe below.
+
+### Advanced: Cancelling In-Flight Requests
+
+TanStack Query solves the optimistic update race with `cancelQueries`, which aborts in-flight HTTP requests via `AbortController`. Since re-frame-query is transport-agnostic, cancellation lives in your transport layer — not in the library. Here's the pattern:
+
+```clojure
+;; 1. Store AbortControllers per query in your transport layer
+(defonce abort-controllers (atom {}))
+
+(rf/reg-fx :http
+  (fn [{:keys [method url body on-success on-failure abort-key]}]
+    (let [controller (js/AbortController.)
+          signal     (.-signal controller)]
+      (when abort-key
+        (swap! abort-controllers assoc abort-key controller))
+      (-> (js/fetch url (clj->js {:method  (name method)
+                                   :headers {"Content-Type" "application/json"}
+                                   :signal  signal
+                                   :body    (some-> body clj->js js/JSON.stringify)}))
+          (.then  #(when (.-ok %) ...dispatch on-success...))
+          (.catch #(when-not (.-aborted signal)  ;; silently drop aborted requests
+                    ...dispatch on-failure...))))))
+
+;; 2. Register an effect that aborts a request by key
+(rf/reg-fx :abort-request
+  (fn [abort-key]
+    (when-let [controller (get @abort-controllers abort-key)]
+      (.abort controller)
+      (swap! abort-controllers dissoc abort-key))))
+
+;; 3. Tag queries with an abort-key so they can be cancelled
+(rfq/reg-query :todos/list
+  {:query-fn (fn [_] {:method :get :url "/api/todos"
+                       :abort-key [:todos/list {}]})
+   :tags     (constantly [[:todos]])})
+
+;; 4. In your on-start hook, abort the in-flight refetch before patching
+(rf/reg-event-fx :todos/optimistic-toggle
+  (fn [{:keys [db]} [_ {:keys [id done]}]]
+    (let [qid [:todos/list {}]
+          old (get-in db [:re-frame.query/queries qid :data])
+          new (mapv #(if (= (:id %) id) (assoc % :done done) %) old)]
+      {:db            (assoc-in db [:snapshots qid] old)
+       :abort-request qid                                  ;; cancel in-flight refetch
+       :dispatch      [::rfq/set-query-data :todos/list {} new]})))
+```
+
+The aborted fetch silently drops (no `on-failure` dispatch), the optimistic data stays intact, and the mutation's `:invalidates` triggers a correct refetch when the server responds.
+
 ## Examples
 
 Two full example apps are included in `examples/`:
