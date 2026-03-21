@@ -21,6 +21,26 @@ let books = {
 
 let nextId = 13;
 
+// Simulated server start time
+const serverStartTime = Date.now();
+let requestCount = 0;
+
+// Current user (for dependent queries demo)
+const currentUser = {
+  id: 42,
+  name: "Alice Hacker",
+  email: "alice@example.com",
+};
+
+// User favorites (for dependent queries demo)
+const userFavorites = {
+  42: [
+    { id: 1, title: "Dune" },
+    { id: 5, title: "Foundation" },
+    { id: 9, title: "1984" },
+  ],
+};
+
 // ---------------------------------------------------------------------------
 // Handlers
 // ---------------------------------------------------------------------------
@@ -29,6 +49,7 @@ export const handlers = [
   // GET /api/books — list all books
   http.get("/api/books", async ({ request }) => {
     await delay(400);
+    requestCount++;
     const url = new URL(request.url);
     const page = parseInt(url.searchParams.get("page"), 10);
     const perPage = parseInt(url.searchParams.get("per_page"), 10);
@@ -56,6 +77,7 @@ export const handlers = [
   // GET /api/books/:id — single book
   http.get("/api/books/:id", async ({ params }) => {
     await delay(300);
+    requestCount++;
     const book = books[Number(params.id)];
     if (!book) {
       return HttpResponse.json(
@@ -69,6 +91,7 @@ export const handlers = [
   // POST /api/books — create a new book
   http.post("/api/books", async ({ request }) => {
     await delay(400);
+    requestCount++;
     const body = await request.json();
     const id = nextId++;
     const book = { id, title: body.title, author: body.author };
@@ -79,6 +102,7 @@ export const handlers = [
   // PUT /api/books/:id — update a book
   http.put("/api/books/:id", async ({ params, request }) => {
     await delay(300);
+    requestCount++;
     const id = Number(params.id);
     const existing = books[id];
     if (!existing) {
@@ -96,6 +120,7 @@ export const handlers = [
   // DELETE /api/books/:id — delete a book
   http.delete("/api/books/:id", async ({ params }) => {
     await delay(300);
+    requestCount++;
     const id = Number(params.id);
     if (!books[id]) {
       return HttpResponse.json(
@@ -105,5 +130,47 @@ export const handlers = [
     }
     delete books[id];
     return HttpResponse.json({ id, deleted: true });
+  }),
+
+  // -------------------------------------------------------------------------
+  // Polling demo
+  // -------------------------------------------------------------------------
+
+  // GET /api/server-stats — returns live server stats (changes every call)
+  http.get("/api/server-stats", async () => {
+    await delay(150);
+    requestCount++;
+    const uptimeMs = Date.now() - serverStartTime;
+    const seconds = Math.floor(uptimeMs / 1000);
+    const minutes = Math.floor(seconds / 60);
+    const uptime = minutes > 0
+      ? `${minutes}m ${seconds % 60}s`
+      : `${seconds}s`;
+    return HttpResponse.json({
+      uptime,
+      request_count: requestCount,
+      server_time: new Date().toLocaleTimeString(),
+      active_books: Object.keys(books).length,
+    });
+  }),
+
+  // -------------------------------------------------------------------------
+  // Dependent queries demo
+  // -------------------------------------------------------------------------
+
+  // GET /api/me — returns the current user
+  http.get("/api/me", async () => {
+    await delay(500);
+    requestCount++;
+    return HttpResponse.json(currentUser);
+  }),
+
+  // GET /api/users/:id/favorites — returns user's favorite books
+  http.get("/api/users/:id/favorites", async ({ params }) => {
+    await delay(400);
+    requestCount++;
+    const userId = Number(params.id);
+    const favorites = userFavorites[userId] || [];
+    return HttpResponse.json(favorites);
   }),
 ];

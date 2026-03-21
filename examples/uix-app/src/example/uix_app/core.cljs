@@ -4,9 +4,10 @@
    (mocks-bundle.js) and sets window.__mswReady when the service
    worker is active. We wait for that promise before rendering."
   (:require
-   ;; Side-effect requires — register :http effect + query/mutation definitions
+   ;; Side-effect requires — register effects, queries, and UI state
    [example.uix-app.http-fx]
    [example.uix-app.queries]
+   [example.uix-app.ui]
    [example.uix-app.views :as views]
    [re-frame.query :as rfq]
    [uix.core :refer [$]]

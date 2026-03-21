@@ -13,15 +13,15 @@
     {:http (assoc request :on-success on-success :on-failure on-failure)}))
 
 ;; ---------------------------------------------------------------------------
-;; Queries
+;; Queries — Basic CRUD
 ;; ---------------------------------------------------------------------------
 
 (rfq/reg-query :books/list
   {:query-fn      (fn [_params]
                     {:method :get
                      :url    "/api/books"})
-   :stale-time-ms 30000        ;; 30 seconds
-   :cache-time-ms 300000       ;; 5 minutes
+   :stale-time-ms 30000
+   :cache-time-ms 300000
    :tags          (constantly [[:books :all]])})
 
 (rfq/reg-query :books/page
@@ -45,7 +45,30 @@
                      [:books :all]])})
 
 ;; ---------------------------------------------------------------------------
-;; Mutations
+;; Queries — Polling
+;; ---------------------------------------------------------------------------
+
+(rfq/reg-query :server/stats
+  {:query-fn            (fn [_] {:method :get :url "/api/server-stats"})
+   :stale-time-ms       1000
+   :polling-interval-ms 2000})
+
+;; ---------------------------------------------------------------------------
+;; Queries — Dependent queries
+;; ---------------------------------------------------------------------------
+
+(rfq/reg-query :user/current
+  {:query-fn      (fn [_] {:method :get :url "/api/me"})
+   :stale-time-ms 60000})
+
+(rfq/reg-query :user/favorites
+  {:query-fn      (fn [{:keys [user-id]}]
+                    {:method :get
+                     :url    (str "/api/users/" user-id "/favorites")})
+   :stale-time-ms 30000})
+
+;; ---------------------------------------------------------------------------
+;; Mutations — Basic CRUD
 ;; ---------------------------------------------------------------------------
 
 (rfq/reg-mutation :books/create
@@ -73,3 +96,14 @@
    :invalidates  (fn [{:keys [id]}]
                    [[:books :id id]
                     [:books :all]])})
+
+;; ---------------------------------------------------------------------------
+;; Mutations — Mutation lifecycle demo
+;; ---------------------------------------------------------------------------
+
+(rfq/reg-mutation :books/create-demo
+  {:mutation-fn  (fn [{:keys [title author]}]
+                   {:method :post
+                    :url    "/api/books"
+                    :body   {:title title :author author}})
+   :invalidates  (constantly [[:books :all]])})

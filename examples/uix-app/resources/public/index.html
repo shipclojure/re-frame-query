@@ -156,6 +156,39 @@
       font-style: italic;
     }
 
+    .tab-bar {
+      display: flex;
+      gap: 0.35rem;
+      flex-wrap: wrap;
+      margin-bottom: 0;
+      background: #f0f0f0;
+      border-radius: 8px;
+      padding: 0.25rem;
+    }
+
+    .tab {
+      padding: 0.5rem 1.1rem;
+      border: none;
+      border-radius: 6px;
+      background: none;
+      color: #666;
+      font-size: 0.85rem;
+      font-weight: 500;
+      cursor: pointer;
+      white-space: nowrap;
+      outline: none;
+      transition: background 0.15s, color 0.15s;
+    }
+
+    .tab:hover { background: #e4e4e4; color: #333; }
+
+    .tab.active {
+      background: #fff;
+      color: #0f3460;
+      font-weight: 600;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+    }
+
     .toolbar {
       display: flex;
       justify-content: space-between;

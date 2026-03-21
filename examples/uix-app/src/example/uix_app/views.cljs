@@ -1,225 +1,34 @@
 (ns example.uix-app.views
-  "UIx view components for the demo book app.
-   Subscribing to [:re-frame.query/query ...] automatically fetches and tracks active state."
+  "Main app component with tab navigation between example demos."
   (:require
+   [example.uix-app.views.basic :as basic]
+   [example.uix-app.views.dependent :as dependent]
+   [example.uix-app.views.inspector :as inspector]
+   [example.uix-app.views.layout :as layout]
+   [example.uix-app.views.mutations :as mutations]
+   [example.uix-app.views.polling :as polling]
+   [example.uix-app.views.prefetching :as prefetching]
    [re-frame.core :as rf]
-   [uix.core :as uix :refer [$ defui]]
+   [uix.core :refer [$ defui]]
    [uix.re-frame :as urf]))
 
-;; ---------------------------------------------------------------------------
-;; Book card
-;; ---------------------------------------------------------------------------
-
-(defui book-card
-  "A single book entry in the list. Clicking it selects the book."
-  [{:keys [book on-select]}]
-  (let [{:keys [id title author]} book]
-    ($ :div.book-card {:on-click #(on-select id)}
-       ($ :div.title title)
-       ($ :div.author "by " author))))
-
-;; ---------------------------------------------------------------------------
-;; Book list
-;; ---------------------------------------------------------------------------
-
-(defui book-list
-  "Displays the list of books. Clicking a book calls `on-select` with its id.
-   Simply subscribing to [:re-frame.query/query :books/list {}] triggers the fetch."
-  [{:keys [on-select]}]
-  (let [query (urf/use-subscribe [:re-frame.query/query :books/list {}])]
-    ($ :div.panel
-       ($ :h2 "📚 Books")
-       (case (:status query)
-         :loading ($ :div.loading "Loading books…")
-         :error   ($ :div.error
-                     "Error: " (get-in query [:error :message] "Unknown error"))
-         :success (let [books (:data query)]
-                    (if (seq books)
-                      ($ :<>
-                         (for [{:keys [id] :as book} books]
-                           ($ book-card {:key id
-                                         :book book
-                                         :on-select on-select})))
-                      ($ :div.empty-state "No books yet. Add one below!")))
-         ;; :idle — initial render before dispatch fires
-         ($ :div.loading "Initializing…")))))
-
-;; ---------------------------------------------------------------------------
-;; Book detail
-;; ---------------------------------------------------------------------------
-
-(defui book-detail
-  "Shows details for a single book with edit/delete actions."
-  [{:keys [book-id on-back]}]
-  (let [query                        (urf/use-subscribe [:re-frame.query/query :book/detail {:id book-id}])
-        [editing? set-editing!]      (uix/use-state false)
-        [new-title set-new-title!]   (uix/use-state "")]
-    ($ :div.panel
-       ($ :h2 "Book Detail")
-       (case (:status query)
-         :loading ($ :div.loading "Loading book…")
-         :error   ($ :div.error
-                     "Error: " (get-in query [:error :message] "Unknown error"))
-         :success
-         (let [{:keys [title author id]} (:data query)]
-           ($ :div
-              ($ :div.detail-field
-                 ($ :span.label "ID: ") (str id))
-              ($ :div.detail-field
-                 ($ :span.label "Title: ") title)
-              ($ :div.detail-field
-                 ($ :span.label "Author: ") author)
-
-              (when editing?
-                ($ :div.form-group {:style {:margin-top "0.75rem"}}
-                   ($ :label "New title")
-                   ($ :input {:type "text"
-                              :value new-title
-                              :placeholder "Enter new title"
-                              :on-change #(set-new-title! (.. % -target -value))})
-                   ($ :div.button-group
-                      ($ :button.primary
-                         {:on-click (fn []
-                                      (rf/dispatch [:re-frame.query/execute-mutation
-                                                    :books/update
-                                                    {:id id :title new-title}])
-                                      (set-editing! false)
-                                      (set-new-title! ""))}
-                         "Save")
-                      ($ :button.secondary
-                         {:on-click #(set-editing! false)}
-                         "Cancel"))))
-
-              ($ :div.button-group
-                 (when-not editing?
-                   ($ :button.primary
-                      {:on-click (fn []
-                                   (set-new-title! title)
-                                   (set-editing! true))}
-                      "Edit Title"))
-                 ($ :button.danger
-                    {:on-click (fn []
-                                 (rf/dispatch [:re-frame.query/execute-mutation
-                                               :books/delete {:id id}])
-                                 (on-back))}
-                    "Delete")
-                 ($ :button.secondary
-                    {:on-click on-back}
-                    "← Back"))))
-         ;; :idle
-         ($ :div.loading "Initializing…")))))
-
-;; ---------------------------------------------------------------------------
-;; Add book form
-;; ---------------------------------------------------------------------------
-
-(defui add-book-form
-  "Simple form to create a new book via mutation."
-  []
-  (let [[title set-title!]       (uix/use-state "")
-        [author set-author!]     (uix/use-state "")]
-    ($ :div.panel
-       ($ :h2 "➕ Add a Book")
-       ($ :div.form-group
-          ($ :label "Title")
-          ($ :input {:type "text"
-                     :value title
-                     :placeholder "e.g. The Left Hand of Darkness"
-                     :on-change #(set-title! (.. % -target -value))}))
-       ($ :div.form-group
-          ($ :label "Author")
-          ($ :input {:type "text"
-                     :value author
-                     :placeholder "e.g. Ursula K. Le Guin"
-                     :on-change #(set-author! (.. % -target -value))}))
-       ($ :button.primary
-          {:disabled (or (empty? title) (empty? author))
-           :on-click (fn []
-                       (rf/dispatch [:re-frame.query/execute-mutation
-                                     :books/create
-                                     {:title title :author author}])
-                       (set-title! "")
-                       (set-author! ""))}
-          "Add Book"))))
-
-;; ---------------------------------------------------------------------------
-;; Paginated book list
-;; ---------------------------------------------------------------------------
-
-(defui paginated-book-list
-  "Displays a paginated list of books. Each page is a separate query,
-   so navigating back to a previously visited page is instant (cached).
-   Demonstrates how re-frame-query handles parameterised queries."
-  [{:keys [on-select]}]
-  (let [per-page 3
-        [current-page set-current-page!] (uix/use-state 1)
-        query (urf/use-subscribe [:re-frame.query/query :books/page {:page current-page :per-page per-page}])]
-    ($ :div.panel
-       ($ :h2 "📖 Books (Paginated)")
-       (case (:status query)
-         :loading ($ :div.loading "Loading page…")
-         :error   ($ :div.error
-                     "Error: " (get-in query [:error :message] "Unknown error"))
-         :success
-         (let [{:keys [items page total_pages total]} (:data query)]
-           ($ :div
-              ($ :div.page-info
-                 "Page " page " of " total_pages
-                 " (" total " books total)")
-              (if (seq items)
-                ($ :<>
-                   (for [{:keys [id] :as book} items]
-                     ($ book-card {:key id
-                                   :book book
-                                   :on-select on-select})))
-                ($ :div.empty-state "No books on this page."))
-              ($ :div.pagination
-                 ($ :button.secondary
-                    {:disabled (= page 1)
-                     :on-click #(set-current-page! dec)}
-                    "← Prev")
-                 (for [p (range 1 (inc total_pages))]
-                   ($ :button {:key p
-                               :class (if (= p page) "primary" "secondary")
-                               :on-click #(set-current-page! p)}
-                      (str p)))
-                 ($ :button.secondary
-                    {:disabled (= page total_pages)
-                     :on-click #(set-current-page! inc)}
-                    "Next →"))))
-         ($ :div.loading "Initializing…")))))
-
-;; ---------------------------------------------------------------------------
-;; Invalidate button
-;; ---------------------------------------------------------------------------
-
-(defui invalidate-button
-  "Manually invalidates all book-related caches."
-  []
-  ($ :button.secondary
-     {:on-click #(rf/dispatch [:re-frame.query/invalidate-tags [[:books :all]]])}
-     "🔄 Invalidate All Books"))
-
-;; ---------------------------------------------------------------------------
-;; App root
-;; ---------------------------------------------------------------------------
-
-(defui app
-  "Main application component."
-  []
-  (let [[selected-id set-selected-id!] (uix/use-state nil)]
+(defui app []
+  (let [active-tab (or (urf/use-subscribe [:ui/get :active-tab]) :basic)]
     ($ :div
        ($ :h1 "re-frame-query Demo")
        ($ :p.subtitle "Declarative data fetching & caching for re-frame (UIx)")
-
-       ($ :div.toolbar
-          ($ invalidate-button))
-
-       (if selected-id
-         ($ book-detail {:book-id selected-id
-                         :on-back #(set-selected-id! nil)})
-         ($ :<>
-            ($ book-list {:on-select #(set-selected-id! %)})
-            ($ paginated-book-list {:on-select #(set-selected-id! %)})))
-
-       ($ add-book-form))))
+       ($ :p {:style {:font-size "0.8rem" :color "#888" :margin-bottom "1rem"
+                      :background "#f8f8f8" :padding "0.5rem 0.75rem" :border-radius "6px"}}
+          "💡 Open your browser's " ($ :strong "Console") " to see re-frame-query events, or the "
+          ($ :strong "Network") " tab to watch requests fire automatically.")
+       ($ layout/tab-bar {:active active-tab
+                          :on-select #(rf/dispatch [:ui/set :active-tab %])})
+       ($ :div {:style {:margin-top "1.25rem"}}
+          (case active-tab
+            :basic       ($ basic/panel)
+            :polling     ($ polling/panel)
+            :dependent   ($ dependent/panel)
+            :prefetching ($ prefetching/panel)
+            :mutations   ($ mutations/panel)
+            ($ basic/panel)))
+       ($ inspector/panel))))
