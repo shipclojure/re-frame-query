@@ -142,6 +142,12 @@
                 {:status :error
                  :error  (cond-> error (fn? transform-fn) (transform-fn params))}))))
 
+(rf/reg-event-db
+  :re-frame.query/reset-mutation
+  (fn [db [_ k params]]
+    (let [mid (util/query-id k params)]
+      (update db :re-frame.query/mutations dissoc mid))))
+
 ;; ---------------------------------------------------------------------------
 ;; Invalidation
 ;; ---------------------------------------------------------------------------

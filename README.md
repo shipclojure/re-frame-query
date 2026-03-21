@@ -102,11 +102,24 @@ keeps it fresh. No imperative dispatch required.
       [:div "Idle"])))
 ```
 
-Just like React Query's `useQuery`, the subscription manages the full lifecycle:
-1. **Fetches** data if absent or stale — no manual dispatch needed
-2. **Marks the query as active** — so mutations know to refetch it
-3. **Refetches** automatically when matching tags are invalidated
-4. **Marks as inactive** on unmount — triggering the GC timer
+#### How does the subscription work?
+
+Unlike a typical re-frame subscription that just reads from `app-db`, `::rfq/query` is built with `reg-sub-raw` — it uses Reagent's `Reaction` lifecycle to manage the query lifecycle automatically:
+
+**On subscribe (component mounts):**
+1. Dispatches `::rfq/ensure-query` — fetches data if absent or stale (no-op if fresh)
+2. Dispatches `::rfq/mark-active` — tells the cache this query is in use (prevents GC, enables refetch on invalidation)
+3. Starts polling if `:polling-interval-ms` is configured
+
+**While subscribed:**
+- Returns the query state from `app-db` reactively (status, data, error, fetching?, stale?)
+- Multiple components subscribing to the same `[k params]` share a single cache entry
+
+**On dispose (component unmounts):**
+- Dispatches `::rfq/mark-inactive` — starts the GC timer (`cache-time-ms`)
+- Stops polling for this subscriber
+
+> **A note on re-frame philosophy:** re-frame's documentation [recommends](https://day8.github.io/re-frame/FAQs/LoadOnMount/) that subscriptions be pure reads and that events be the causal force in your app. Our `::rfq/query` subscription dispatches events as a side effect of subscribing — a deliberate trade-off that mirrors React Query's `useQuery` and RTK Query's `useXxxQuery` hooks, where subscribing is all you need. If you prefer explicit control, you can dispatch `::rfq/ensure-query` and `::rfq/mark-active` yourself and use the passive derived subscriptions (`::rfq/query-data`, `::rfq/query-status`, etc.) instead.
 
 ### 4. Dispatch a mutation
 
@@ -307,6 +320,7 @@ With `(:require [re-frame.query :as rfq])`, use `::rfq/` shorthand:
 | `[::rfq/remove-query qid]` | Remove a specific query from cache (used internally by GC) |
 | `[::rfq/garbage-collect]` | Bulk remove all expired inactive queries |
 | `[::rfq/reset-api-state]` | Clear all queries, mutations, and cancel all GC/polling timers |
+| `[::rfq/reset-mutation k params]` | Clear a mutation's state back to idle |
 
 ### Subscriptions
 

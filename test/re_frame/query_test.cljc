@@ -1986,3 +1986,54 @@
       (process-event [:re-frame.query/query-success :books/list {} [{:id 2}]])
       (is (= [{:id 2}] (get-in (app-db) [:re-frame.query/queries qid :data]))
           "new data cached normally"))))
+
+;; ---------------------------------------------------------------------------
+;; Reset mutation tests
+;; ---------------------------------------------------------------------------
+
+(deftest reset-mutation-test
+  (testing "reset-mutation clears mutation state back to idle"
+    (rfq/reg-mutation :books/create {:mutation-fn (fn [_] {})})
+    (process-event [:re-frame.query/mutation-success :books/create {:title "Dune"} {:id 1}])
+    (let [mid (util/query-id :books/create {:title "Dune"})]
+      (is (= :success (get-in (app-db) [:re-frame.query/mutations mid :status])))
+      ;; Reset
+      (process-event [:re-frame.query/reset-mutation :books/create {:title "Dune"}])
+      (is (nil? (get-in (app-db) [:re-frame.query/mutations mid]))
+          "mutation entry removed from app-db")))
+
+  (testing "reset-mutation after failure clears error state"
+    (rfq/reg-mutation :books/create {:mutation-fn (fn [_] {})})
+    (process-event [:re-frame.query/mutation-failure :books/create {:title "Dune"} {:status 422}])
+    (let [mid (util/query-id :books/create {:title "Dune"})]
+      (is (= :error (get-in (app-db) [:re-frame.query/mutations mid :status])))
+      (process-event [:re-frame.query/reset-mutation :books/create {:title "Dune"}])
+      (is (nil? (get-in (app-db) [:re-frame.query/mutations mid])))))
+
+  (testing "reset-mutation is a no-op for non-existent mutation"
+    (process-event [:re-frame.query/reset-mutation :books/create {:title "nope"}])
+    (is (= {} (or (:re-frame.query/mutations (app-db)) {}))
+        "app-db is unaffected"))
+
+  (testing "mutation subscription returns idle after reset"
+    (rf-test/run-test-sync
+      (rfq/reg-mutation :books/create {:mutation-fn (fn [_] {})})
+      (rf/dispatch [:re-frame.query/mutation-success :books/create {:title "Dune"} {:id 1}])
+      (let [sub (rf/subscribe [:re-frame.query/mutation :books/create {:title "Dune"}])]
+        (is (= :success (:status @sub)))
+        (rf/dispatch [:re-frame.query/reset-mutation :books/create {:title "Dune"}])
+        (is (= :idle (:status @sub))
+            "subscription falls back to idle default"))))
+
+  (testing "reset does not affect other mutations"
+    (rfq/reg-mutation :books/create {:mutation-fn (fn [_] {})})
+    (rfq/reg-mutation :books/update {:mutation-fn (fn [_] {})})
+    (process-event [:re-frame.query/mutation-success :books/create {:title "Dune"} {:id 1}])
+    (process-event [:re-frame.query/mutation-success :books/update {:id 1} {:id 1 :title "Dune Revised"}])
+    (let [create-mid (util/query-id :books/create {:title "Dune"})
+          update-mid (util/query-id :books/update {:id 1})]
+      (process-event [:re-frame.query/reset-mutation :books/create {:title "Dune"}])
+      (is (nil? (get-in (app-db) [:re-frame.query/mutations create-mid]))
+          "reset mutation is cleared")
+      (is (= :success (get-in (app-db) [:re-frame.query/mutations update-mid :status]))
+          "other mutation is untouched"))))
