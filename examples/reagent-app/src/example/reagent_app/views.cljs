@@ -6,6 +6,7 @@
    [example.reagent-app.views.inspector :as inspector]
    [example.reagent-app.views.layout :as layout]
    [example.reagent-app.views.mutations :as mutations]
+   [example.reagent-app.views.optimistic :as optimistic]
    [example.reagent-app.views.polling :as polling]
    [example.reagent-app.views.prefetching :as prefetching]
    [example.reagent-app.views.websocket :as websocket]
@@ -29,5 +30,6 @@
         :prefetching [prefetching/panel]
         :mutations   [mutations/panel]
         :websocket   [websocket/panel]
+        :optimistic  [optimistic/panel]
         [basic/panel])]
      [inspector/panel]]))

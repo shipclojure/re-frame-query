@@ -316,6 +316,8 @@ With `(:require [re-frame.query :as rfq])`, use `::rfq/` shorthand:
 | `[::rfq/ensure-query k params]` | Fetch if stale/absent (called automatically by subscription; can also used for prefetching) |
 | `[::rfq/refetch-query k params]` | Force refetch regardless of staleness |
 | `[::rfq/execute-mutation k params]` | Execute a mutation |
+| `[::rfq/execute-mutation k params opts]` | Execute with lifecycle hooks (see below) |
+| `[::rfq/set-query-data k params data]` | Directly set cached query data (for optimistic updates, rollback) |
 | `[::rfq/invalidate-tags tags]` | Mark matching queries stale & refetch active ones |
 | `[::rfq/remove-query qid]` | Remove a specific query from cache (used internally by GC) |
 | `[::rfq/garbage-collect]` | Bulk remove all expired inactive queries |
@@ -456,6 +458,54 @@ Need to run your own logic on success or failure? Extend the `on-success` / `on-
 ```
 
 Since `on-success` and `on-failure` are plain vectors, you have full control — append events, wrap them, or replace them entirely.
+
+## Mutation Lifecycle Hooks
+
+Pass an opts map as the third argument to `execute-mutation` to hook into the mutation lifecycle:
+
+```clojure
+(rf/dispatch [::rfq/execute-mutation :todos/toggle {:id 5 :done true}
+              {:on-start   [[:my-app/on-start-event]]
+               :on-success [[:my-app/on-success-event]]
+               :on-failure [[:my-app/on-failure-event]]}])
+```
+
+| Hook | When | Args conj'd onto each event vector |
+|---|---|---|
+| `:on-start` | Before the effect fires | `params` |
+| `:on-success` | After mutation succeeds | `params`, `response-data` |
+| `:on-failure` | After mutation fails | `params`, `error` |
+
+Each hook is a vector of event vectors — all events in the vector are dispatched. Hooks are optional; omitting the opts map works exactly as before.
+
+### Optimistic Updates Recipe
+
+Use lifecycle hooks + `set-query-data` to build optimistic updates in pure re-frame:
+
+```clojure
+;; 1. Register hook events — these are YOUR event handlers, not library code
+(rf/reg-event-fx :todos/optimistic-toggle
+  (fn [{:keys [db]} [_ {:keys [id done]}]]
+    (let [qid  [:todos/list {}]
+          old  (get-in db [:re-frame.query/queries qid :data])
+          new  (mapv #(if (= (:id %) id) (assoc % :done done) %) old)]
+      {:db       (assoc-in db [:snapshots qid] old)           ;; save snapshot
+       :dispatch [::rfq/set-query-data :todos/list {} new]}))) ;; patch cache
+
+(rf/reg-event-fx :todos/rollback
+  (fn [{:keys [db]} [_ _params _error]]
+    (let [qid [:todos/list {}]
+          old (get-in db [:snapshots qid])]
+      {:db       (update db :snapshots dissoc qid)
+       :dispatch [::rfq/set-query-data :todos/list {} old]}))) ;; restore snapshot
+
+;; 2. Dispatch mutation with hooks
+(rf/dispatch [::rfq/execute-mutation :todos/toggle {:id 5 :done true}
+              {:on-start   [[:todos/optimistic-toggle]]
+               :on-failure [[:todos/rollback]]}])
+```
+
+The checkbox toggles instantly. If the server rejects, the snapshot is restored. No library magic — just re-frame events and data.
 
 ## Examples
 

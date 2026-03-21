@@ -25,6 +25,14 @@ let nextId = 13;
 const serverStartTime = Date.now();
 let requestCount = 0;
 
+// Todos (for optimistic updates demo)
+let todos = {
+  1: { id: 1, text: "Learn re-frame-query", done: true },
+  2: { id: 2, text: "Build optimistic updates", done: false },
+  3: { id: 3, text: "Write Playwright tests", done: false },
+  4: { id: 4, text: "Ship it 🚀", done: false },
+};
+
 // Current user (for dependent queries demo)
 const currentUser = {
   id: 42,
@@ -172,5 +180,39 @@ export const handlers = [
     const userId = Number(params.id);
     const favorites = userFavorites[userId] || [];
     return HttpResponse.json(favorites);
+  }),
+
+  // -------------------------------------------------------------------------
+  // Optimistic updates demo
+  // -------------------------------------------------------------------------
+
+  // GET /api/todos — list all todos
+  http.get("/api/todos", async () => {
+    await delay(300);
+    requestCount++;
+    return HttpResponse.json(Object.values(todos).sort((a, b) => a.id - b.id));
+  }),
+
+  // PUT /api/todos/:id — toggle a todo (can be configured to fail)
+  http.put("/api/todos/:id", async ({ params, request }) => {
+    await delay(800); // Slow on purpose — makes optimistic update visible
+    requestCount++;
+    const id = Number(params.id);
+    const todo = todos[id];
+    if (!todo) {
+      return HttpResponse.json({ message: `Todo ${id} not found` }, { status: 404 });
+    }
+    const body = await request.json();
+    // If fail_mode is set, randomly fail ~50% of requests
+    if (body.fail_mode && Math.random() > 0.5) {
+      return HttpResponse.json(
+        { message: "Simulated server error (fail mode)" },
+        { status: 500 }
+      );
+    }
+    const updated = { ...todo, ...body, id };
+    delete updated.fail_mode;
+    todos[id] = updated;
+    return HttpResponse.json(updated);
   }),
 ];

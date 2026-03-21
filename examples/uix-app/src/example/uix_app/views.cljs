@@ -6,6 +6,7 @@
    [example.uix-app.views.inspector :as inspector]
    [example.uix-app.views.layout :as layout]
    [example.uix-app.views.mutations :as mutations]
+   [example.uix-app.views.optimistic :as optimistic]
    [example.uix-app.views.polling :as polling]
    [example.uix-app.views.prefetching :as prefetching]
    [example.uix-app.views.websocket :as websocket]
@@ -32,5 +33,6 @@
             :prefetching ($ prefetching/panel)
             :mutations   ($ mutations/panel)
             :websocket   ($ websocket/panel)
+            :optimistic  ($ optimistic/panel)
             ($ basic/panel)))
        ($ inspector/panel))))

@@ -9,7 +9,8 @@
    {:id :dependent   :label "Dependent Queries"}
    {:id :prefetching :label "Prefetching"}
    {:id :mutations   :label "Mutation Lifecycle"}
-   {:id :websocket   :label "WebSocket"}])
+   {:id :websocket   :label "WebSocket"}
+   {:id :optimistic :label "Optimistic Updates"}])
 
 (defui tab-bar [{:keys [active on-select]}]
   ($ :div.tab-bar

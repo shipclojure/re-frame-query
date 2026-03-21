@@ -98,6 +98,23 @@
                     [:books :all]])})
 
 ;; ---------------------------------------------------------------------------
+;; Queries — Optimistic updates
+;; ---------------------------------------------------------------------------
+
+(rfq/reg-query :todos/list
+  {:query-fn      (fn [_] {:method :get :url "/api/todos"})
+   :stale-time-ms 30000
+   :tags          (constantly [[:todos]])})
+
+(rfq/reg-mutation :todos/toggle
+  {:mutation-fn  (fn [{:keys [id done fail-mode?]}]
+                   {:method :put
+                    :url    (str "/api/todos/" id)
+                    :body   (cond-> {:done done}
+                              fail-mode? (assoc :fail_mode true))})
+   :invalidates  (constantly [[:todos]])})
+
+;; ---------------------------------------------------------------------------
 ;; Queries — WebSocket transport (per-query effect-fn override)
 ;; ---------------------------------------------------------------------------
 

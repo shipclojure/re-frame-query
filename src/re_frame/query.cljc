@@ -160,6 +160,33 @@
   (rf/dispatch [:re-frame.query/reset-api-state]))
 
 ;; ---------------------------------------------------------------------------
+;; Direct Cache Manipulation
+;; ---------------------------------------------------------------------------
+
+(defn set-query-data
+  "Directly set the cached data for a query without fetching.
+
+  Dispatches `::rfq/set-query-data` which replaces the `:data` field in the
+  query cache entry and sets `:status` to `:success`. Creates the entry if
+  it doesn't exist.
+
+  Use cases:
+    - Optimistic updates (patch cache before mutation completes)
+    - Rollback (restore snapshot on mutation failure)
+    - Seeding cache from another query's response
+    - Manually populating cache from external data
+
+  Example:
+    ;; Optimistically mark a todo as done
+    (rfq/set-query-data :todos/list {:user-id 42}
+      (mapv #(if (= (:id %) 5) (assoc % :done true) %) old-todos))
+
+    ;; Rollback to snapshot
+    (rfq/set-query-data :todos/list {:user-id 42} snapshot)"
+  [k params data]
+  (rf/dispatch [:re-frame.query/set-query-data k params data]))
+
+;; ---------------------------------------------------------------------------
 ;; Prefetching
 ;; ---------------------------------------------------------------------------
 
@@ -197,14 +224,14 @@
     (when ^boolean goog.DEBUG (rfq/enable-debug-logging!))"
   []
   (rf/reg-global-interceptor
-    (rf/->interceptor
-      :id    :re-frame.query/debug-log
-      :before (fn [context]
-                (let [[event-id & args] (get-in context [:coeffects :event])]
-                  (when (and (keyword? event-id)
-                             (= "re-frame.query" (namespace event-id)))
-                    (let [label (str "📦 " event-id)]
-                      #?(:cljs (js/console.log label (clj->js (vec args)))
-                         :clj  (println label (vec args))))))
-                context)))
+   (rf/->interceptor
+    :id    :re-frame.query/debug-log
+    :before (fn [context]
+              (let [[event-id & args] (get-in context [:coeffects :event])]
+                (when (and (keyword? event-id)
+                           (= "re-frame.query" (namespace event-id)))
+                  (let [label (str "📦 " event-id)]
+                    #?(:cljs (js/console.log label (clj->js (vec args)))
+                       :clj  (println label (vec args))))))
+              context)))
   nil)

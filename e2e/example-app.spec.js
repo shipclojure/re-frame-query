@@ -339,6 +339,87 @@ test.describe("Mutation Lifecycle", () => {
 });
 
 // ---------------------------------------------------------------------------
+// Optimistic Updates tab
+// ---------------------------------------------------------------------------
+
+test.describe("Optimistic Updates", () => {
+  test("toggling a todo updates UI instantly before server responds", async ({ page, baseURL }) => {
+    await page.goto(baseURL);
+    await waitForApp(page);
+    await selectTab(page, "Optimistic Updates");
+
+    // Wait for todos to load
+    await expect(page.getByText("Ship it")).toBeVisible({ timeout: 5000 });
+
+    // Get the last todo checkbox and its initial state
+    const checkbox = page.locator("input[type=checkbox]").last();
+    const wasChecked = await checkbox.isChecked();
+
+    // Click it — should toggle instantly (optimistic, before 800ms server response)
+    await checkbox.click();
+    if (wasChecked) {
+      await expect(checkbox).not.toBeChecked();
+    } else {
+      await expect(checkbox).toBeChecked();
+    }
+  });
+
+  test("successful toggle persists after server confirms", async ({ page, baseURL }) => {
+    await page.goto(baseURL);
+    await waitForApp(page);
+    await selectTab(page, "Optimistic Updates");
+
+    await expect(page.getByText("Ship it")).toBeVisible({ timeout: 5000 });
+
+    const checkbox = page.locator("input[type=checkbox]").last();
+    const wasChecked = await checkbox.isChecked();
+
+    await checkbox.click();
+    const toggled = !wasChecked;
+
+    // Wait for server response + invalidation refetch
+    await page.waitForTimeout(2000);
+    // Should still be in toggled state after server confirms
+    if (toggled) {
+      await expect(checkbox).toBeChecked();
+    } else {
+      await expect(checkbox).not.toBeChecked();
+    }
+  });
+
+  test("failed toggle rolls back the checkbox", async ({ page, baseURL }) => {
+    test.setTimeout(30000);
+    await page.goto(baseURL);
+    await waitForApp(page);
+    await selectTab(page, "Optimistic Updates");
+
+    await expect(page.getByText("Write Playwright tests")).toBeVisible({ timeout: 5000 });
+
+    // Enable fail mode
+    await page.getByLabel("Fail Mode").click();
+
+    // Keep trying toggles until one fails and rolls back
+    // (50% fail rate per attempt, so with 10 attempts P(all succeed) < 0.1%)
+    const checkbox = page.locator("input[type=checkbox]").nth(2); // 3rd todo
+    const initialState = await checkbox.isChecked();
+
+    let rolledBack = false;
+    for (let i = 0; i < 10; i++) {
+      await checkbox.click();
+      // Wait for server response (800ms) + invalidation refetch + buffer
+      await page.waitForTimeout(2000);
+      const currentState = await checkbox.isChecked();
+      if (currentState === initialState) {
+        rolledBack = true;
+        break;
+      }
+      // Succeeded — already toggled, try again (next toggle is the reverse)
+    }
+    expect(rolledBack).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------------
 // WebSocket Transport tab
 // ---------------------------------------------------------------------------
 
