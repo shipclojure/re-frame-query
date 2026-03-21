@@ -3,6 +3,7 @@
   (:require
    [re-frame.core :as rf]
    [re-frame.query.gc :as gc]
+   [re-frame.query.polling :as polling]
    [re-frame.query.registry :as registry]
    [re-frame.query.util :as util]))
 
@@ -165,6 +166,24 @@
                                    [:re-frame.query/refetch-query (first qid) (second qid)]])))]
       {:db (assoc db :re-frame.query/queries updated)
        :fx refetch-fx})))
+
+;; ---------------------------------------------------------------------------
+;; Reset
+;; ---------------------------------------------------------------------------
+
+(rf/reg-fx
+  :re-frame.query/cancel-all-timers
+  (fn [_]
+    (gc/cancel-all!)
+    (polling/cancel-all!)))
+
+(rf/reg-event-fx
+  :re-frame.query/reset-api-state
+  (fn [{:keys [db]} _]
+    {:db (-> db
+             (dissoc :re-frame.query/queries)
+             (dissoc :re-frame.query/mutations))
+     :re-frame.query/cancel-all-timers true}))
 
 ;; ---------------------------------------------------------------------------
 ;; Active Tracking

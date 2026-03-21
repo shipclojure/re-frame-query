@@ -1901,3 +1901,88 @@
               "mutation data is transformed"))
         (is (= 1 (count @calls))
             "active query was refetched after invalidation")))))
+
+;; ---------------------------------------------------------------------------
+;; Reset API state tests
+;; ---------------------------------------------------------------------------
+
+(deftest reset-api-state-clears-all-test
+  (testing "reset-api-state removes all queries and mutations from app-db"
+    (rfq/reg-query :books/list {:query-fn (fn [_] {})})
+    (rfq/reg-mutation :books/create {:mutation-fn (fn [_] {})})
+    ;; Populate queries and mutations
+    (process-event [:re-frame.query/query-success :books/list {} [{:id 1}]])
+    (process-event [:re-frame.query/mutation-success :books/create {} {:id 2}])
+    (let [qid (util/query-id :books/list {})
+          mid (util/query-id :books/create {})]
+      (is (some? (get-in (app-db) [:re-frame.query/queries qid])))
+      (is (some? (get-in (app-db) [:re-frame.query/mutations mid])))
+      ;; Reset
+      (process-event [:re-frame.query/reset-api-state])
+      (is (nil? (:re-frame.query/queries (app-db)))
+          "all queries removed")
+      (is (nil? (:re-frame.query/mutations (app-db)))
+          "all mutations removed"))))
+
+(deftest reset-api-state-preserves-other-db-test
+  (testing "reset-api-state does not affect non-rfq keys in app-db"
+    (rfq/reg-query :books/list {:query-fn (fn [_] {})})
+    ;; Set some app state alongside query state
+    (swap! rf-db/app-db assoc :my-app/user {:id 42 :name "Alice"})
+    (process-event [:re-frame.query/query-success :books/list {} [{:id 1}]])
+    (is (some? (:re-frame.query/queries (app-db))))
+    (is (= {:id 42 :name "Alice"} (:my-app/user (app-db))))
+    ;; Reset
+    (process-event [:re-frame.query/reset-api-state])
+    (is (nil? (:re-frame.query/queries (app-db)))
+        "query state cleared")
+    (is (= {:id 42 :name "Alice"} (:my-app/user (app-db)))
+        "app state preserved")))
+
+(deftest reset-api-state-cancels-gc-timers-test
+  (testing "reset-api-state cancels all pending GC timers"
+    (rfq/reg-query :books/list
+                   {:query-fn      (fn [_] {})
+                    :cache-time-ms 60000})
+    (rfq/reg-query :books/detail
+                   {:query-fn      (fn [_] {})
+                    :cache-time-ms 60000})
+    ;; Populate and mark inactive to start GC timers
+    (process-event [:re-frame.query/query-success :books/list {} [{:id 1}]])
+    (process-event [:re-frame.query/query-success :books/detail {:id 1} {:title "Dune"}])
+    (process-event [:re-frame.query/mark-inactive :books/list {}])
+    (process-event [:re-frame.query/mark-inactive :books/detail {:id 1}])
+    (is (= 2 (count (gc/active-timers)))
+        "two GC timers are ticking")
+    ;; Reset
+    (process-event [:re-frame.query/reset-api-state])
+    (is (empty? (gc/active-timers))
+        "all GC timers cancelled")))
+
+(deftest reset-api-state-cancels-polling-timers-test
+  (testing "reset-api-state cancels all active polling timers"
+    (let [qid (util/query-id :books/list {})]
+      (polling/add-subscriber! qid :sub-1 :books/list {} 5000)
+      (is (contains? (polling/active-polls) qid)
+          "polling is active")
+      ;; Reset
+      (process-event [:re-frame.query/reset-api-state])
+      (is (empty? (polling/active-polls))
+          "all polling timers cancelled"))))
+
+(deftest reset-api-state-then-queries-work-test
+  (testing "After reset, new queries work normally"
+    (rfq/reg-query :books/list {:query-fn (fn [_] {})})
+    ;; Populate, then reset
+    (process-event [:re-frame.query/query-success :books/list {} [{:id 1}]])
+    (process-event [:re-frame.query/reset-api-state])
+    (is (nil? (:re-frame.query/queries (app-db))))
+    ;; New query works
+    (process-event [:re-frame.query/ensure-query :books/list {}])
+    (let [qid (util/query-id :books/list {})]
+      (is (= :loading (get-in (app-db) [:re-frame.query/queries qid :status]))
+          "query starts fresh after reset")
+      ;; Complete it
+      (process-event [:re-frame.query/query-success :books/list {} [{:id 2}]])
+      (is (= [{:id 2}] (get-in (app-db) [:re-frame.query/queries qid :data]))
+          "new data cached normally"))))

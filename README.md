@@ -269,6 +269,7 @@ Use these to add queries/mutations one at a time, either standalone or after `in
 | `rfq/reg-query` | Register a single query definition |
 | `rfq/reg-mutation` | Register a single mutation definition |
 | `rfq/prefetch` | `(rfq/prefetch k params)` — pre-populate cache (convenience for dispatching `::rfq/ensure-query`) |
+| `rfq/reset-api-state!` | Clear all query/mutation state and cancel all timers (for logout, account switch, etc.) |
 
 #### `reg-query` config keys
 
@@ -280,6 +281,8 @@ Use these to add queries/mutations one at a time, either standalone or after `in
 | `:tags` | | `(fn [params] -> [[tag ...] ...])` — for cache invalidation |
 | `:effect-fn` | | Per-query effect adapter (overrides global) |
 | `:polling-interval-ms` | | Default polling interval for all subscribers (ms). Multiple subscribers use the lowest non-zero interval. |
+| `:transform-response` | | `(fn [data params] -> data')` — transform raw success data before caching |
+| `:transform-error` | | `(fn [error params] -> error')` — transform raw error before storing |
 
 #### `reg-mutation` config keys
 
@@ -288,6 +291,8 @@ Use these to add queries/mutations one at a time, either standalone or after `in
 | `:mutation-fn` | ✅ | `(fn [params] -> request-map)` — describes the mutation |
 | `:invalidates` | | `(fn [params] -> [[tag ...] ...])` — tags to invalidate on success |
 | `:effect-fn` | | Per-mutation effect adapter (overrides global) |
+| `:transform-response` | | `(fn [data params] -> data')` — transform raw success data before storing |
+| `:transform-error` | | `(fn [error params] -> error')` — transform raw error before storing |
 
 ### Events
 
@@ -301,6 +306,7 @@ With `(:require [re-frame.query :as rfq])`, use `::rfq/` shorthand:
 | `[::rfq/invalidate-tags tags]` | Mark matching queries stale & refetch active ones |
 | `[::rfq/remove-query qid]` | Remove a specific query from cache (used internally by GC) |
 | `[::rfq/garbage-collect]` | Bulk remove all expired inactive queries |
+| `[::rfq/reset-api-state]` | Clear all queries, mutations, and cancel all GC/polling timers |
 
 ### Subscriptions
 

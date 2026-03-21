@@ -137,6 +137,29 @@
   registry/clear-registry!)
 
 ;; ---------------------------------------------------------------------------
+;; Reset
+;; ---------------------------------------------------------------------------
+
+(defn reset-api-state!
+  "Clear all query and mutation state, cancel all GC and polling timers.
+
+  Dispatches `::rfq/reset-api-state` which removes `:re-frame.query/queries`
+  and `:re-frame.query/mutations` from `app-db` and cancels all pending
+  timers. All other keys in `app-db` are preserved.
+
+  Common use cases:
+    - Logout (wipe cached user data)
+    - Account switch (start fresh)
+    - Hard refresh of all server state
+
+  Example:
+    (defn on-logout []
+      (rfq/reset-api-state!)
+      (rf/dispatch [:app/navigate :login]))"
+  []
+  (rf/dispatch [:re-frame.query/reset-api-state]))
+
+;; ---------------------------------------------------------------------------
 ;; Prefetching
 ;; ---------------------------------------------------------------------------
 
