@@ -89,6 +89,7 @@ jobs:
         run: |
           cd examples/reagent-app
           pnpm install
+          pnpm exec msw init resources/public --save
           pnpm run mocks
           pnpm exec shadow-cljs compile demo
 
@@ -96,6 +97,7 @@ jobs:
         run: |
           cd examples/uix-app
           pnpm install
+          pnpm exec msw init resources/public --save
           pnpm run mocks
           pnpm exec shadow-cljs compile demo
 
