@@ -7,7 +7,11 @@
     "test": "test"
   },
   "scripts": {
-    "test": "shadow-cljs compile test"
+    "test": "shadow-cljs compile test",
+    "test:e2e": "npx playwright test",
+    "test:e2e:reagent": "npx playwright test --project=reagent",
+    "test:e2e:uix": "npx playwright test --project=uix",
+    "test:all": "shadow-cljs compile test && npx playwright test"
   },
   "keywords": [],
   "author": "",
@@ -16,5 +20,8 @@
   "dependencies": {
     "react": "^19.2.4",
     "react-dom": "^19.2.4"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.58.2"
   }
 }
