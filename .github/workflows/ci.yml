@@ -46,3 +46,25 @@ jobs:
 
       - name: Run ClojureScript tests
         run: pnpm test
+
+      - name: Install Playwright browsers
+        run: npx playwright install chromium --with-deps
+
+      - name: Build example apps (mocks + ClojureScript)
+        run: |
+          cd examples/reagent-app && pnpm install && pnpm run mocks && pnpm exec shadow-cljs compile demo && cd ../..
+          cd examples/uix-app && pnpm install && pnpm run mocks && pnpm exec shadow-cljs compile demo && cd ../..
+
+      - name: Start example app servers
+        run: |
+          npx serve examples/reagent-app/resources/public -l 8710 --no-clipboard &
+          npx serve examples/uix-app/resources/public -l 8720 --no-clipboard &
+          # Wait for servers to be ready
+          for port in 8710 8720; do
+            for i in $(seq 1 30); do
+              curl -s http://localhost:$port > /dev/null && break || sleep 1
+            done
+          done
+
+      - name: Run Playwright e2e tests
+        run: pnpm test:e2e
