@@ -98,6 +98,40 @@
                     [:books :all]])})
 
 ;; ---------------------------------------------------------------------------
+;; Queries — WebSocket transport (per-query effect-fn override)
+;; ---------------------------------------------------------------------------
+
+(defn- ws-effect-fn
+  "Effect adapter for WebSocket queries/mutations.
+   Uses :ws-send effect instead of :http."
+  [request on-success on-failure]
+  {:ws-send (assoc request :on-success on-success :on-failure on-failure)})
+
+(rfq/reg-query :ws/notifications
+  {:query-fn  (fn [_] {:channel "notifications:list"})
+   :effect-fn ws-effect-fn
+   :stale-time-ms 30000})
+
+(rfq/reg-query :ws/latest-notification
+  {:query-fn            (fn [_] {:channel "notifications:latest"})
+   :effect-fn           ws-effect-fn
+   :stale-time-ms       1000
+   :polling-interval-ms 3000})
+
+(rfq/reg-query :ws/chat-messages
+  {:query-fn  (fn [_] {:channel "chat:messages"})
+   :effect-fn ws-effect-fn
+   :stale-time-ms 5000
+   :tags      (constantly [[:chat :messages]])})
+
+(rfq/reg-mutation :ws/chat-send
+  {:mutation-fn (fn [{:keys [user text]}]
+                  {:channel "chat:send"
+                   :payload {:user user :text text}})
+   :effect-fn   ws-effect-fn
+   :invalidates (constantly [[:chat :messages]])})
+
+;; ---------------------------------------------------------------------------
 ;; Mutations — Mutation lifecycle demo
 ;; ---------------------------------------------------------------------------
 

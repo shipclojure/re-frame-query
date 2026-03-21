@@ -6,6 +6,7 @@
   (:require
    ;; Side-effect requires — register effects, queries, and UI state
    [example.reagent-app.http-fx]
+   [example.reagent-app.ws-fx]
    [example.reagent-app.queries]
    [example.reagent-app.ui]
    [example.reagent-app.views :as views]

@@ -1,5 +1,6 @@
 import { setupWorker } from "msw/browser";
 import { handlers } from "./handlers";
+import "./mock-ws"; // Initialize mock WebSocket server
 
 const worker = setupWorker(...handlers);
 

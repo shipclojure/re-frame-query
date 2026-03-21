@@ -8,6 +8,7 @@
    [example.uix-app.views.mutations :as mutations]
    [example.uix-app.views.polling :as polling]
    [example.uix-app.views.prefetching :as prefetching]
+   [example.uix-app.views.websocket :as websocket]
    [re-frame.core :as rf]
    [uix.core :refer [$ defui]]
    [uix.re-frame :as urf]))
@@ -30,5 +31,6 @@
             :dependent   ($ dependent/panel)
             :prefetching ($ prefetching/panel)
             :mutations   ($ mutations/panel)
+            :websocket   ($ websocket/panel)
             ($ basic/panel)))
        ($ inspector/panel))))

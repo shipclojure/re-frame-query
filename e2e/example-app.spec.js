@@ -339,6 +339,82 @@ test.describe("Mutation Lifecycle", () => {
 });
 
 // ---------------------------------------------------------------------------
+// WebSocket Transport tab
+// ---------------------------------------------------------------------------
+
+test.describe("WebSocket Transport", () => {
+  test("loads notifications via WebSocket", async ({ page, baseURL }) => {
+    await page.goto(baseURL);
+    await waitForApp(page);
+    await selectTab(page, "WebSocket");
+
+    await expect(page.getByRole("heading", { name: /Notifications.*WebSocket/ })).toBeVisible();
+    // Wait for WS data to arrive
+    await expect(page.locator(".book-card", { hasText: "Server deployed" }).first()).toBeVisible({ timeout: 5000 });
+    await expect(page.locator(".book-card", { hasText: "High memory usage" })).toBeVisible();
+  });
+
+  test("polls latest notification via WebSocket", async ({ page, baseURL }) => {
+    await page.goto(baseURL);
+    await waitForApp(page);
+    await selectTab(page, "WebSocket");
+
+    await expect(page.getByRole("heading", { name: /Latest Notification/ })).toBeVisible();
+    // Wait for first poll result
+    await expect(page.getByText("Message:")).toBeVisible({ timeout: 5000 });
+
+    // Capture current message and wait for poll to update it
+    const initial = await page.locator(".detail-field", { hasText: "Message:" }).textContent();
+    await page.waitForTimeout(4000);
+    const updated = await page.locator(".detail-field", { hasText: "Message:" }).textContent();
+    expect(updated).not.toBe(initial);
+  });
+
+  test("chat messages load and sending invalidates the list", async ({ page, baseURL }) => {
+    await page.goto(baseURL);
+    await waitForApp(page);
+    await selectTab(page, "WebSocket");
+
+    // Wait for chat messages to load
+    await expect(page.getByRole("heading", { name: /Chat/ })).toBeVisible();
+    await expect(page.getByText("Hey, anyone here?")).toBeVisible({ timeout: 5000 });
+    await expect(page.getByText("Working on the re-frame-query demo")).toBeVisible();
+
+    // Send a new message
+    await page.getByPlaceholder("Type a message…").fill("Hello from Playwright!");
+    await page.getByRole("button", { name: "Send" }).click();
+
+    // After mutation + invalidation, the new message should appear
+    await expect(page.getByText("Hello from Playwright!")).toBeVisible({ timeout: 5000 });
+  });
+
+  test("WebSocket queries use :ws-send effect, not :http", async ({ page, baseURL }) => {
+    await page.goto(baseURL);
+    await waitForApp(page);
+
+    // Start counting HTTP requests to /api/ endpoints
+    const httpRequests = [];
+    page.on("request", (req) => {
+      const url = req.url();
+      if (url.includes("/api/") && !url.includes("server-stats") && !url.includes("books") && !url.includes("me") && !url.includes("favorites")) {
+        httpRequests.push(url);
+      }
+    });
+
+    await selectTab(page, "WebSocket");
+    // Wait for WS data to load
+    await expect(page.locator(".book-card", { hasText: "Server deployed" }).first()).toBeVisible({ timeout: 5000 });
+
+    // No HTTP requests should have been made for WS queries
+    // (notifications, latest-notification, chat are all via WebSocket)
+    const wsEndpointHttp = httpRequests.filter(
+      (u) => u.includes("notifications") || u.includes("chat")
+    );
+    expect(wsEndpointHttp.length).toBe(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
 // Inspector
 // ---------------------------------------------------------------------------
 

@@ -8,7 +8,8 @@
    {:id :polling     :label "Polling"}
    {:id :dependent   :label "Dependent Queries"}
    {:id :prefetching :label "Prefetching"}
-   {:id :mutations   :label "Mutation Lifecycle"}])
+   {:id :mutations   :label "Mutation Lifecycle"}
+   {:id :websocket   :label "WebSocket"}])
 
 (defui tab-bar [{:keys [active on-select]}]
   ($ :div.tab-bar

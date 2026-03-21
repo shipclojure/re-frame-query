@@ -8,6 +8,7 @@
    [example.reagent-app.views.mutations :as mutations]
    [example.reagent-app.views.polling :as polling]
    [example.reagent-app.views.prefetching :as prefetching]
+   [example.reagent-app.views.websocket :as websocket]
    [re-frame.core :as rf]))
 
 (defn app []
@@ -27,5 +28,6 @@
         :dependent   [dependent/panel]
         :prefetching [prefetching/panel]
         :mutations   [mutations/panel]
+        :websocket   [websocket/panel]
         [basic/panel])]
      [inspector/panel]]))

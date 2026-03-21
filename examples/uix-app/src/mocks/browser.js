@@ -1,5 +1,6 @@
 import { setupWorker } from "msw/browser";
 import { handlers } from "./handlers";
+import "./mock-ws";
 
 const worker = setupWorker(...handlers);
 

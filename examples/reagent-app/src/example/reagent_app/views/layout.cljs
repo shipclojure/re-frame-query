@@ -6,7 +6,8 @@
    {:id :polling     :label "Polling"}
    {:id :dependent   :label "Dependent Queries"}
    {:id :prefetching :label "Prefetching"}
-   {:id :mutations   :label "Mutation Lifecycle"}])
+   {:id :mutations   :label "Mutation Lifecycle"}
+   {:id :websocket   :label "WebSocket"}])
 
 (defn tab-bar
   "Horizontal tab bar. `active` is the current tab keyword,
