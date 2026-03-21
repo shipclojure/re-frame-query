@@ -2149,18 +2149,56 @@
               (first @hook-calls)))))))
 
 (deftest mutation-multiple-hooks-test
-  (testing "multiple hook events all get dispatched"
+  (testing "multiple on-start hooks each receive params"
     (rf-test/run-test-sync
      (let [calls (atom [])]
        (rf/reg-event-db :test/hook-a
-                        (fn [db [_ params]] (swap! calls conj :a) db))
+                        (fn [db [_ params]] (swap! calls conj {:hook :a :params params}) db))
        (rf/reg-event-db :test/hook-b
-                        (fn [db [_ params]] (swap! calls conj :b) db))
+                        (fn [db [_ extra params]] (swap! calls conj {:hook :b :extra extra :params params}) db))
        (rfq/set-default-effect-fn! noop-effect-fn)
        (rfq/reg-mutation :books/create {:mutation-fn (fn [_] {})})
        (rf/dispatch [:re-frame.query/execute-mutation :books/create {:title "Dune"}
-                     {:on-start [[:test/hook-a] [:test/hook-b]]}])
-       (is (= [:a :b] @calls))))))
+                     {:on-start [[:test/hook-a] [:test/hook-b "extra-arg"]]}])
+       (is (= 2 (count @calls)))
+       (is (= {:hook :a :params {:title "Dune"}} (first @calls)))
+       (is (= {:hook :b :extra "extra-arg" :params {:title "Dune"}} (second @calls))))))
+
+  (testing "multiple on-success hooks each receive params and response"
+    (rf-test/run-test-sync
+     (let [calls (atom [])]
+       (rf/reg-event-db :test/success-a
+                        (fn [db [_ params data]] (swap! calls conj {:hook :a :params params :data data}) db))
+       (rf/reg-event-db :test/success-b
+                        (fn [db [_ extra params data]] (swap! calls conj {:hook :b :extra extra :params params :data data}) db))
+       (rfq/set-default-effect-fn! noop-effect-fn)
+       (rfq/reg-mutation :books/create {:mutation-fn (fn [_] {})})
+       (rf/dispatch [:re-frame.query/execute-mutation :books/create {:title "Dune"}
+                     {:on-success [[:test/success-a] [:test/success-b "ctx"]]}])
+       (rf/dispatch [:re-frame.query/mutation-success :books/create {:title "Dune"}
+                     {:on-success [[:test/success-a] [:test/success-b "ctx"]]}
+                     {:id 1 :title "Dune"}])
+       (is (= 2 (count @calls)))
+       (is (= {:hook :a :params {:title "Dune"} :data {:id 1 :title "Dune"}} (first @calls)))
+       (is (= {:hook :b :extra "ctx" :params {:title "Dune"} :data {:id 1 :title "Dune"}} (second @calls))))))
+
+  (testing "multiple on-failure hooks each receive params and error"
+    (rf-test/run-test-sync
+     (let [calls (atom [])]
+       (rf/reg-event-db :test/fail-a
+                        (fn [db [_ params error]] (swap! calls conj {:hook :a :params params :error error}) db))
+       (rf/reg-event-db :test/fail-b
+                        (fn [db [_ extra params error]] (swap! calls conj {:hook :b :extra extra :params params :error error}) db))
+       (rfq/set-default-effect-fn! noop-effect-fn)
+       (rfq/reg-mutation :books/create {:mutation-fn (fn [_] {})})
+       (rf/dispatch [:re-frame.query/execute-mutation :books/create {:title "Dune"}
+                     {:on-failure [[:test/fail-a] [:test/fail-b "ctx"]]}])
+       (rf/dispatch [:re-frame.query/mutation-failure :books/create {:title "Dune"}
+                     {:on-failure [[:test/fail-a] [:test/fail-b "ctx"]]}
+                     {:status 500}])
+       (is (= 2 (count @calls)))
+       (is (= {:hook :a :params {:title "Dune"} :error {:status 500}} (first @calls)))
+       (is (= {:hook :b :extra "ctx" :params {:title "Dune"} :error {:status 500}} (second @calls)))))))
 
 (deftest mutation-hooks-optional-test
   (testing "omitting opts works exactly as before (backwards compatible)"
