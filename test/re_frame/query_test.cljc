@@ -36,13 +36,12 @@
 ;; Registration tests
 ;; ---------------------------------------------------------------------------
 
-(deftest reg-query-test
+(deftest registration-test
   (testing "registers a query and returns the key"
     (let [k (rfq/reg-query :todos/list
                            {:query-fn (fn [_] {})})]
-      (is (= :todos/list k)))))
+      (is (= :todos/list k))))
 
-(deftest reg-mutation-test
   (testing "registers a mutation and returns the key"
     (let [k (rfq/reg-mutation :todos/add
                               {:mutation-fn (fn [_] {})})]
@@ -52,8 +51,8 @@
 ;; Query event tests
 ;; ---------------------------------------------------------------------------
 
-(deftest ensure-query-sets-loading-for-initial-fetch-test
-  (testing "ensure-query sets status to :loading when no data exists"
+(deftest ensure-query-test
+  (testing "sets status to :loading when no data exists"
     (rfq/reg-query :books/list
                    {:query-fn (fn [_] {})})
     (process-event [:re-frame.query/ensure-query :books/list {}])
@@ -61,10 +60,9 @@
           query (get-in (app-db) [:re-frame.query/queries qid])]
       (is (= :loading (:status query)))
       (is (true? (:fetching? query)))
-      (is (nil? (:data query))))))
+      (is (nil? (:data query)))))
 
-(deftest ensure-query-keeps-success-on-refetch-test
-  (testing "ensure-query keeps :success status when stale data exists"
+  (testing "keeps :success status when stale data exists"
     (rfq/reg-query :books/list
                    {:query-fn      (fn [_] {})
                     :stale-time-ms 1000})
@@ -81,35 +79,9 @@
         (is (true? (:fetching? query))
             "fetching? is true to indicate a background refetch")
         (is (= [{:id 1}] (:data query))
-            "stale data is preserved while refetching")))))
+            "stale data is preserved while refetching"))))
 
-(deftest refetch-query-keeps-success-when-data-exists-test
-  (testing "refetch-query keeps :success status when data exists"
-    (rfq/reg-query :books/list
-                   {:query-fn (fn [_] {})})
-    ;; Fetch successfully first
-    (process-event [:re-frame.query/query-success :books/list {} [{:id 1}]])
-    ;; Force refetch
-    (process-event [:re-frame.query/refetch-query :books/list {}])
-    (let [qid   (util/query-id :books/list {})
-          query (get-in (app-db) [:re-frame.query/queries qid])]
-      (is (= :success (:status query))
-          "status stays :success during background refetch")
-      (is (true? (:fetching? query)))
-      (is (= [{:id 1}] (:data query))))))
-
-(deftest refetch-query-sets-loading-when-no-data-test
-  (testing "refetch-query sets :loading when no prior data exists"
-    (rfq/reg-query :books/list
-                   {:query-fn (fn [_] {})})
-    (process-event [:re-frame.query/refetch-query :books/list {}])
-    (let [qid   (util/query-id :books/list {})
-          query (get-in (app-db) [:re-frame.query/queries qid])]
-      (is (= :loading (:status query)))
-      (is (true? (:fetching? query))))))
-
-(deftest ensure-query-sets-loading-after-error-test
-  (testing "ensure-query sets :loading when retrying after an error (no prior data)"
+  (testing "sets :loading when retrying after an error (no prior data)"
     (rfq/reg-query :books/list {:query-fn (fn [_] {})})
     (process-event [:re-frame.query/query-failure :books/list {} {:status 500}])
     (process-event [:re-frame.query/ensure-query :books/list {}])
@@ -119,7 +91,7 @@
           "status resets to :loading on retry after error")
       (is (true? (:fetching? query)))))
 
-  (testing "ensure-query sets :loading after error even when stale data exists"
+  (testing "sets :loading after error even when stale data exists"
     (rfq/reg-query :books/detail
                    {:query-fn      (fn [_] {})
                     :stale-time-ms 1000})
@@ -137,8 +109,33 @@
             "status resets to :loading even though stale data exists, because last status was :error")
         (is (true? (:fetching? query)))))))
 
-(deftest refetch-query-sets-loading-after-error-test
-  (testing "refetch-query sets :loading when current status is :error"
+(deftest refetch-query-test
+  (testing "keeps :success status when data exists"
+    (rfq/reg-query :books/list
+                   {:query-fn (fn [_] {})})
+    ;; Fetch successfully first
+    (process-event [:re-frame.query/query-success :books/list {} [{:id 1}]])
+    ;; Force refetch
+    (process-event [:re-frame.query/refetch-query :books/list {}])
+    (let [qid   (util/query-id :books/list {})
+          query (get-in (app-db) [:re-frame.query/queries qid])]
+      (is (= :success (:status query))
+          "status stays :success during background refetch")
+      (is (true? (:fetching? query)))
+      (is (= [{:id 1}] (:data query)))))
+
+  (testing "sets :loading when no prior data exists"
+    ;; Reset db to clear data from previous testing block
+    (reset! rf-db/app-db {})
+    (rfq/reg-query :books/list
+                   {:query-fn (fn [_] {})})
+    (process-event [:re-frame.query/refetch-query :books/list {}])
+    (let [qid   (util/query-id :books/list {})
+          query (get-in (app-db) [:re-frame.query/queries qid])]
+      (is (= :loading (:status query)))
+      (is (true? (:fetching? query)))))
+
+  (testing "sets :loading when current status is :error"
     (rfq/reg-query :books/list {:query-fn (fn [_] {})})
     ;; First succeeds, then fails
     (process-event [:re-frame.query/query-success :books/list {} [{:id 1}]])
@@ -169,9 +166,8 @@
       (is (number? (:fetched-at query)))
       (is (= #{[:books :all]} (:tags query)))
       (is (= 30000 (:stale-time-ms query)))
-      (is (= 300000 (:cache-time-ms query))))))
+      (is (= 300000 (:cache-time-ms query)))))
 
-(deftest query-success-uses-default-cache-time-test
   (testing "query-success stores default cache-time-ms when not specified in config"
     (rfq/reg-query :books/detail
                    {:query-fn (fn [_] {})})
@@ -194,7 +190,7 @@
 ;; Mutation event tests
 ;; ---------------------------------------------------------------------------
 
-(deftest mutation-success-test
+(deftest mutation-events-test
   (testing "mutation-success sets status and triggers invalidation dispatch"
     (rfq/reg-mutation :books/create
                       {:mutation-fn (fn [_] {})
@@ -202,9 +198,8 @@
     (process-event [:re-frame.query/mutation-success :books/create {} {:id 2}])
     (let [mid      (util/query-id :books/create {})
           mutation (get-in (app-db) [:re-frame.query/mutations mid])]
-      (is (= :success (:status mutation))))))
+      (is (= :success (:status mutation)))))
 
-(deftest mutation-failure-test
   (testing "mutation-failure stores error"
     (rfq/reg-mutation :books/create {:mutation-fn (fn [_] {})})
     (process-event [:re-frame.query/mutation-failure :books/create {} {:status 422}])
@@ -234,7 +229,7 @@
 ;; Garbage collection tests
 ;; ---------------------------------------------------------------------------
 
-(deftest garbage-collect-removes-expired-inactive-queries
+(deftest garbage-collection-test
   (testing "GC removes expired inactive queries"
     (rfq/reg-query :books/list
                    {:query-fn      (fn [_] {})
@@ -246,9 +241,8 @@
       (swap! rf-db/app-db assoc-in [:re-frame.query/queries qid :fetched-at] 1000)
       ;; GC at time 3000 (2 seconds after fetch, past 1s cache-time)
       (process-event [:re-frame.query/garbage-collect 3000])
-      (is (nil? (get-in (app-db) [:re-frame.query/queries qid]))))))
+      (is (nil? (get-in (app-db) [:re-frame.query/queries qid])))))
 
-(deftest garbage-collect-keeps-active-queries
   (testing "GC keeps active queries even if expired"
     (rfq/reg-query :books/list
                    {:query-fn      (fn [_] {})
@@ -281,7 +275,7 @@
 ;; Per-query GC timer tests
 ;; ---------------------------------------------------------------------------
 
-(deftest mark-inactive-schedules-gc-timer
+(deftest mark-inactive-gc-timer-test
   (testing "mark-inactive schedules a GC timer when query has cache-time-ms"
     (rfq/reg-query :books/list
                    {:query-fn      (fn [_] {})
@@ -289,9 +283,8 @@
     (process-event [:re-frame.query/query-success :books/list {} [{:id 1}]])
     (process-event [:re-frame.query/mark-inactive :books/list {}])
     (let [qid (util/query-id :books/list {})]
-      (is (contains? (gc/active-timers) qid)))))
+      (is (contains? (gc/active-timers) qid))))
 
-(deftest mark-inactive-uses-default-cache-time
   (testing "mark-inactive schedules a GC timer using default cache time when query has no cache-time-ms"
     (rfq/reg-query :books/list {:query-fn (fn [_] {})})
     (process-event [:re-frame.query/query-success :books/list {} [{:id 1}]])
@@ -313,7 +306,7 @@
       (process-event [:re-frame.query/mark-active :books/list {}])
       (is (not (contains? (gc/active-timers) qid))))))
 
-(deftest remove-query-evicts-inactive-query
+(deftest remove-query-test
   (testing "remove-query removes an inactive query from cache"
     (rfq/reg-query :books/list {:query-fn (fn [_] {})})
     (process-event [:re-frame.query/query-success :books/list {} [{:id 1}]])
@@ -321,9 +314,8 @@
       ;; Mark inactive, then remove
       (process-event [:re-frame.query/mark-inactive :books/list {}])
       (process-event [:re-frame.query/remove-query qid])
-      (is (nil? (get-in (app-db) [:re-frame.query/queries qid]))))))
+      (is (nil? (get-in (app-db) [:re-frame.query/queries qid])))))
 
-(deftest remove-query-keeps-active-query
   (testing "remove-query is a no-op if query became active again"
     (rfq/reg-query :books/list {:query-fn (fn [_] {})})
     (process-event [:re-frame.query/query-success :books/list {} [{:id 1}]])
@@ -338,7 +330,7 @@
 ;; Effect-fn (auto-injected callbacks) tests
 ;; ---------------------------------------------------------------------------
 
-(deftest effect-fn-auto-injects-query-callbacks
+(deftest effect-fn-auto-injects-callbacks-test
   (testing "execute-query-effect uses effect-fn to inject success/failure callbacks"
     (let [captured (atom nil)]
       ;; Register a test effect that captures its arguments
@@ -359,9 +351,8 @@
               :url        "/api/books?page=1"
               :on-success [:re-frame.query/query-success :books/list {:page 1}]
               :on-failure [:re-frame.query/query-failure :books/list {:page 1}]}
-             @captured)))))
+             @captured))))
 
-(deftest effect-fn-auto-injects-mutation-callbacks
   (testing "execute-mutation uses effect-fn to inject success/failure callbacks"
     (let [captured (atom nil)]
       (rf/reg-fx :test-http (fn [v] (reset! captured v)))
@@ -407,7 +398,7 @@
               :on-failure [:re-frame.query/query-failure :books/special {}]}
              @captured)))))
 
-(deftest legacy-query-fn-still-works-without-effect-fn
+(deftest effect-fn-fallback-test
   (testing "without effect-fn, query-fn returning a full effects map still works"
     (let [captured (atom nil)]
       (rf/reg-fx :test-http (fn [v] (reset! captured v)))
@@ -423,9 +414,8 @@
               :url        "/api/books"
               :on-success [:re-frame.query/query-success :books/legacy {:page 1}]
               :on-failure [:re-frame.query/query-failure :books/legacy {:page 1}]}
-             @captured)))))
+             @captured))))
 
-(deftest no-custom-callbacks-still-works
   (testing "queries without custom effect-fn work normally"
     (rfq/reg-query :books/plain {:query-fn (fn [_] {})})
     (process-event [:re-frame.query/query-success :books/plain {} [{:id 1}]])
@@ -475,7 +465,7 @@
               :on-failure [:re-frame.query/mutation-failure :books/create {:title "Dune"}]}
              @captured)))))
 
-(deftest init-clears-previous-state
+(deftest init-edge-cases-test
   (testing "init! replaces any previously registered queries/mutations"
     ;; Register something first via the incremental API
     (rfq/reg-query :old/query {:query-fn (fn [_] {})})
@@ -487,16 +477,14 @@
     (is (nil? (registry/get-query :old/query)))
     (is (nil? (registry/get-mutation :old/mutation)))
     ;; New registration exists
-    (is (some? (registry/get-query :new/query)))))
+    (is (some? (registry/get-query :new/query))))
 
-(deftest init-with-empty-map
   (testing "init! with empty map clears everything"
     (rfq/reg-query :some/query {:query-fn (fn [_] {})})
     (rfq/init! {})
     (is (nil? (registry/get-query :some/query)))
-    (is (nil? (registry/get-default-effect-fn)))))
+    (is (nil? (registry/get-default-effect-fn))))
 
-(deftest init-incremental-after-init
   (testing "reg-query and reg-mutation still work after init!"
     (rfq/init!
       {:queries {:books/list {:query-fn (fn [_] {:url "/books"})}}})
@@ -510,7 +498,7 @@
 ;; Query deduplication tests
 ;; ---------------------------------------------------------------------------
 
-(deftest ensure-query-deduplicates-inflight-requests
+(deftest query-deduplication-test
   (testing "ensure-query is a no-op when the query is already fetching"
     (let [call-count (atom 0)]
       (rf/reg-fx :test-http (fn [_] (swap! call-count inc)))
@@ -530,9 +518,8 @@
       ;; Second dispatch — should be a no-op because fetching? is true
       (process-event [:re-frame.query/ensure-query :books/list {}])
       (is (= 1 @call-count)
-          "second ensure-query is a no-op while already fetching"))))
+          "second ensure-query is a no-op while already fetching")))
 
-(deftest ensure-query-different-params-are-independent
   (testing "ensure-query with different params produces separate effects"
     (let [calls (atom [])]
       (rf/reg-fx :test-http (fn [v] (swap! calls conj v)))
@@ -550,9 +537,8 @@
       (is (= 2 (count @calls))
           "different params produce separate effects")
       (is (= "/api/books/1" (:url (first @calls))))
-      (is (= "/api/books/2" (:url (second @calls)))))))
+      (is (= "/api/books/2" (:url (second @calls))))))
 
-(deftest ensure-query-fresh-cache-produces-no-effect
   (testing "ensure-query does nothing when cached data is within stale-time"
     (let [call-count (atom 0)]
       (rf/reg-fx :test-http (fn [_] (swap! call-count inc)))
@@ -577,7 +563,7 @@
 ;; Invalidation refetch behavior tests
 ;; ---------------------------------------------------------------------------
 
-(deftest invalidation-refetches-active-queries-only
+(deftest invalidation-refetch-behavior-test
   (testing "Active queries matching invalidated tags are refetched;
             inactive queries are only marked stale."
     (rf-test/run-test-sync
@@ -621,9 +607,8 @@
           (is (= 1 (count @calls))
               "only one refetch effect fired (for the active query)")
           (is (= "/api/books" (:url (first @calls)))
-              "the refetch effect is for the active query"))))))
+              "the refetch effect is for the active query")))))
 
-(deftest invalidation-does-not-refetch-inactive-queries
   (testing "Inactive queries get marked stale but no refetch dispatch happens"
     (let [call-count (atom 0)]
       (rf/reg-fx :test-http (fn [_] (swap! call-count inc)))
@@ -646,7 +631,7 @@
         (is (zero? @call-count)
             "no refetch effect for inactive query")))))
 
-(deftest invalidation-with-multiple-tag-types
+(deftest invalidation-tag-matching-test
   (testing "Exact tag match, partial tag match, and non-matching tags"
     (rfq/reg-query :books/list
                    {:query-fn (fn [_] {})
@@ -671,9 +656,8 @@
       (is (false? (get-in (app-db) [:re-frame.query/queries detail-qid :stale?]))
           "books/detail does NOT match [:books :all] — its tag is [:books :id 1]")
       (is (false? (get-in (app-db) [:re-frame.query/queries authors-qid :stale?]))
-          "authors/list does NOT match [:books :all]"))))
+          "authors/list does NOT match [:books :all]")))
 
-(deftest invalidation-with-id-specific-tags
   (testing "Invalidating a specific id tag only affects the matching detail query"
     (rfq/reg-query :books/detail
                    {:query-fn (fn [_] {})
@@ -737,7 +721,7 @@
 ;; Full mutation lifecycle tests
 ;; ---------------------------------------------------------------------------
 
-(deftest execute-mutation-sets-loading
+(deftest mutation-lifecycle-test
   (testing "execute-mutation immediately sets :loading before the effect fires"
     (let [captured-status (atom nil)]
       (rf/reg-fx :test-http
@@ -761,9 +745,8 @@
         (is (nil? (get-in (app-db) [:re-frame.query/mutations mid :error]))
             "error is nil during :loading")
         (is (= :loading @captured-status)
-            "status was :loading when the effect fired")))))
+            "status was :loading when the effect fired"))))
 
-(deftest mutation-success-stores-response-data
   (testing "mutation-success stores the response data in the mutation state"
     (rfq/reg-mutation :books/create
                       {:mutation-fn (fn [_] {})})
@@ -802,7 +785,7 @@
       (is (= :error (get-in (app-db) [:re-frame.query/mutations mid-2 :status]))
           "mutation 2 is :error"))))
 
-(deftest mutation-full-lifecycle-loading-to-success
+(deftest mutation-full-lifecycle-test
   (testing "Full lifecycle: execute → :loading → success → :success with data"
     (let [captured (atom nil)]
       (rf/reg-fx :test-http (fn [v] (reset! captured v)))
@@ -828,9 +811,8 @@
         (let [mutation (get-in (app-db) [:re-frame.query/mutations mid])]
           (is (= :success (:status mutation)))
           (is (= {:id 1 :title "Dune"} (:data mutation)))
-          (is (nil? (:error mutation))))))))
+          (is (nil? (:error mutation)))))))
 
-(deftest mutation-full-lifecycle-error-then-retry-success
   (testing "Full lifecycle: execute → :error → re-execute → :loading → :success"
     (rfq/reg-mutation :books/create
                       {:mutation-fn (fn [{:keys [title]}]
@@ -884,7 +866,7 @@
 ;; Stale-time integration tests
 ;; ---------------------------------------------------------------------------
 
-(deftest ensure-query-skips-fresh-data
+(deftest stale-time-behavior-test
   (testing "ensure-query produces no effect when data is within stale-time"
     (let [call-count (atom 0)]
       (rf/reg-fx :test-http (fn [_] (swap! call-count inc)))
@@ -907,9 +889,8 @@
         (is (false? (get-in (app-db) [:re-frame.query/queries qid :fetching?]))
             "fetching? remains false")
         (is (= :success (get-in (app-db) [:re-frame.query/queries qid :status]))
-            "status remains :success")))))
+            "status remains :success"))))
 
-(deftest refetch-query-ignores-freshness
   (testing "refetch-query always fires, even when data is within stale-time"
     (let [call-count (atom 0)]
       (rf/reg-fx :test-http (fn [_] (swap! call-count inc)))
@@ -932,7 +913,55 @@
         (is (true? (get-in (app-db) [:re-frame.query/queries qid :fetching?]))
             "fetching? is true")
         (is (= :success (get-in (app-db) [:re-frame.query/queries qid :status]))
-            "status stays :success during background refetch")))))
+            "status stays :success during background refetch"))))
+
+  (testing "ensure-query refetches when stale-time has elapsed since last fetch"
+    (let [call-count (atom 0)]
+      (rf/reg-fx :test-http (fn [_] (swap! call-count inc)))
+      (rfq/set-default-effect-fn!
+        (fn [request on-success on-failure]
+          {:test-http (assoc request
+                             :on-success on-success
+                             :on-failure on-failure)}))
+      (rfq/reg-query :books/list
+                     {:query-fn (fn [_] {:method :get
+                                         :url "/api/books"})
+                      :stale-time-ms 1000})
+      ;; Populate and push fetched-at far into the past
+      (process-event [:re-frame.query/query-success :books/list {} [{:id 1}]])
+      (let [qid (util/query-id :books/list {})]
+        (swap! rf-db/app-db assoc-in
+               [:re-frame.query/queries qid :fetched-at] 1000)
+        (reset! call-count 0)
+        ;; ensure-query at time 2001: (2001 - 1000) = 1001 > stale-time-ms 1000
+        (with-redefs [util/now-ms (constantly 2001)]
+          (process-event [:re-frame.query/ensure-query :books/list {}]))
+        (is (= 1 @call-count)
+            "effect fires because stale-time has elapsed")
+        (is (true? (get-in (app-db) [:re-frame.query/queries qid :fetching?]))))))
+
+  (testing "Without stale-time-ms, a successful query is never considered stale by time"
+    (let [call-count (atom 0)]
+      (rf/reg-fx :test-http (fn [_] (swap! call-count inc)))
+      (rfq/set-default-effect-fn!
+        (fn [request on-success on-failure]
+          {:test-http (assoc request
+                             :on-success on-success
+                             :on-failure on-failure)}))
+      (rfq/reg-query :books/list
+                     {:query-fn (fn [_] {:method :get
+                                         :url "/api/books"})})
+      ;; Populate and push fetched-at far into the past
+      (process-event [:re-frame.query/query-success :books/list {} [{:id 1}]])
+      (let [qid (util/query-id :books/list {})]
+        (swap! rf-db/app-db assoc-in
+               [:re-frame.query/queries qid :fetched-at] 0)
+        (reset! call-count 0)
+        ;; ensure-query at time 999999 — no stale-time-ms, so NOT stale by time
+        (with-redefs [util/now-ms (constantly 999999)]
+          (process-event [:re-frame.query/ensure-query :books/list {}]))
+        (is (zero? @call-count)
+            "no effect — query without stale-time-ms never auto-stales")))))
 
 (deftest stale-time-resets-on-success
   (testing "After a successful fetch, the stale-time window restarts from the new fetched-at"
@@ -971,61 +1000,11 @@
           (is (zero? @call-count)
               "data is fresh after refetch — no effect produced"))))))
 
-(deftest ensure-query-fires-when-stale-time-elapsed
-  (testing "ensure-query refetches when stale-time has elapsed since last fetch"
-    (let [call-count (atom 0)]
-      (rf/reg-fx :test-http (fn [_] (swap! call-count inc)))
-      (rfq/set-default-effect-fn!
-        (fn [request on-success on-failure]
-          {:test-http (assoc request
-                             :on-success on-success
-                             :on-failure on-failure)}))
-      (rfq/reg-query :books/list
-                     {:query-fn (fn [_] {:method :get
-                                         :url "/api/books"})
-                      :stale-time-ms 1000})
-      ;; Populate and push fetched-at far into the past
-      (process-event [:re-frame.query/query-success :books/list {} [{:id 1}]])
-      (let [qid (util/query-id :books/list {})]
-        (swap! rf-db/app-db assoc-in
-               [:re-frame.query/queries qid :fetched-at] 1000)
-        (reset! call-count 0)
-        ;; ensure-query at time 2001: (2001 - 1000) = 1001 > stale-time-ms 1000
-        (with-redefs [util/now-ms (constantly 2001)]
-          (process-event [:re-frame.query/ensure-query :books/list {}]))
-        (is (= 1 @call-count)
-            "effect fires because stale-time has elapsed")
-        (is (true? (get-in (app-db) [:re-frame.query/queries qid :fetching?])))))))
-
-(deftest no-stale-time-means-never-auto-stale
-  (testing "Without stale-time-ms, a successful query is never considered stale by time"
-    (let [call-count (atom 0)]
-      (rf/reg-fx :test-http (fn [_] (swap! call-count inc)))
-      (rfq/set-default-effect-fn!
-        (fn [request on-success on-failure]
-          {:test-http (assoc request
-                             :on-success on-success
-                             :on-failure on-failure)}))
-      (rfq/reg-query :books/list
-                     {:query-fn (fn [_] {:method :get
-                                         :url "/api/books"})})
-      ;; Populate and push fetched-at far into the past
-      (process-event [:re-frame.query/query-success :books/list {} [{:id 1}]])
-      (let [qid (util/query-id :books/list {})]
-        (swap! rf-db/app-db assoc-in
-               [:re-frame.query/queries qid :fetched-at] 0)
-        (reset! call-count 0)
-        ;; ensure-query at time 999999 — no stale-time-ms, so NOT stale by time
-        (with-redefs [util/now-ms (constantly 999999)]
-          (process-event [:re-frame.query/ensure-query :books/list {}]))
-        (is (zero? @call-count)
-            "no effect — query without stale-time-ms never auto-stales")))))
-
 ;; ---------------------------------------------------------------------------
 ;; Error recovery cycle tests
 ;; ---------------------------------------------------------------------------
 
-(deftest query-error-then-success-clears-error
+(deftest query-error-recovery-test
   (testing "After a failed query, a successful retry clears the error and restores :success"
     (rfq/reg-query :books/list {:query-fn (fn [_] {})})
     (let [qid (util/query-id :books/list {})]
@@ -1043,9 +1022,8 @@
             "data is stored")
         (is (nil? (:error query))
             "error is cleared on success")
-        (is (false? (:fetching? query)))))))
+        (is (false? (:fetching? query))))))
 
-(deftest query-repeated-failures-update-error
   (testing "Each failure updates the error value, not accumulates"
     (rfq/reg-query :books/list {:query-fn (fn [_] {})})
     (let [qid (util/query-id :books/list {})]
@@ -1056,9 +1034,8 @@
       (process-event [:re-frame.query/query-failure :books/list {} {:status 503}])
       (is (= {:status 503} (get-in (app-db) [:re-frame.query/queries qid :error]))
           "error is replaced, not accumulated")
-      (is (= :error (get-in (app-db) [:re-frame.query/queries qid :status]))))))
+      (is (= :error (get-in (app-db) [:re-frame.query/queries qid :status])))))
 
-(deftest query-success-then-failure-preserves-data
   (testing "After success then failure, data persists but status is :error"
     (rfq/reg-query :books/list {:query-fn (fn [_] {})})
     (let [qid (util/query-id :books/list {})]
@@ -1143,28 +1120,25 @@
 ;; Registration error handling tests
 ;; ---------------------------------------------------------------------------
 
-(deftest ensure-query-throws-for-unregistered-key
+(deftest unregistered-key-throws-test
   (testing "Dispatching ensure-query for an unregistered key throws an error"
     (is (thrown-with-msg?
           #?(:clj clojure.lang.ExceptionInfo :cljs ExceptionInfo)
           #"No query registered for key"
-          (process-event [:re-frame.query/ensure-query :nonexistent/query {}])))))
+          (process-event [:re-frame.query/ensure-query :nonexistent/query {}]))))
 
-(deftest refetch-query-throws-for-unregistered-key
   (testing "Dispatching refetch-query for an unregistered key throws an error"
     (is (thrown-with-msg?
           #?(:clj clojure.lang.ExceptionInfo :cljs ExceptionInfo)
           #"No query registered for key"
-          (process-event [:re-frame.query/refetch-query :nonexistent/query {}])))))
+          (process-event [:re-frame.query/refetch-query :nonexistent/query {}]))))
 
-(deftest execute-mutation-throws-for-unregistered-key
   (testing "Dispatching execute-mutation for an unregistered key throws an error"
     (is (thrown-with-msg?
           #?(:clj clojure.lang.ExceptionInfo :cljs ExceptionInfo)
           #"No mutation registered for key"
-          (process-event [:re-frame.query/execute-mutation :nonexistent/mutation {}])))))
+          (process-event [:re-frame.query/execute-mutation :nonexistent/mutation {}]))))
 
-(deftest subscribe-query-throws-for-unregistered-key
   (testing "Subscribing to an unregistered query key throws because ensure-query is dispatched"
     (rf-test/run-test-sync
       (is (thrown-with-msg?
@@ -1176,21 +1150,20 @@
 ;; Query state shape completeness tests
 ;; ---------------------------------------------------------------------------
 
-(deftest query-state-nil-before-any-fetch
+(deftest state-nil-before-operations-test
   (testing "Before any fetch, query state is nil in app-db"
     (rfq/reg-query :books/list {:query-fn (fn [_] {})})
     (let [qid (util/query-id :books/list {})]
       (is (nil? (get-in (app-db) [:re-frame.query/queries qid]))
-          "query state does not exist before any event is dispatched"))))
+          "query state does not exist before any event is dispatched")))
 
-(deftest mutation-state-nil-before-any-execution
   (testing "Before any execution, mutation state is nil in app-db"
     (rfq/reg-mutation :books/create {:mutation-fn (fn [_] {})})
     (let [mid (util/query-id :books/create {})]
       (is (nil? (get-in (app-db) [:re-frame.query/mutations mid]))
           "mutation state does not exist before any event is dispatched"))))
 
-(deftest query-loading-state-shape
+(deftest query-state-shape-test
   (testing "Full state shape after ensure-query (initial load, no prior data)"
     (rfq/reg-query :books/list {:query-fn (fn [_] {})})
     (process-event [:re-frame.query/ensure-query :books/list {}])
@@ -1203,9 +1176,8 @@
               :stale?    false
               :active?   false
               :tags      #{}}
-             query)))))
+             query))))
 
-(deftest query-success-state-shape
   (testing "Full state shape after query-success"
     (rfq/reg-query :books/list
                    {:query-fn      (fn [_] {})
@@ -1226,13 +1198,12 @@
               :cache-time-ms 300000}
              (dissoc query :fetched-at)))
       (is (number? (:fetched-at query))
-          "fetched-at is a numeric timestamp"))))
+          "fetched-at is a numeric timestamp")))
 
-(deftest query-error-state-shape
   (testing "Full state shape after query-failure"
-    (rfq/reg-query :books/list {:query-fn (fn [_] {})})
-    (process-event [:re-frame.query/query-failure :books/list {} {:status 500 :body "error"}])
-    (let [qid   (util/query-id :books/list {})
+    (rfq/reg-query :books/error-shape {:query-fn (fn [_] {})})
+    (process-event [:re-frame.query/query-failure :books/error-shape {} {:status 500 :body "error"}])
+    (let [qid   (util/query-id :books/error-shape {})
           query (get-in (app-db) [:re-frame.query/queries qid])]
       (is (= {:status    :error
               :data      nil
@@ -1241,9 +1212,8 @@
               :stale?    true
               :active?   false
               :tags      #{}}
-             query)))))
+             query))))
 
-(deftest query-background-refetch-state-shape
   (testing "Full state shape during a background refetch (stale data visible)"
     (rfq/reg-query :books/list
                    {:query-fn      (fn [_] {})
@@ -1270,7 +1240,7 @@
                (dissoc query :fetched-at))
             "status stays :success, fetching? true, stale data preserved")))))
 
-(deftest mutation-loading-state-shape
+(deftest mutation-state-shape-test
   (testing "Full state shape after execute-mutation"
     (rfq/reg-mutation :books/create {:mutation-fn (fn [_] {})})
     (process-event [:re-frame.query/execute-mutation :books/create {:title "Dune"}])
@@ -1278,9 +1248,8 @@
           mutation (get-in (app-db) [:re-frame.query/mutations mid])]
       (is (= {:status :loading
               :error  nil}
-             mutation)))))
+             mutation))))
 
-(deftest mutation-success-state-shape
   (testing "Full state shape after mutation-success"
     (rfq/reg-mutation :books/create {:mutation-fn (fn [_] {})})
     (process-event [:re-frame.query/mutation-success :books/create {:title "Dune"} {:id 1 :title "Dune"}])
@@ -1289,9 +1258,8 @@
       (is (= {:status :success
               :data   {:id 1 :title "Dune"}
               :error  nil}
-             mutation)))))
+             mutation))))
 
-(deftest mutation-error-state-shape
   (testing "Full state shape after mutation-failure"
     (rfq/reg-mutation :books/create {:mutation-fn (fn [_] {})})
     (process-event [:re-frame.query/mutation-failure :books/create {:title "Dune"} {:status 422 :body "Unprocessable"}])
@@ -1370,7 +1338,7 @@
       (is (true? (get-in (app-db) [:re-frame.query/queries qid :active?]))
           "query is active again"))))
 
-(deftest per-query-cleanup-lifecycle
+(deftest per-query-cleanup-test
   (testing "Full per-query cleanup: mark-inactive → timer → remove-query → evicted"
     (rfq/reg-query :books/list
                    {:query-fn      (fn [_] {})
@@ -1390,9 +1358,8 @@
       ;; Step 3: Timer fires → dispatches remove-query → query evicted
       (process-event [:re-frame.query/remove-query qid])
       (is (nil? (get-in (app-db) [:re-frame.query/queries qid]))
-          "query evicted from cache after remove-query"))))
+          "query evicted from cache after remove-query")))
 
-(deftest remove-query-noop-if-resubscribed
   (testing "remove-query is a no-op if the query became active again before timer fires"
     (rfq/reg-query :books/list
                    {:query-fn      (fn [_] {})
@@ -1445,7 +1412,7 @@
 ;; Polling tests
 ;; ---------------------------------------------------------------------------
 
-(deftest add-subscriber-starts-polling
+(deftest polling-subscriber-basics-test
   (testing "add-subscriber! with a positive interval starts polling"
     (let [qid (util/query-id :books/list {})]
       (polling/add-subscriber! qid :sub-1 :books/list {} 5000)
@@ -1455,9 +1422,8 @@
           "effective interval matches the subscriber")
       (polling/remove-subscriber! qid :sub-1)
       (is (not (contains? (polling/active-polls) qid))
-          "polling stopped after last subscriber removed"))))
+          "polling stopped after last subscriber removed")))
 
-(deftest add-subscriber-noop-for-zero-or-nil
   (testing "add-subscriber! is a no-op for zero, nil, or negative intervals"
     (let [qid (util/query-id :books/list {})]
       (polling/add-subscriber! qid :sub-1 :books/list {} 0)
@@ -1468,10 +1434,17 @@
           "nil interval does not start polling")
       (polling/add-subscriber! qid :sub-3 :books/list {} -1000)
       (is (empty? (polling/active-polls))
-          "negative interval does not start polling"))))
+          "negative interval does not start polling")))
 
-(deftest multiple-subscribers-use-lowest-interval
+  (testing "remove-subscriber! is a no-op for a subscriber that doesn't exist"
+    (let [qid (util/query-id :books/list {})]
+      (polling/remove-subscriber! qid :nonexistent)
+      (is (empty? (polling/active-polls))
+          "no error when removing non-existent subscriber"))))
+
+(deftest polling-multiple-subscribers-test
   (testing "Effective interval is the minimum of all active positive subscriber intervals"
+    (polling/cancel-all!)
     (let [qid (util/query-id :books/list {})]
       ;; First subscriber at 5000ms
       (polling/add-subscriber! qid :sub-1 :books/list {} 5000)
@@ -1484,10 +1457,10 @@
       ;; Third subscriber at 3000ms → still 1000
       (polling/add-subscriber! qid :sub-3 :books/list {} 3000)
       (is (= 1000 (polling/current-interval qid))
-          "adding a slower subscriber doesn't change the effective interval"))))
+          "adding a slower subscriber doesn't change the effective interval")))
 
-(deftest removing-fastest-subscriber-recalculates-interval
   (testing "Removing the fastest subscriber recalculates to the next lowest"
+    (polling/cancel-all!)
     (let [qid (util/query-id :books/list {})]
       (polling/add-subscriber! qid :sub-1 :books/list {} 5000)
       (polling/add-subscriber! qid :sub-2 :books/list {} 1000)
@@ -1497,10 +1470,10 @@
       (is (= 5000 (polling/current-interval qid))
           "effective interval recalculated to remaining subscriber")
       (is (contains? (polling/active-polls) qid)
-          "polling still active with remaining subscriber"))))
+          "polling still active with remaining subscriber")))
 
-(deftest removing-all-subscribers-stops-polling
   (testing "Removing all subscribers stops polling entirely"
+    (polling/cancel-all!)
     (let [qid (util/query-id :books/list {})]
       (polling/add-subscriber! qid :sub-1 :books/list {} 5000)
       (polling/add-subscriber! qid :sub-2 :books/list {} 1000)
@@ -1511,14 +1484,7 @@
           "polling stopped after all subscribers removed")
       (is (nil? (polling/current-interval qid))))))
 
-(deftest remove-subscriber-noop-for-nonexistent
-  (testing "remove-subscriber! is a no-op for a subscriber that doesn't exist"
-    (let [qid (util/query-id :books/list {})]
-      (polling/remove-subscriber! qid :nonexistent)
-      (is (empty? (polling/active-polls))
-          "no error when removing non-existent subscriber"))))
-
-(deftest query-level-polling-interval
+(deftest polling-interval-precedence-test
   (testing "Query registered with :polling-interval-ms starts polling when subscribed"
     (let [qid (util/query-id :books/list {})]
       ;; Simulate what the subscription does: read query config, add subscriber
@@ -1530,9 +1496,8 @@
                                  (:polling-interval-ms config)))
       (is (contains? (polling/active-polls) qid)
           "polling started from query-level config")
-      (is (= 5000 (polling/current-interval qid))))))
+      (is (= 5000 (polling/current-interval qid)))))
 
-(deftest subscription-level-overrides-query-level
   (testing "Per-subscription interval overrides query-level default"
     (let [qid (util/query-id :books/list {})]
       (rfq/reg-query :books/list
@@ -1576,7 +1541,7 @@
 ;; Polling e2e tests (through the subscription)
 ;; ---------------------------------------------------------------------------
 
-(deftest subscription-with-polling-interval-starts-polling
+(deftest subscription-polling-e2e-test
   (testing "Subscribing with :polling-interval-ms starts polling automatically"
     (rf-test/run-test-sync
       (rfq/reg-query :books/list {:query-fn (fn [_] {})})
@@ -1587,9 +1552,8 @@
         (is (contains? (polling/active-polls) qid)
             "polling started via subscription")
         (is (= 5000 (polling/current-interval qid))
-            "effective interval matches subscription option")))))
+            "effective interval matches subscription option"))))
 
-(deftest subscription-query-level-polling-starts-automatically
   (testing "Query registered with :polling-interval-ms starts polling on subscribe"
     (rf-test/run-test-sync
       (rfq/reg-query :books/list
@@ -1600,9 +1564,8 @@
         @sub
         (is (contains? (polling/active-polls) qid)
             "polling started from query-level config")
-        (is (= 3000 (polling/current-interval qid)))))))
+        (is (= 3000 (polling/current-interval qid))))))
 
-(deftest subscription-override-beats-query-level-polling
   (testing "Per-subscription interval overrides query-level default"
     (rf-test/run-test-sync
       (rfq/reg-query :books/list
@@ -1612,9 +1575,8 @@
             sub (rf/subscribe [:re-frame.query/query :books/list {} {:polling-interval-ms 1000}])]
         @sub
         (is (= 1000 (polling/current-interval qid))
-            "subscription-level override is used instead of query-level")))))
+            "subscription-level override is used instead of query-level"))))
 
-(deftest subscription-without-polling-does-not-poll
   (testing "Subscribing without :polling-interval-ms does not start polling"
     (rf-test/run-test-sync
       (rfq/reg-query :books/list {:query-fn (fn [_] {})})
