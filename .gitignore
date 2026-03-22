@@ -22,4 +22,5 @@ pnpm-lock.yaml
 Thumbs.db
 /.lsp/
 .clj-kondo/.cache/
+.clj-kondo/imports/
 /test-results/
