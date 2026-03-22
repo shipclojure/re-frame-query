@@ -1,0 +1,5 @@
+((nil . ((cider-preferred-build-tool       . clojure-cli)
+         (cider-clojure-cli-aliases        . ":dev")))
+ (clojure-mode . ((apheleia-formatter . cljfmt)))
+ (clojurec-mode . ((apheleia-formatter . cljfmt)))
+ (clojurescript-mode . ((apheleia-formatter . cljfmt))))
