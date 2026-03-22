@@ -1,5 +1,7 @@
 # re-frame-query
 
+[![Clojars Project](https://img.shields.io/clojars/v/com.shipclojure/re-frame-query.svg)](https://clojars.org/com.shipclojure/re-frame-query)
+
 Declarative data fetching and caching for [re-frame](https://github.com/day8/re-frame), inspired by [TanStack Query](https://tanstack.com/query) and [RTK Query](https://redux-toolkit.js.org/rtk-query/overview).
 
 ## Features
