@@ -496,6 +496,122 @@ test.describe("WebSocket Transport", () => {
 });
 
 // ---------------------------------------------------------------------------
+// Infinite Scroll tab
+// ---------------------------------------------------------------------------
+
+test.describe("Infinite Scroll", () => {
+  test.beforeEach(async ({ page, baseURL }) => {
+    await page.goto(baseURL);
+    await waitForApp(page);
+    await selectTab(page, "Infinite Scroll");
+  });
+
+  test("loads first page of Alex's feed by default", async ({ page }) => {
+    // Alex is selected by default
+    await expect(page.getByRole("button", { name: /Alex/ })).toHaveClass(/primary/);
+    // First page (10 items) should be visible — newest first, so Post #35 is first
+    await expect(page.getByText("Alex's Post #35", { exact: true })).toBeVisible({ timeout: 5000 });
+    await expect(page.getByText("Alex's Post #26", { exact: true })).toBeVisible();
+    // Load More should be visible (35 items total, 10 per page)
+    await expect(page.getByRole("button", { name: "Load More" })).toBeVisible();
+  });
+
+  test("loads 3 pages via Load More", async ({ page }) => {
+    // Wait for first page
+    await expect(page.getByText("Alex's Post #35", { exact: true })).toBeVisible({ timeout: 5000 });
+
+    // Load page 2
+    await page.getByRole("button", { name: "Load More" }).click();
+    await expect(page.getByText("Alex's Post #16", { exact: true })).toBeVisible({ timeout: 5000 });
+
+    // Load page 3
+    await page.getByRole("button", { name: "Load More" }).click();
+    await expect(page.getByText("Alex's Post #6", { exact: true })).toBeVisible({ timeout: 5000 });
+
+    // All 30 items from 3 pages should be visible (posts #35 down to #6)
+    await expect(page.getByText("Alex's Post #35", { exact: true })).toBeVisible();
+    await expect(page.getByText("Alex's Post #26", { exact: true })).toBeVisible();
+    await expect(page.getByText("Alex's Post #16", { exact: true })).toBeVisible();
+  });
+
+  test("switching users shows independent cache entries", async ({ page }) => {
+    // Wait for Alex's feed
+    await expect(page.getByText("Alex's Post #35", { exact: true })).toBeVisible({ timeout: 5000 });
+
+    // Switch to Maria
+    await page.getByRole("button", { name: /Maria/ }).click();
+    await expect(page.getByText("Maria's Post #25", { exact: true })).toBeVisible({ timeout: 5000 });
+    // Alex's posts should not be visible
+    await expect(page.getByText("Alex's Post #35", { exact: true })).not.toBeVisible();
+
+    // Switch back to Alex — should show cached data instantly
+    await page.getByRole("button", { name: /Alex/ }).click();
+    await expect(page.getByText("Alex's Post #35", { exact: true })).toBeVisible();
+  });
+
+  test("adding posts triggers re-fetch and previously seen items remain visible", async ({ page }) => {
+    // Load 3 pages (30 items: posts #35 down to #6)
+    await expect(page.getByText("Alex's Post #35", { exact: true })).toBeVisible({ timeout: 5000 });
+    await page.getByRole("button", { name: "Load More" }).click();
+    await expect(page.getByText("Alex's Post #16", { exact: true })).toBeVisible({ timeout: 5000 });
+    await page.getByRole("button", { name: "Load More" }).click();
+    await expect(page.getByText("Alex's Post #6", { exact: true })).toBeVisible({ timeout: 5000 });
+
+    // Add first post — triggers mutation + tag invalidation + sequential re-fetch of 3 pages
+    const titleInput = page.getByPlaceholder("Post title…");
+    await titleInput.fill("Brand New Post Alpha");
+    await page.getByRole("button", { name: "Add Post" }).click();
+
+    // Wait for sequential re-fetch to complete — the new post should be at the top
+    await expect(page.getByText("Brand New Post Alpha")).toBeVisible({ timeout: 20000 });
+
+    // Key assertion: previously seen items are still visible after re-fetch with fresh cursors
+    await expect(page.getByText("Alex's Post #35", { exact: true })).toBeVisible({ timeout: 5000 });
+    await expect(page.getByText("Alex's Post #26", { exact: true })).toBeVisible();
+    await expect(page.getByText("Alex's Post #16", { exact: true })).toBeVisible();
+
+    // Add second post
+    await titleInput.fill("Brand New Post Beta");
+    await page.getByRole("button", { name: "Add Post" }).click();
+    await expect(page.getByText("Brand New Post Beta")).toBeVisible({ timeout: 20000 });
+
+    // Items from earlier pages still visible after second re-fetch
+    await expect(page.getByText("Alex's Post #35", { exact: true })).toBeVisible();
+    await expect(page.getByText("Alex's Post #26", { exact: true })).toBeVisible();
+  });
+
+  test("end of feed is shown when all pages loaded", async ({ page }) => {
+    // Alex has 35 posts, 10 per page = 4 pages (10+10+10+5)
+    await expect(page.getByText("Alex's Post #35", { exact: true })).toBeVisible({ timeout: 5000 });
+    await page.getByRole("button", { name: "Load More" }).click();
+    await expect(page.getByText("Alex's Post #16", { exact: true })).toBeVisible({ timeout: 5000 });
+    await page.getByRole("button", { name: "Load More" }).click();
+    await expect(page.getByText("Alex's Post #6", { exact: true })).toBeVisible({ timeout: 5000 });
+    await page.getByRole("button", { name: "Load More" }).click();
+    // Last page has posts #5 down to #1 — use exact match to avoid #10-#19
+    await expect(page.getByText("Alex's Post #1", { exact: true })).toBeVisible({ timeout: 5000 });
+
+    // No more pages — "End of feed" message should appear
+    await expect(page.getByText("— End of feed —")).toBeVisible();
+    // Load More button should be gone
+    await expect(page.getByRole("button", { name: "Load More" })).not.toBeVisible();
+  });
+
+  test("debug stats show page count and cursors", async ({ page }) => {
+    await expect(page.getByText("Alex's Post #35", { exact: true })).toBeVisible({ timeout: 5000 });
+
+    // Enable debug stats
+    await page.getByText("Show pagination debug info").click();
+    await expect(page.getByText("1 page(s) loaded")).toBeVisible();
+    await expect(page.getByText("Has next: true")).toBeVisible();
+
+    // Load another page
+    await page.getByRole("button", { name: "Load More" }).click();
+    await expect(page.getByText("2 page(s) loaded")).toBeVisible({ timeout: 5000 });
+  });
+});
+
+// ---------------------------------------------------------------------------
 // Inspector
 // ---------------------------------------------------------------------------
 

@@ -3,6 +3,7 @@
   (:require
    [example.uix-app.views.basic :as basic]
    [example.uix-app.views.dependent :as dependent]
+   [example.uix-app.views.infinite :as infinite]
    [example.uix-app.views.inspector :as inspector]
    [example.uix-app.views.layout :as layout]
    [example.uix-app.views.mutations :as mutations]
@@ -34,5 +35,6 @@
             :mutations   ($ mutations/panel)
             :websocket   ($ websocket/panel)
             :optimistic  ($ optimistic/panel)
+            :infinite    ($ infinite/panel)
             ($ basic/panel)))
        ($ inspector/panel))))

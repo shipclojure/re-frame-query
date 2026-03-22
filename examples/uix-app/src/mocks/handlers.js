@@ -33,6 +33,31 @@ let todos = {
   4: { id: 4, text: "Ship it 🚀", done: false },
 };
 
+// Feed posts (for infinite scroll demo) — per-user feeds
+const feedsByUser = {
+  alex: [],
+  maria: [],
+};
+for (let i = 1; i <= 35; i++) {
+  feedsByUser.alex.push({
+    id: i,
+    title: `Alex's Post #${i}`,
+    body: `Alex writes about topic ${i}. This is an interesting post.`,
+    author: "Alex",
+    created_at: new Date(Date.now() - (35 - i) * 3600000).toLocaleString(),
+  });
+}
+for (let i = 1; i <= 25; i++) {
+  feedsByUser.maria.push({
+    id: 1000 + i,
+    title: `Maria's Post #${i}`,
+    body: `Maria shares her thoughts on subject ${i}.`,
+    author: "Maria",
+    created_at: new Date(Date.now() - (25 - i) * 3600000).toLocaleString(),
+  });
+}
+let feedNextId = 2000;
+
 // Current user (for dependent queries demo)
 const currentUser = {
   id: 42,
@@ -214,5 +239,50 @@ export const handlers = [
     delete updated.fail_mode;
     todos[id] = updated;
     return HttpResponse.json(updated);
+  }),
+
+  // -------------------------------------------------------------------------
+  // Infinite scroll demo
+  // -------------------------------------------------------------------------
+
+  // GET /api/feed?user=X&cursor=Y&limit=Z — cursor-based paginated feed per user
+  http.get("/api/feed", async ({ request }) => {
+    await delay(400);
+    requestCount++;
+    const url = new URL(request.url);
+    const user = url.searchParams.get("user") || "alex";
+    const cursor = parseInt(url.searchParams.get("cursor") || "0", 10);
+    const limit = parseInt(url.searchParams.get("limit") || "10", 10);
+
+    const posts = feedsByUser[user] || [];
+    const sorted = [...posts].sort((a, b) => b.id - a.id); // newest first
+    const startIdx = cursor;
+    const items = sorted.slice(startIdx, startIdx + limit);
+    const nextCursor = startIdx + limit < sorted.length ? startIdx + limit : null;
+
+    return HttpResponse.json({
+      items,
+      next_cursor: nextCursor,
+      total: sorted.length,
+      user,
+    });
+  }),
+
+  // POST /api/feed — add a new post to a user's feed
+  http.post("/api/feed", async ({ request }) => {
+    await delay(300);
+    requestCount++;
+    const body = await request.json();
+    const user = body.user || "alex";
+    const post = {
+      id: feedNextId++,
+      title: body.title,
+      body: body.body || "A new post just added!",
+      author: user.charAt(0).toUpperCase() + user.slice(1),
+      created_at: new Date().toLocaleString(),
+    };
+    if (!feedsByUser[user]) feedsByUser[user] = [];
+    feedsByUser[user].push(post);
+    return HttpResponse.json(post, { status: 201 });
   }),
 ];

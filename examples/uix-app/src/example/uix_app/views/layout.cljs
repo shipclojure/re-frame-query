@@ -10,7 +10,8 @@
    {:id :prefetching :label "Prefetching"}
    {:id :mutations   :label "Mutation Lifecycle"}
    {:id :websocket   :label "WebSocket"}
-   {:id :optimistic :label "Optimistic Updates"}])
+   {:id :optimistic  :label "Optimistic Updates"}
+   {:id :infinite    :label "Infinite Scroll"}])
 
 (defui tab-bar [{:keys [active on-select]}]
   ($ :div.tab-bar

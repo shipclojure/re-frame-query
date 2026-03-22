@@ -21,107 +21,130 @@
 ;; ---------------------------------------------------------------------------
 
 (rfq/init!
-  {:default-effect-fn
-   (fn [request on-success on-failure]
-     {:http (assoc request :on-success on-success :on-failure on-failure)})
+ {:default-effect-fn
+  (fn [request on-success on-failure]
+    {:http (assoc request :on-success on-success :on-failure on-failure)})
 
-   :queries
-   {;; Basic CRUD
-    :books/list
-    {:query-fn      (fn [_] {:method :get :url "/api/books"})
-     :stale-time-ms 30000
-     :cache-time-ms 300000
-     :tags          (constantly [[:books :all]])}
+  :queries
+  {;; Basic CRUD
+   :books/list
+   {:query-fn      (fn [_] {:method :get :url "/api/books"})
+    :stale-time-ms 30000
+    :cache-time-ms 300000
+    :tags          (constantly [[:books :all]])}
 
-    :books/page
-    {:query-fn      (fn [{:keys [page per-page]}]
-                      {:method :get
-                       :url    (str "/api/books?page=" page "&per_page=" (or per-page 3))})
-     :stale-time-ms 30000
-     :cache-time-ms 300000
-     :tags          (fn [{:keys [page]}]
-                      [[:books :all]
-                       [:books :page page]])}
+   :books/page
+   {:query-fn      (fn [{:keys [page per-page]}]
+                     {:method :get
+                      :url    (str "/api/books?page=" page "&per_page=" (or per-page 3))})
+    :stale-time-ms 30000
+    :cache-time-ms 300000
+    :tags          (fn [{:keys [page]}]
+                     [[:books :all]
+                      [:books :page page]])}
 
-    :book/detail
-    {:query-fn      (fn [{:keys [id]}]
-                      {:method :get
-                       :url    (str "/api/books/" id)})
-     :stale-time-ms 30000
-     :cache-time-ms 300000
-     :tags          (fn [{:keys [id]}]
-                      [[:books :id id]
-                       [:books :all]])}
+   :book/detail
+   {:query-fn      (fn [{:keys [id]}]
+                     {:method :get
+                      :url    (str "/api/books/" id)})
+    :stale-time-ms 30000
+    :cache-time-ms 300000
+    :tags          (fn [{:keys [id]}]
+                     [[:books :id id]
+                      [:books :all]])}
 
     ;; Polling
-    :server/stats
-    {:query-fn            (fn [_] {:method :get :url "/api/server-stats"})
-     :stale-time-ms       1000
-     :polling-interval-ms 2000}
+   :server/stats
+   {:query-fn            (fn [_] {:method :get :url "/api/server-stats"})
+    :stale-time-ms       1000
+    :polling-interval-ms 2000}
 
     ;; Dependent queries
-    :user/current
-    {:query-fn      (fn [_] {:method :get :url "/api/me"})
-     :stale-time-ms 60000}
+   :user/current
+   {:query-fn      (fn [_] {:method :get :url "/api/me"})
+    :stale-time-ms 60000}
 
-    :user/favorites
-    {:query-fn      (fn [{:keys [user-id]}]
-                      {:method :get
-                       :url    (str "/api/users/" user-id "/favorites")})
-     :stale-time-ms 30000}
+   :user/favorites
+   {:query-fn      (fn [{:keys [user-id]}]
+                     {:method :get
+                      :url    (str "/api/users/" user-id "/favorites")})
+    :stale-time-ms 30000}
 
     ;; Optimistic updates
-    :todos/list
-    {:query-fn      (fn [_] {:method    :get
-                             :url       "/api/todos"
-                             :abort-key [:todos/list {}]})
-     :stale-time-ms 30000
-     :tags          (constantly [[:todos]])}}
+   :todos/list
+   {:query-fn      (fn [_] {:method    :get
+                            :url       "/api/todos"
+                            :abort-key [:todos/list {}]})
+    :stale-time-ms 30000
+    :tags          (constantly [[:todos]])}}
 
-   :mutations
-   {;; Basic CRUD
-    :books/create
-    {:mutation-fn (fn [{:keys [title author]}]
-                    {:method :post
-                     :url    "/api/books"
-                     :body   {:title title :author author}})
-     :invalidates (constantly [[:books :all]])}
+  :mutations
+  {;; Basic CRUD
+   :books/create
+   {:mutation-fn (fn [{:keys [title author]}]
+                   {:method :post
+                    :url    "/api/books"
+                    :body   {:title title :author author}})
+    :invalidates (constantly [[:books :all]])}
 
-    :books/update
-    {:mutation-fn (fn [{:keys [id title author]}]
-                    {:method :put
-                     :url    (str "/api/books/" id)
-                     :body   (cond-> {}
-                               title  (assoc :title title)
-                               author (assoc :author author))})
-     :invalidates (fn [{:keys [id]}]
-                    [[:books :id id]
-                     [:books :all]])}
+   :books/update
+   {:mutation-fn (fn [{:keys [id title author]}]
+                   {:method :put
+                    :url    (str "/api/books/" id)
+                    :body   (cond-> {}
+                              title  (assoc :title title)
+                              author (assoc :author author))})
+    :invalidates (fn [{:keys [id]}]
+                   [[:books :id id]
+                    [:books :all]])}
 
-    :books/delete
-    {:mutation-fn (fn [{:keys [id]}]
-                    {:method :delete
-                     :url    (str "/api/books/" id)})
-     :invalidates (fn [{:keys [id]}]
-                    [[:books :id id]
-                     [:books :all]])}
+   :books/delete
+   {:mutation-fn (fn [{:keys [id]}]
+                   {:method :delete
+                    :url    (str "/api/books/" id)})
+    :invalidates (fn [{:keys [id]}]
+                   [[:books :id id]
+                    [:books :all]])}
 
     ;; Mutation lifecycle demo
-    :books/create-demo
-    {:mutation-fn (fn [{:keys [title author]}]
-                    {:method :post
-                     :url    "/api/books"
-                     :body   {:title title :author author}})
-     :invalidates (constantly [[:books :all]])}
+   :books/create-demo
+   {:mutation-fn (fn [{:keys [title author]}]
+                   {:method :post
+                    :url    "/api/books"
+                    :body   {:title title :author author}})
+    :invalidates (constantly [[:books :all]])}
 
     ;; Optimistic updates
-    :todos/toggle
-    {:mutation-fn (fn [{:keys [id done fail-mode?]}]
-                    {:method :put
-                     :url    (str "/api/todos/" id)
-                     :body   (cond-> {:done done}
-                               fail-mode? (assoc :fail_mode true))})
-     :invalidates (constantly [[:todos]])}}})
+   :todos/toggle
+   {:mutation-fn (fn [{:keys [id done fail-mode?]}]
+                   {:method :put
+                    :url    (str "/api/todos/" id)
+                    :body   (cond-> {:done done}
+                              fail-mode? (assoc :fail_mode true))})
+    :invalidates (constantly [[:todos]])}}})
+
+;; ---------------------------------------------------------------------------
+;; Incremental registration — Infinite scroll (added after init! to
+;; demonstrate that reg-query/reg-mutation work alongside init!)
+;; ---------------------------------------------------------------------------
+
+(rfq/reg-query :feed/items
+               {:query-fn      (fn [{:keys [user cursor]}]
+                                 {:method :get
+                                  :url    (str "/api/feed?user=" (or user "alex")
+                                               "&cursor=" (or cursor 0)
+                                               "&limit=10")})
+                :infinite      {:initial-cursor 0
+                                :get-next-cursor (fn [resp] (:next_cursor resp))}
+                :stale-time-ms 30000
+                :tags          (fn [{:keys [user]}] [[:feed] [:feed user]])})
+
+(rfq/reg-mutation :feed/add-item
+                  {:mutation-fn  (fn [{:keys [user title]}]
+                                   {:method :post
+                                    :url    "/api/feed"
+                                    :body   {:title title :user (or user "alex")}})
+                   :invalidates  (fn [{:keys [user]}] [[:feed (or user "alex")]])})
 
 ;; ---------------------------------------------------------------------------
 ;; Incremental registration — WebSocket queries added after init!
@@ -130,25 +153,25 @@
 ;; ---------------------------------------------------------------------------
 
 (rfq/reg-query :ws/notifications
-  {:query-fn      (fn [_] {:channel "notifications:list"})
-   :effect-fn     ws-effect-fn
-   :stale-time-ms 30000})
+               {:query-fn      (fn [_] {:channel "notifications:list"})
+                :effect-fn     ws-effect-fn
+                :stale-time-ms 30000})
 
 (rfq/reg-query :ws/latest-notification
-  {:query-fn            (fn [_] {:channel "notifications:latest"})
-   :effect-fn           ws-effect-fn
-   :stale-time-ms       1000
-   :polling-interval-ms 3000})
+               {:query-fn            (fn [_] {:channel "notifications:latest"})
+                :effect-fn           ws-effect-fn
+                :stale-time-ms       1000
+                :polling-interval-ms 3000})
 
 (rfq/reg-query :ws/chat-messages
-  {:query-fn      (fn [_] {:channel "chat:messages"})
-   :effect-fn     ws-effect-fn
-   :stale-time-ms 5000
-   :tags          (constantly [[:chat :messages]])})
+               {:query-fn      (fn [_] {:channel "chat:messages"})
+                :effect-fn     ws-effect-fn
+                :stale-time-ms 5000
+                :tags          (constantly [[:chat :messages]])})
 
 (rfq/reg-mutation :ws/chat-send
-  {:mutation-fn (fn [{:keys [user text]}]
-                  {:channel "chat:send"
-                   :payload {:user user :text text}})
-   :effect-fn   ws-effect-fn
-   :invalidates (constantly [[:chat :messages]])})
+                  {:mutation-fn (fn [{:keys [user text]}]
+                                  {:channel "chat:send"
+                                   :payload {:user user :text text}})
+                   :effect-fn   ws-effect-fn
+                   :invalidates (constantly [[:chat :messages]])})

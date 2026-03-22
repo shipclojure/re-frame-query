@@ -428,7 +428,7 @@
                                          :current-cursor    initial-cursor}})}
         (build-infinite-fetch-effects
          query-config k params initial-cursor
-         [:re-frame.query/infinite-page-success k params]))
+         [:re-frame.query/infinite-page-success k params nil]))
        ;; No pages yet — just fetch the first page
        (merge
         {:db (update-in db [:re-frame.query/queries qid] util/merge-with-default
@@ -439,7 +439,7 @@
                          :stale?         false})}
         (build-infinite-fetch-effects
          query-config k params initial-cursor
-         [:re-frame.query/infinite-page-success k params]))))))
+         [:re-frame.query/infinite-page-success k params nil]))))))
 
 ;; ---------------------------------------------------------------------------
 ;; Active Tracking
