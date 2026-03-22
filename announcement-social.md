@@ -7,6 +7,7 @@ TanStack Query / RTK Query inspired data fetching for re-frame.
 Register once, subscribe anywhere:
 
 ```clojure
+
 (require [re-frame.query :as rfq])
 
 ;; Register once
@@ -21,6 +22,8 @@ Register once, subscribe anywhere:
   (case status
     :loading [:div "Loading..."]
     :success [:ul (for [todo data] ^{:key (:id todo)} [:li (:title todo)])]))
+
+
 ```
 
 ✅ Tag-based invalidation

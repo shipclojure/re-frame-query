@@ -26,10 +26,10 @@ Declarative data fetching and caching for [re-frame](https://github.com/day8/re-
 
 ```clojure
 ;; deps.edn
-{:deps {com.shipclojure/re-frame-query {:mvn/version "0.1.0"}}}
+{:deps {com.shipclojure/re-frame-query {:mvn/version "0.2.0"}}}
 
 ;; Leiningen/Boot
-[com.shipclojure/re-frame-query "0.1.0"]
+[com.shipclojure/re-frame-query "0.2.0"]
 ```
 
 ### 2. Initialize the registry

@@ -80,6 +80,8 @@ With `(:require [re-frame.query :as rfq])`, use `::rfq/` shorthand:
 |---|---|---|
 | `[::rfq/query k params]` | ✅ Yes | Full query state map |
 | `[::rfq/query k params opts]` | ✅ Yes | Full query state map (opts: `{:polling-interval-ms 5000, :skip? false}`) |
+| `[::rfq/query-state k params]` | ❌ No | Full query state map (same shape as `::rfq/query`, no side effects) |
+| `[::rfq/infinite-query-state k params]` | ❌ No | Full infinite query state (same shape as `::rfq/infinite-query`, no side effects) |
 | `[::rfq/query-data k params]` | ❌ No | Just the `:data` |
 | `[::rfq/query-status k params]` | ❌ No | Just the `:status` (`:idle`, `:loading`, `:success`, `:error`) |
 | `[::rfq/query-fetching? k params]` | ❌ No | Boolean — is a request in flight? |
