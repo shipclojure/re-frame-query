@@ -4,6 +4,20 @@
  ;; Clojure, ClojureScript, re-frame, and reagent.
  :deps {}
 
+ :pom {:group-id "com.shipclojure"
+       :artifact-id "re-frame-query"
+       :version "0.1.0"
+       :name "re-frame-query"
+       :description "Declarative data fetching and caching for re-frame, inspired by TanStack Query and RTK Query"
+       :url "https://github.com/shipclojure/re-frame-query"
+       :scm {:url "https://github.com/shipclojure/re-frame-query"
+             :tag "v0.1.0"
+             :connection "scm:git:git://github.com/shipclojure/re-frame-query.git"
+             :dev-connection "scm:git:ssh://git@github.com/shipclojure/re-frame-query.git"}
+       :licenses [{:name "MIT License"
+                   :url "https://opensource.org/licenses/MIT"}]
+       :developers [{:name "Ovi Stoica"}]}
+
  :aliases
  {:dev
   {:extra-paths ["dev" "test"]
@@ -21,4 +35,16 @@
                  re-frame/re-frame {:mvn/version "1.4.4"}
                  reagent/reagent {:mvn/version "2.0.1"}
                  thheller/shadow-cljs {:mvn/version "3.3.6"}
-                 day8.re-frame/test {:mvn/version "0.1.7"}}}}}
+                 day8.re-frame/test {:mvn/version "0.1.7"}}}
+
+  :build
+  {:deps {io.github.clojure/tools.build {:mvn/version "0.9.4"}
+          slipset/deps-deploy {:mvn/version "0.2.2"}}
+   :ns-default build}
+
+  :deploy
+  {:extra-deps {slipset/deps-deploy {:mvn/version "0.2.2"}}
+   :exec-fn deps-deploy.deps-deploy/deploy
+   :exec-args {:installer :remote
+               :sign-releases? false
+               :artifact "target/com.shipclojure/re-frame-query-0.1.0.jar"}}}}

@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+  <groupId>com.shipclojure</groupId>
+  <artifactId>re-frame-query</artifactId>
+  <version>0.1.0</version>
+  <packaging>jar</packaging>
+  <name>re-frame-query</name>
+  <description>Declarative data fetching and caching for re-frame, inspired by TanStack Query and RTK Query</description>
+  <url>https://github.com/shipclojure/re-frame-query</url>
+  <licenses>
+    <license>
+      <name>MIT License</name>
+      <url>https://opensource.org/licenses/MIT</url>
+    </license>
+  </licenses>
+  <developers>
+    <developer>
+      <name>Ovi Stoica</name>
+    </developer>
+  </developers>
+  <scm>
+    <url>https://github.com/shipclojure/re-frame-query</url>
+    <connection>scm:git:git://github.com/shipclojure/re-frame-query.git</connection>
+    <developerConnection>scm:git:ssh://git@github.com/shipclojure/re-frame-query.git</developerConnection>
+    <tag>v0.1.0</tag>
+  </scm>
+  <dependencies>
+  </dependencies>
+  <build>
+    <sourceDirectory>src</sourceDirectory>
+  </build>
+  <repositories>
+    <repository>
+      <id>clojars</id>
+      <url>https://repo.clojars.org/</url>
+    </repository>
+  </repositories>
+</project>

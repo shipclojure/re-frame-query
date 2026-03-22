@@ -2,14 +2,14 @@
  :deps {com.lambdaisland/dotenv {:mvn/version "0.2.5"}}
 
  :tasks
- {jar {:doc "Build jar with latest version"
+ {jar {:doc "Build JAR with latest version"
        :task (clojure "-T:build jar")}
-  bb-repl {:doc "Start a babashka nrepl server"
-           :task (shell "bb" "nrepl-server")}
-  pom {:doc "Build pom.xml based on deps.edn"
-       :task (clojure "-X:deps mvn-pom")}
+  install {:doc "Install JAR locally"
+           :task (clojure "-T:build install")}
   deploy {:doc "Deploy the latest release to Clojars"
-          :task (clojure "-X:deploy")}
+          :task (clojure "-T:build deploy")}
+  pom {:doc "Generate pom.xml from deps.edn"
+       :task (clojure "-X:deps mvn-pom")}
   fmt {:doc "Format all Clojure files with cljfmt"
        :task (shell "cljfmt" "fix" "src" "test" "examples")}
   fmt:check {:doc "Check formatting without modifying files"
