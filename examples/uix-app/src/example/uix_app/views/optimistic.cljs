@@ -42,11 +42,11 @@
                   :checked done
                   :on-change (fn [_]
                                (rf/dispatch
-                                 [:re-frame.query/execute-mutation :todos/toggle
-                                  {:id id :done (not done) :fail-mode? fail-mode?}
-                                  {:on-start   [[:todos/optimistic-toggle]]
-                                   :on-success [[:todos/clear-snapshot]]
-                                   :on-failure [[:todos/rollback]]}]))})
+                                [:re-frame.query/execute-mutation :todos/toggle
+                                 {:id id :done (not done) :fail-mode? fail-mode?}
+                                 {:on-start   [[:todos/optimistic-toggle]]
+                                  :on-success [[:todos/clear-snapshot]]
+                                  :on-failure [[:todos/rollback]]}]))})
        ($ :span {:style (cond-> {:font-size "0.95rem"}
                           done (assoc :text-decoration "line-through"
                                       :color "#999"))}

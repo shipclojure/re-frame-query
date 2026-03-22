@@ -34,22 +34,22 @@
    - stale-time-ms has elapsed since last fetch"
   [query now]
   (boolean
-    (or (nil? query)
-        (:stale? query)
-        (= :error (:status query))
-        (let [stale-time (:stale-time-ms query)
-              fetched-at (:fetched-at query)]
-          (and stale-time
-               fetched-at
-               (> (- now fetched-at) stale-time))))))
+   (or (nil? query)
+       (:stale? query)
+       (= :error (:status query))
+       (let [stale-time (:stale-time-ms query)
+             fetched-at (:fetched-at query)]
+         (and stale-time
+              fetched-at
+              (> (- now fetched-at) stale-time))))))
 
 (defn tag-match?
   "Returns true if any of the `invalidation-tags` appear in `query-tags`."
   [query-tags invalidation-tags]
   (boolean
-    (and (seq query-tags)
-         (seq invalidation-tags)
-         (some (set query-tags) invalidation-tags))))
+   (and (seq query-tags)
+        (seq invalidation-tags)
+        (some (set query-tags) invalidation-tags))))
 
 (defn infinite-query?
   "Returns true if the query config has an :infinite key."

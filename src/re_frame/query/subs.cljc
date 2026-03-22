@@ -55,38 +55,38 @@
       (let [reaction
             #?(:cljs
                (ratom/make-reaction
-                 (fn []
-                   (if skip?
-                     idle-state
-                     (let [db      @app-db
-                           queries (:re-frame.query/queries db)
-                           query   (get queries qid)]
-                       (if query
-                         (let [now   (util/now-ms)
-                               stale (util/stale? query now)]
-                           (assoc query :stale? stale))
-                         idle-state)))))
+                (fn []
+                  (if skip?
+                    idle-state
+                    (let [db      @app-db
+                          queries (:re-frame.query/queries db)
+                          query   (get queries qid)]
+                      (if query
+                        (let [now   (util/now-ms)
+                              stale (util/stale? query now)]
+                          (assoc query :stale? stale))
+                        idle-state)))))
                ;; CLJ fallback — no Reaction lifecycle, just compute
                :clj
                (atom
-                 (if skip?
-                   idle-state
-                   (let [db      @app-db
-                         queries (:re-frame.query/queries db)
-                         query   (get queries qid)]
-                     (if query
-                       (let [now   (util/now-ms)
-                             stale (util/stale? query now)]
-                         (assoc query :stale? stale))
-                       idle-state)))))]
+                (if skip?
+                  idle-state
+                  (let [db      @app-db
+                        queries (:re-frame.query/queries db)
+                        query   (get queries qid)]
+                    (if query
+                      (let [now   (util/now-ms)
+                            stale (util/stale? query now)]
+                        (assoc query :stale? stale))
+                      idle-state)))))]
         ;; When the Reaction is disposed (all subscribing components unmounted):
         ;; unregister this subscriber's poll and mark the query inactive.
         #?(:cljs (ratom/add-on-dispose!
-                   reaction
-                   (fn []
-                     (when-not skip?
-                       (polling/remove-subscriber! qid sub-id)
-                       (rf/dispatch [:re-frame.query/mark-inactive k params])))))
+                  reaction
+                  (fn []
+                    (when-not skip?
+                      (polling/remove-subscriber! qid sub-id)
+                      (rf/dispatch [:re-frame.query/mark-inactive k params])))))
         reaction))))
 
 ;; ---------------------------------------------------------------------------
@@ -111,33 +111,33 @@
       (let [reaction
             #?(:cljs
                (ratom/make-reaction
-                 (fn []
-                   (let [db      @app-db
-                         queries (:re-frame.query/queries db)
-                         query   (get queries qid)]
-                     (if query
-                       (let [now   (util/now-ms)
-                             stale (util/stale? query now)]
-                         (-> query
-                             (assoc :stale? stale)
-                             (dissoc :refetch-state)))
-                       idle-infinite-state))))
+                (fn []
+                  (let [db      @app-db
+                        queries (:re-frame.query/queries db)
+                        query   (get queries qid)]
+                    (if query
+                      (let [now   (util/now-ms)
+                            stale (util/stale? query now)]
+                        (-> query
+                            (assoc :stale? stale)
+                            (dissoc :refetch-state)))
+                      idle-infinite-state))))
                :clj
                (atom
-                 (let [db      @app-db
-                       queries (:re-frame.query/queries db)
-                       query   (get queries qid)]
-                   (if query
-                     (let [now   (util/now-ms)
-                           stale (util/stale? query now)]
-                       (-> query
-                           (assoc :stale? stale)
-                           (dissoc :refetch-state)))
-                     idle-infinite-state))))]
+                (let [db      @app-db
+                      queries (:re-frame.query/queries db)
+                      query   (get queries qid)]
+                  (if query
+                    (let [now   (util/now-ms)
+                          stale (util/stale? query now)]
+                      (-> query
+                          (assoc :stale? stale)
+                          (dissoc :refetch-state)))
+                    idle-infinite-state))))]
         #?(:cljs (ratom/add-on-dispose!
-                   reaction
-                   (fn []
-                     (rf/dispatch [:re-frame.query/mark-inactive k params]))))
+                  reaction
+                  (fn []
+                    (rf/dispatch [:re-frame.query/mark-inactive k params]))))
         reaction))))
 
 ;; ---------------------------------------------------------------------------

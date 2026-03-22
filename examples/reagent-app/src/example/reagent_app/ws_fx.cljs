@@ -41,14 +41,14 @@
                           (.removeEventListener ws "message" handler)
                           (if (.-error msg)
                             (rf/dispatch (conj on-failure
-                                              (js->clj (.-error msg)
-                                                       :keywordize-keys true)))
+                                               (js->clj (.-error msg)
+                                                        :keywordize-keys true)))
                             (rf/dispatch (conj on-success
-                                              (js->clj (.-data msg)
-                                                       :keywordize-keys true)))))))]
+                                               (js->clj (.-data msg)
+                                                        :keywordize-keys true)))))))]
         (.addEventListener ws "message" handler))
       ;; Send (or queue) the request
       (ws-send! ws (js/JSON.stringify
-                     (clj->js {:channel    channel
-                               :payload    payload
-                               :request_id request-id}))))))
+                    (clj->js {:channel    channel
+                              :payload    payload
+                              :request_id request-id}))))))

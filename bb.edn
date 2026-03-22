@@ -10,11 +10,11 @@
        :task (clojure "-X:deps mvn-pom")}
   deploy {:doc "Deploy the latest release to Clojars"
           :task (clojure "-X:deploy")}
-  format:check {:doc "Check code formatting with standard-clj"
-                :task (shell "standard-clj" "check" "src" "test" "portfolio")}
+  fmt {:doc "Format all Clojure files with cljfmt"
+       :task (shell "cljfmt" "fix" "src" "test" "examples")}
+  fmt:check {:doc "Check formatting without modifying files"
+             :task (shell "cljfmt" "check" "src" "test" "examples")}
   test:unit {:doc "Run ClojureScript unit tests via shadow-cljs"
              :task (shell "pnpm" "test")}
   test:e2e {:doc "Run Playwright e2e tests against both example apps"
-            :task (shell "pnpm" "test:e2e")}
-  format:project {:doc "Run standard-clojure formatting on the entire codebase"
-                  :task (shell "standard-clj" "fix" "src" "test" "examples")}}}
+            :task (shell "pnpm" "test:e2e")}}}

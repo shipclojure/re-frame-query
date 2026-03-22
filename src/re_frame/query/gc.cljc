@@ -70,8 +70,8 @@
     ;; Cancel any existing timer for this query
     (cancel-gc! query-id)
     (let [handle (set-timeout
-                   (fn [] (rf/dispatch [:re-frame.query/remove-query query-id]))
-                   cache-time-ms)]
+                  (fn [] (rf/dispatch [:re-frame.query/remove-query query-id]))
+                  cache-time-ms)]
       (swap! gc-timers assoc query-id handle))))
 
 (defn cancel-all!

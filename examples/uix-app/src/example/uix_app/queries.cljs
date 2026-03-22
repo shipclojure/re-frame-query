@@ -129,22 +129,22 @@
 ;; ---------------------------------------------------------------------------
 
 (rfq/reg-query :feed/items
-               {:query-fn      (fn [{:keys [user cursor]}]
-                                 {:method :get
-                                  :url    (str "/api/feed?user=" (or user "alex")
-                                               "&cursor=" (or cursor 0)
-                                               "&limit=10")})
-                :infinite      {:initial-cursor 0
-                                :get-next-cursor (fn [resp] (:next_cursor resp))}
-                :stale-time-ms 30000
-                :tags          (fn [{:keys [user]}] [[:feed] [:feed user]])})
+  {:query-fn      (fn [{:keys [user cursor]}]
+                    {:method :get
+                     :url    (str "/api/feed?user=" (or user "alex")
+                                  "&cursor=" (or cursor 0)
+                                  "&limit=10")})
+   :infinite      {:initial-cursor 0
+                   :get-next-cursor (fn [resp] (:next_cursor resp))}
+   :stale-time-ms 30000
+   :tags          (fn [{:keys [user]}] [[:feed] [:feed user]])})
 
 (rfq/reg-mutation :feed/add-item
-                  {:mutation-fn  (fn [{:keys [user title]}]
-                                   {:method :post
-                                    :url    "/api/feed"
-                                    :body   {:title title :user (or user "alex")}})
-                   :invalidates  (fn [{:keys [user]}] [[:feed (or user "alex")]])})
+  {:mutation-fn  (fn [{:keys [user title]}]
+                   {:method :post
+                    :url    "/api/feed"
+                    :body   {:title title :user (or user "alex")}})
+   :invalidates  (fn [{:keys [user]}] [[:feed (or user "alex")]])})
 
 ;; ---------------------------------------------------------------------------
 ;; Incremental registration — WebSocket queries added after init!
@@ -153,25 +153,25 @@
 ;; ---------------------------------------------------------------------------
 
 (rfq/reg-query :ws/notifications
-               {:query-fn      (fn [_] {:channel "notifications:list"})
-                :effect-fn     ws-effect-fn
-                :stale-time-ms 30000})
+  {:query-fn      (fn [_] {:channel "notifications:list"})
+   :effect-fn     ws-effect-fn
+   :stale-time-ms 30000})
 
 (rfq/reg-query :ws/latest-notification
-               {:query-fn            (fn [_] {:channel "notifications:latest"})
-                :effect-fn           ws-effect-fn
-                :stale-time-ms       1000
-                :polling-interval-ms 3000})
+  {:query-fn            (fn [_] {:channel "notifications:latest"})
+   :effect-fn           ws-effect-fn
+   :stale-time-ms       1000
+   :polling-interval-ms 3000})
 
 (rfq/reg-query :ws/chat-messages
-               {:query-fn      (fn [_] {:channel "chat:messages"})
-                :effect-fn     ws-effect-fn
-                :stale-time-ms 5000
-                :tags          (constantly [[:chat :messages]])})
+  {:query-fn      (fn [_] {:channel "chat:messages"})
+   :effect-fn     ws-effect-fn
+   :stale-time-ms 5000
+   :tags          (constantly [[:chat :messages]])})
 
 (rfq/reg-mutation :ws/chat-send
-                  {:mutation-fn (fn [{:keys [user text]}]
-                                  {:channel "chat:send"
-                                   :payload {:user user :text text}})
-                   :effect-fn   ws-effect-fn
-                   :invalidates (constantly [[:chat :messages]])})
+  {:mutation-fn (fn [{:keys [user text]}]
+                  {:channel "chat:send"
+                   :payload {:user user :text text}})
+   :effect-fn   ws-effect-fn
+   :invalidates (constantly [[:chat :messages]])})
