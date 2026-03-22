@@ -73,8 +73,8 @@
     ;; Optimistic updates
     :todos/list
     {:query-fn      (fn [_] {:method    :get
-                              :url       "/api/todos"
-                              :abort-key [:todos/list {}]})
+                             :url       "/api/todos"
+                             :abort-key [:todos/list {}]})
      :stale-time-ms 30000
      :tags          (constantly [[:todos]])}}
 

@@ -8,7 +8,8 @@
    {:id :prefetching :label "Prefetching"}
    {:id :mutations   :label "Mutation Lifecycle"}
    {:id :websocket   :label "WebSocket"}
-   {:id :optimistic :label "Optimistic Updates"}])
+   {:id :optimistic  :label "Optimistic Updates"}
+   {:id :infinite    :label "Infinite Scroll"}])
 
 (defn tab-bar
   "Horizontal tab bar. `active` is the current tab keyword,

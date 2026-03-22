@@ -3,6 +3,7 @@
   (:require
    [example.reagent-app.views.basic :as basic]
    [example.reagent-app.views.dependent :as dependent]
+   [example.reagent-app.views.infinite :as infinite]
    [example.reagent-app.views.inspector :as inspector]
    [example.reagent-app.views.layout :as layout]
    [example.reagent-app.views.mutations :as mutations]
@@ -31,5 +32,6 @@
         :mutations   [mutations/panel]
         :websocket   [websocket/panel]
         :optimistic  [optimistic/panel]
+        :infinite    [infinite/panel]
         [basic/panel])]
      [inspector/panel]]))

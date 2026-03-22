@@ -90,6 +90,57 @@
         reaction))))
 
 ;; ---------------------------------------------------------------------------
+;; Infinite Query subscription (with automatic active tracking)
+;; ---------------------------------------------------------------------------
+
+(def ^:private idle-infinite-state
+  {:status         :idle
+   :data           {:pages [] :page-params [] :has-next? false}
+   :error          nil
+   :fetching?      false
+   :fetching-next? false
+   :stale?         true})
+
+(rf/reg-sub-raw
+  :re-frame.query/infinite-query
+  (fn [app-db [_ k params]]
+    (let [qid (util/query-id k params)]
+      ;; Fetch first page and mark active
+      (rf/dispatch [:re-frame.query/ensure-infinite-query k params])
+      (rf/dispatch [:re-frame.query/mark-active k params])
+      (let [reaction
+            #?(:cljs
+               (ratom/make-reaction
+                 (fn []
+                   (let [db      @app-db
+                         queries (:re-frame.query/queries db)
+                         query   (get queries qid)]
+                     (if query
+                       (let [now   (util/now-ms)
+                             stale (util/stale? query now)]
+                         (-> query
+                             (assoc :stale? stale)
+                             (dissoc :refetch-state)))
+                       idle-infinite-state))))
+               :clj
+               (atom
+                 (let [db      @app-db
+                       queries (:re-frame.query/queries db)
+                       query   (get queries qid)]
+                   (if query
+                     (let [now   (util/now-ms)
+                           stale (util/stale? query now)]
+                       (-> query
+                           (assoc :stale? stale)
+                           (dissoc :refetch-state)))
+                     idle-infinite-state))))]
+        #?(:cljs (ratom/add-on-dispose!
+                   reaction
+                   (fn []
+                     (rf/dispatch [:re-frame.query/mark-inactive k params]))))
+        reaction))))
+
+;; ---------------------------------------------------------------------------
 ;; Derived query subscriptions
 ;; ---------------------------------------------------------------------------
 

@@ -73,8 +73,18 @@
       :transform-response   (fn [data params] -> data')  Optional.
                             Applied to raw success data before caching. Use to
                             unwrap nested responses, normalize into lookup maps, etc.
+                            For infinite queries, applied per-page.
       :transform-error      (fn [error params] -> error')  Optional.
                             Applied to raw error data before storing.
+      :infinite             Map with infinite query config. When present, the query
+                            uses paginated accumulation instead of single-result caching.
+                            Keys:
+                              :initial-cursor  - cursor for the first page (e.g. nil, 0)
+                              :get-next-cursor - (fn [page-response] -> cursor-or-nil)
+                            Use with ::rfq/infinite-query subscription and
+                            rfq/fetch-next-page.
+      :max-pages            Optional integer. When set, only the most recent N pages
+                            are kept (sliding window). Older pages are dropped.
 
   Returns the query key."
   registry/reg-query)
@@ -185,6 +195,22 @@
     (rfq/set-query-data :todos/list {:user-id 42} snapshot)"
   [k params data]
   (rf/dispatch [:re-frame.query/set-query-data k params data]))
+
+;; ---------------------------------------------------------------------------
+;; Infinite Query API
+;; ---------------------------------------------------------------------------
+
+(defn fetch-next-page
+  "Fetch the next page of an infinite query.
+
+  Reads the current `next-cursor` from the cache and fetches the next page.
+  No-op if there is no next page (`has-next?` is false) or a fetch is
+  already in progress.
+
+  Example:
+    (rfq/fetch-next-page :feed/items {:category \"tech\"})"
+  [k params]
+  (rf/dispatch [:re-frame.query/fetch-next-page k params]))
 
 ;; ---------------------------------------------------------------------------
 ;; Prefetching

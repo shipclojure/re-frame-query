@@ -6,10 +6,10 @@
   (:require
    ;; Side-effect requires — register effects, queries, and UI state
    [example.uix-app.http-fx]
-   [example.uix-app.ws-fx]
    [example.uix-app.queries]
    [example.uix-app.ui]
    [example.uix-app.views :as views]
+   [example.uix-app.ws-fx]
    [re-frame.query :as rfq]
    [uix.core :refer [$]]
    [uix.dom]))

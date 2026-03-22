@@ -50,3 +50,8 @@
     (and (seq query-tags)
          (seq invalidation-tags)
          (some (set query-tags) invalidation-tags))))
+
+(defn infinite-query?
+  "Returns true if the query config has an :infinite key."
+  [query-config]
+  (boolean (:infinite query-config)))

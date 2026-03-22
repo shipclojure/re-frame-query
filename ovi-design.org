@@ -14,14 +14,13 @@ generation defined at mutation definition
 
 
 #+begin_src clojure
-  (rfq/register-query :todo/get
-                      {:query-fn
-                       (fn [{:keys [id on-success on-error]}]
-                         {:http-xhrio {:method :post
-                                       :uri (str "/api/todo" id)
-                                       ...
-                                       }})
-                       :}
+    (rfq/register-query :todo/get
+                        {:query-fn
+                         (fn [{:keys [id on-success on-error]}]
+                           {:http-xhrio {:method :post
+                                         :uri (str "/api/todo" id)
+                                         }})
+                         :}
 
 #+end_src
 
@@ -34,3 +33,6 @@ generation defined at mutation definition
                           :invalidates-tags (fn [{:keys [id]}] #{[:todo/list] [:todo/get id]}
 
 #+end_src
+
+
+** Cache time ms
