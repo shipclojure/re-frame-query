@@ -131,9 +131,9 @@ Read [references/api-quick-ref.md](references/api-quick-ref.md) for the complete
 
 ## Example Apps
 
-Two full example apps live in `examples/` with 8 tabs each (Basic CRUD, Polling, Dependent Queries, Prefetching, Mutation Lifecycle, WebSocket, Optimistic Updates, Infinite Scroll):
+Two full example apps in `examples/` with 8 tabs each. Read [references/examples.md](references/examples.md) for a file-by-file guide to what each demonstrates:
 
-- `examples/reagent-app/` — Reagent + re-frame (port 8710). Uses individual `reg-query`/`reg-mutation` calls.
-- `examples/uix-app/` — UIx v2 + re-frame (port 8720). Uses `init!` for declarative registration.
+- `examples/reagent-app/` — Reagent + re-frame (port 8710). Incremental `reg-query`/`reg-mutation`.
+- `examples/uix-app/` — UIx v2 + re-frame (port 8720). Declarative `init!`.
 
-Both use MSW (Mock Service Worker) for API mocking. Refer to these for working patterns of every feature.
+Key files to read for specific patterns: effect adapters (`http_fx.cljs`, `ws_fx.cljs`), all query registrations (`queries.cljs`), and per-feature views (`views/*.cljs`).
