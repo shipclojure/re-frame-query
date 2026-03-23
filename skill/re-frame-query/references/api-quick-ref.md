@@ -65,11 +65,11 @@
 [::rfq/query k params opts]             ;; opts: {:polling-interval-ms N, :skip? bool}
 [::rfq/infinite-query k params]         ;; -> infinite query state
 
-;; Passive (pure read, no side effects)
+;; Passive (pure read, no side effects — prefer these for manual lifecycle)
 [::rfq/query-state k params]            ;; same shape as ::rfq/query
 [::rfq/infinite-query-state k params]   ;; same shape as ::rfq/infinite-query
 
-;; Derived (no fetch, depend on ::rfq/query)
+;; Derived (no fetch, depend on effectful ::rfq/query)
 [::rfq/query-data k params]             ;; -> :data
 [::rfq/query-status k params]           ;; -> :status
 [::rfq/query-fetching? k params]        ;; -> :fetching?
