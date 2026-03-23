@@ -128,3 +128,12 @@ Use `:status` for what to render, `:fetching?` for showing a spinner overlay.
 ## API Reference
 
 Read [references/api-quick-ref.md](references/api-quick-ref.md) for the complete event, subscription, and config key reference.
+
+## Example Apps
+
+Two full example apps live in `examples/` with 8 tabs each (Basic CRUD, Polling, Dependent Queries, Prefetching, Mutation Lifecycle, WebSocket, Optimistic Updates, Infinite Scroll):
+
+- `examples/reagent-app/` — Reagent + re-frame (port 8710). Uses individual `reg-query`/`reg-mutation` calls.
+- `examples/uix-app/` — UIx v2 + re-frame (port 8720). Uses `init!` for declarative registration.
+
+Both use MSW (Mock Service Worker) for API mocking. Refer to these for working patterns of every feature.
