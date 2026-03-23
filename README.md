@@ -97,7 +97,7 @@ Unlike a typical re-frame subscription that just reads from `app-db`, `::rfq/que
 - **While subscribed:** returns query state reactively; multiple components share a single cache entry
 - **On dispose:** marks query inactive, starts GC timer, stops polling
 
-> **A note on re-frame philosophy:** re-frame [recommends](https://day8.github.io/re-frame/FAQs/LoadOnMount/) that subscriptions be pure reads. Our `::rfq/query` dispatches events as a side effect of subscribing — a deliberate trade-off mirroring React Query's `useQuery`. If you prefer explicit control, dispatch `::rfq/ensure-query` and `::rfq/mark-active` yourself and use the passive derived subscriptions (`::rfq/query-data`, etc.) instead.
+> **A note on re-frame philosophy:** re-frame [recommends](https://day8.github.io/re-frame/FAQs/LoadOnMount/) that subscriptions be pure reads. Our `::rfq/query` dispatches events as a side effect of subscribing — a deliberate trade-off mirroring React Query's `useQuery`. If you prefer explicit control, dispatch `::rfq/ensure-query` and `::rfq/mark-active` yourself and use the passive subscriptions `::rfq/query-state` and `::rfq/infinite-query-state` — they return the exact same data shape with no side effects.
 
 ### 4. Dispatch a mutation
 
