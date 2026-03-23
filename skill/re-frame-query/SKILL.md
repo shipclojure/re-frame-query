@@ -131,9 +131,9 @@ Read [references/api-quick-ref.md](references/api-quick-ref.md) for the complete
 
 ## Example Apps
 
-Two full example apps in `examples/` with 8 tabs each. Read [references/examples.md](references/examples.md) for a file-by-file guide to what each demonstrates:
+Two full example apps in [`examples/`](https://github.com/shipclojure/re-frame-query/tree/main/examples) with 8 tabs each. Read [references/examples.md](references/examples.md) for a file-by-file guide to what each demonstrates:
 
-- `examples/reagent-app/` — Reagent + re-frame (port 8710). Incremental `reg-query`/`reg-mutation`.
-- `examples/uix-app/` — UIx v2 + re-frame (port 8720). Declarative `init!`.
+- [`examples/reagent-app/`](https://github.com/shipclojure/re-frame-query/tree/main/examples/reagent-app) — Reagent + re-frame (port 8710). Incremental `reg-query`/`reg-mutation`.
+- [`examples/uix-app/`](https://github.com/shipclojure/re-frame-query/tree/main/examples/uix-app) — UIx v2 + re-frame (port 8720). Declarative `init!`.
 
 Key files to read for specific patterns: effect adapters (`http_fx.cljs`, `ws_fx.cljs`), all query registrations (`queries.cljs`), and per-feature views (`views/*.cljs`).

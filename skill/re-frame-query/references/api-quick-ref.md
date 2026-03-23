@@ -122,10 +122,10 @@
 
 | File | Purpose |
 |---|---|
-| `src/re_frame/query.cljc` | Public API namespace (require this) |
-| `src/re_frame/query/events.cljc` | All event handlers |
-| `src/re_frame/query/subs.cljc` | All subscriptions |
-| `src/re_frame/query/registry.cljc` | Query/mutation registration storage |
-| `src/re_frame/query/gc.cljc` | Garbage collection timers |
-| `src/re_frame/query/polling.cljc` | Polling interval management |
-| `src/re_frame/query/util.cljc` | Shared utilities (query-id, stale?, etc.) |
+| [`src/re_frame/query.cljc`](https://github.com/shipclojure/re-frame-query/blob/main/src/re_frame/query.cljc) | Public API namespace (require this) |
+| [`src/re_frame/query/events.cljc`](https://github.com/shipclojure/re-frame-query/blob/main/src/re_frame/query/events.cljc) | All event handlers |
+| [`src/re_frame/query/subs.cljc`](https://github.com/shipclojure/re-frame-query/blob/main/src/re_frame/query/subs.cljc) | All subscriptions |
+| [`src/re_frame/query/registry.cljc`](https://github.com/shipclojure/re-frame-query/blob/main/src/re_frame/query/registry.cljc) | Query/mutation registration storage |
+| [`src/re_frame/query/gc.cljc`](https://github.com/shipclojure/re-frame-query/blob/main/src/re_frame/query/gc.cljc) | Garbage collection timers |
+| [`src/re_frame/query/polling.cljc`](https://github.com/shipclojure/re-frame-query/blob/main/src/re_frame/query/polling.cljc) | Polling interval management |
+| [`src/re_frame/query/util.cljc`](https://github.com/shipclojure/re-frame-query/blob/main/src/re_frame/query/util.cljc) | Shared utilities (query-id, stale?, etc.) |
