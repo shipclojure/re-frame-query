@@ -28,20 +28,18 @@
 ;; ---------------------------------------------------------------------------
 
 (def ^:private idle-state
-  {:status :idle
-   :data nil
-   :error nil
-   :fetching? false
-   :stale? true})
+  "Shape returned by query subscriptions when no data exists in app-db.
+   Derived from util/default-query, excluding internal bookkeeping keys
+   (:active?, :tags) that are not relevant to subscription consumers."
+  (select-keys util/default-query [:status :data :error :fetching? :stale?]))
 
 (def ^:private idle-infinite-state
-  {:status :idle
-   :data {:pages [] :page-params [] :has-next? false :has-prev? false}
-   :error nil
-   :fetching? false
-   :fetching-next? false
-   :fetching-prev? false
-   :stale? true})
+  "Shape returned by infinite query subscriptions when no data exists.
+   Extends idle-state with infinite-query-specific fields."
+  (assoc idle-state
+         :data {:pages [] :page-params [] :has-next? false :has-prev? false}
+         :fetching-next? false
+         :fetching-prev? false))
 
 (defn- resolve-query
   "Look up a query by qid, compute stale?, return idle-state if absent."

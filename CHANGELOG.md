@@ -19,7 +19,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 - **Early validation in event handlers** — all event handlers (`ensure-query`, `refetch-query`, `execute-mutation`, `ensure-infinite-query`, `refetch-infinite-query`) now validate config at the top of the `let` binding using `(or (get-query k) (throw ...))`. Previously, some handlers destructured the config before validating it, allowing silent `nil` propagation.
 - **`dispatch-hooks` always returns `[]`** — the internal `dispatch-hooks` helper now returns an empty vector instead of `nil` when no hooks are configured. This simplifies all mutation handler callsites by removing `fnil`/`seq` guard ceremony.
-- **Test suite split into domain-specific namespaces** — the monolithic `query_test.cljc` (2600 lines) is now 6 focused files (`events_test`, `mutations_test`, `invalidation_test`, `gc_test`, `polling_test`, `infinite_test`) plus a shared `test_helpers` namespace. 87 tests, 401 assertions.
+- **`idle-state` derived from `default-query`** — the subscription idle states in `subs.cljc` are now derived from `util/default-query` via `select-keys`, eliminating a duplicated source of truth that could silently diverge.
+- **Test suite split into domain-specific namespaces** — the monolithic `query_test.cljc` (2600 lines) is now 6 focused files (`events_test`, `mutations_test`, `invalidation_test`, `gc_test`, `polling_test`, `infinite_test`) plus a shared `test_helpers` namespace.
 
 ## [0.2.0] - 2026-03-22
 
