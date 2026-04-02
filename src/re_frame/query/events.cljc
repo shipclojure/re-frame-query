@@ -191,19 +191,21 @@
   :re-frame.query/invalidate-tags
   (fn [{:keys [db]} [_ tags]]
     (let [queries  (get db :re-frame.query/queries {})
-         ;; Mark all matching queries as stale
+          matched  (volatile! #{})
+         ;; Mark all matching queries as stale, tracking which were matched
           updated  (reduce-kv
                     (fn [acc qid q]
                       (if (util/tag-match? (:tags q) tags)
-                        (assoc acc qid (assoc q :stale? true))
+                        (do (vswap! matched conj qid)
+                            (assoc acc qid (assoc q :stale? true)))
                         (assoc acc qid q)))
                     {}
                     queries)
-         ;; Refetch queries that are currently active and were just marked stale
+         ;; Refetch only queries that were matched AND are currently active
          ;; Route infinite queries through refetch-infinite-query
-          refetch-fx (->> updated
-                          (filter (fn [[_ q]] (:active? q)))
-                          (mapv (fn [[qid _]]
+          refetch-fx (->> @matched
+                          (filter (fn [qid] (:active? (get updated qid))))
+                          (mapv (fn [qid]
                                   (let [[k params] qid
                                         query-config (registry/get-query k)
                                         event-id (if (util/infinite-query? query-config)

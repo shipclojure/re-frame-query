@@ -722,6 +722,48 @@
                 (get-in (app-db) [:re-frame.query/queries qid :data]))
              "cache now has the updated data"))))))
 
+(deftest invalidate-tags-only-refetches-matched-queries
+  (testing "unmatched active queries are NOT refetched"
+    (rf-test/run-test-sync
+     (let [calls (atom [])]
+       (rf/reg-fx :test-http (fn [v] (swap! calls conj v)))
+       (rfq/set-default-effect-fn!
+        (fn [request on-success on-failure]
+          {:test-http (assoc request
+                             :on-success on-success
+                             :on-failure on-failure)}))
+       (rfq/reg-query :items/table
+         {:query-fn (fn [_] {:method :get :url "/api/items"})
+          :tags     (fn [_] [[:items :table]])})
+       (rfq/reg-query :items/stats
+         {:query-fn (fn [_] {:method :get :url "/api/items/stats"})
+          :tags     (fn [_] [[:items :stats]])})
+       ;; Populate both and mark active
+       (rf/dispatch [:re-frame.query/query-success :items/table {} [{:id 1}]])
+       (rf/dispatch [:re-frame.query/mark-active :items/table {}])
+       (rf/dispatch [:re-frame.query/query-success :items/stats {} {:count 10}])
+       (rf/dispatch [:re-frame.query/mark-active :items/stats {}])
+       (reset! calls [])
+       ;; Invalidate only [:items :table]
+       (rf/dispatch [:re-frame.query/invalidate-tags [[:items :table]]])
+       (let [table-qid (util/query-id :items/table {})
+             stats-qid (util/query-id :items/stats {})]
+         ;; We can't assert :stale? true here. run-test-sync processes
+         ;; dispatches synchronously, so the chain is:
+         ;;   1. invalidate-tags sets :stale? true
+         ;;   2. invalidate-tags dispatches refetch-query
+         ;;   3. refetch-query runs immediately, sets :stale? false + :fetching? true
+         ;; By the time we assert, step 3 has already happened.
+         ;; Instead we verify :fetching? — proof that refetch was triggered.
+         (is (true? (get-in (app-db) [:re-frame.query/queries table-qid :fetching?]))
+             "table is being refetched")
+         (is (false? (get-in (app-db) [:re-frame.query/queries stats-qid :stale?]))
+             "stats is NOT marked stale")
+         (is (= 1 (count @calls))
+             "exactly one refetch — only the matched query")
+         (is (= "/api/items" (:url (first @calls)))
+             "refetch is for the table query, not stats"))))))
+
 ;; ---------------------------------------------------------------------------
 ;; Full mutation lifecycle tests
 ;; ---------------------------------------------------------------------------
