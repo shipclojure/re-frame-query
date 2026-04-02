@@ -36,16 +36,16 @@
   "Schedule `f` to run after `ms` milliseconds. Returns a timeout handle."
   [f ms]
   #?(:cljs (js/setTimeout f ms)
-     :clj  (let [fut (future
-                       (Thread/sleep ms)
-                       (f))]
-             fut)))
+     :clj (let [fut (future
+                      (Thread/sleep ms)
+                      (f))]
+            fut)))
 
 (defn- clear-timeout
   "Cancel a previously scheduled timeout."
   [handle]
   #?(:cljs (js/clearTimeout handle)
-     :clj  (future-cancel handle)))
+     :clj (future-cancel handle)))
 
 ;; ---------------------------------------------------------------------------
 ;; Public API

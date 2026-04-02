@@ -11,9 +11,9 @@
 
 (defui entry-panel [{:keys [qid state]}]
   (let [[k params] qid
-        open-key      (str "inspector/" (pr-str qid))
-        open?         (urf/use-subscribe [:ui/get open-key])
-        status        (:status state)
+        open-key (str "inspector/" (pr-str qid))
+        open? (urf/use-subscribe [:ui/get open-key])
+        status (:status state)
         status-colors {:idle "#888" :loading "#0f3460" :success "#2e7d32" :error "#c62828"}]
     ($ :div {:style {:border "1px solid #e0e0e0" :border-radius "6px"
                      :margin-bottom "0.4rem" :background "#fff"}}
@@ -34,8 +34,8 @@
             (pprint-str state))))))
 
 (defui panel []
-  (let [open?     (urf/use-subscribe [:ui/get :inspector/open?])
-        queries   (urf/use-subscribe [:re-frame.query/queries])
+  (let [open? (urf/use-subscribe [:ui/get :inspector/open?])
+        queries (urf/use-subscribe [:re-frame.query/queries])
         mutations (urf/use-subscribe [:re-frame.query/mutations])]
     ($ :div {:style {:margin-top "2rem"}}
        ($ :button

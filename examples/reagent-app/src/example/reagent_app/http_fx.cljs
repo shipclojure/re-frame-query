@@ -30,15 +30,15 @@
   :http
   (fn [{:keys [method url body on-success on-failure abort-key]}]
     (let [controller (js/AbortController.)
-          signal     (.-signal controller)]
+          signal (.-signal controller)]
       ;; Store controller so it can be cancelled via :abort-request
       (when abort-key
         (swap! abort-controllers assoc abort-key controller))
       (-> (js/fetch url
                     (clj->js
-                     (cond-> {:method  (name method)
+                     (cond-> {:method (name method)
                               :headers {"Content-Type" "application/json"}
-                              :signal  signal}
+                              :signal signal}
                        body (assoc :body (js/JSON.stringify (clj->js body))))))
           (.then (fn [res]
                    (when abort-key
@@ -55,7 +55,7 @@
                          (.catch (fn [_]
                                    (rf/dispatch
                                     (conj on-failure
-                                          {:status  (.-status res)
+                                          {:status (.-status res)
                                            :message (.-statusText res)}))))))))
           (.catch (fn [err]
                     (when abort-key

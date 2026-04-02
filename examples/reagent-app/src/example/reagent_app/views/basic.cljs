@@ -14,7 +14,7 @@
      [:h2 "📚 Books"]
      (case (:status query)
        :loading [:div.loading "Loading books…"]
-       :error   [:div.error "Error: " (get-in query [:error :message] "Unknown error")]
+       :error [:div.error "Error: " (get-in query [:error :message] "Unknown error")]
        :success (let [books (:data query)]
                   (if (seq books)
                     [:div
@@ -31,13 +31,13 @@
 ;; ---------------------------------------------------------------------------
 
 (defn book-detail [book-id]
-  (let [query    @(rf/subscribe [:re-frame.query/query :book/detail {:id book-id}])
+  (let [query @(rf/subscribe [:re-frame.query/query :book/detail {:id book-id}])
         editing? @(rf/subscribe [:ui/get :basic/editing?])]
     [:div.panel
      [:h2 "Book Detail"]
      (case (:status query)
        :loading [:div.loading "Loading book…"]
-       :error   [:div.error "Error: " (get-in query [:error :message] "Unknown error")]
+       :error [:div.error "Error: " (get-in query [:error :message] "Unknown error")]
        :success (let [{:keys [title author id]} (:data query)
                       new-title (or @(rf/subscribe [:ui/get :basic/new-title]) "")]
                   [:div
@@ -83,7 +83,7 @@
 ;; ---------------------------------------------------------------------------
 
 (defn add-book-form []
-  (let [title  (or @(rf/subscribe [:ui/get :basic/add-title]) "")
+  (let [title (or @(rf/subscribe [:ui/get :basic/add-title]) "")
         author (or @(rf/subscribe [:ui/get :basic/add-author]) "")]
     [:div.panel
      [:h2 "➕ Add a Book"]
@@ -110,14 +110,14 @@
 
 (defn paginated-book-list []
   (let [current-page (or @(rf/subscribe [:ui/get :basic/page]) 1)
-        per-page     3
-        query        @(rf/subscribe [:re-frame.query/query :books/page
-                                     {:page current-page :per-page per-page}])]
+        per-page 3
+        query @(rf/subscribe [:re-frame.query/query :books/page
+                              {:page current-page :per-page per-page}])]
     [:div.panel
      [:h2 "📖 Books (Paginated)"]
      (case (:status query)
        :loading [:div.loading "Loading page…"]
-       :error   [:div.error "Error: " (get-in query [:error :message] "Unknown error")]
+       :error [:div.error "Error: " (get-in query [:error :message] "Unknown error")]
        :success (let [{:keys [items page total_pages total]} (:data query)]
                   [:div
                    [:div.page-info "Page " page " of " total_pages " (" total " books total)"]

@@ -4,14 +4,14 @@
    [uix.core :refer [$ defui]]))
 
 (def tabs
-  [{:id :basic       :label "Basic CRUD"}
-   {:id :polling     :label "Polling"}
-   {:id :dependent   :label "Dependent Queries"}
+  [{:id :basic :label "Basic CRUD"}
+   {:id :polling :label "Polling"}
+   {:id :dependent :label "Dependent Queries"}
    {:id :prefetching :label "Prefetching"}
-   {:id :mutations   :label "Mutation Lifecycle"}
-   {:id :websocket   :label "WebSocket"}
-   {:id :optimistic  :label "Optimistic Updates"}
-   {:id :infinite    :label "Infinite Scroll"}])
+   {:id :mutations :label "Mutation Lifecycle"}
+   {:id :websocket :label "WebSocket"}
+   {:id :optimistic :label "Optimistic Updates"}
+   {:id :infinite :label "Infinite Scroll"}])
 
 (defui tab-bar [{:keys [active on-select]}]
   ($ :div.tab-bar

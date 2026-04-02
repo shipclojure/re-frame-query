@@ -12,8 +12,8 @@
   [qid state]
   (let [open-key (str "inspector/" (pr-str qid))]
     (fn [[k params] state]
-      (let [open?        @(rf/subscribe [:ui/get open-key])
-            status       (:status state)
+      (let [open? @(rf/subscribe [:ui/get open-key])
+            status (:status state)
             status-colors {:idle "#888" :loading "#0f3460" :success "#2e7d32" :error "#c62828"}]
         [:div {:style {:border "1px solid #e0e0e0" :border-radius "6px"
                        :margin-bottom "0.4rem" :background "#fff"}}
@@ -36,13 +36,13 @@
 (defn panel
   "Collapsible panel showing the current re-frame-query state in app-db."
   []
-  (let [open?     @(rf/subscribe [:ui/get :inspector/open?])
-        queries   @(rf/subscribe [:re-frame.query/queries])
+  (let [open? @(rf/subscribe [:ui/get :inspector/open?])
+        queries @(rf/subscribe [:re-frame.query/queries])
         mutations @(rf/subscribe [:re-frame.query/mutations])]
     [:div {:style {:margin-top "2rem"}}
      [:button
-      {:class    "secondary"
-       :style    {:width "100%" :text-align "left" :font-size "0.85rem"}
+      {:class "secondary"
+       :style {:width "100%" :text-align "left" :font-size "0.85rem"}
        :on-click #(rf/dispatch [:ui/set :inspector/open? (not open?)])}
       (if open? "▼" "▶")
       " 🔍 app-db — re-frame-query state"

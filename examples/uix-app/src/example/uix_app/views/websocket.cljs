@@ -12,7 +12,7 @@
        ($ :h3 "🔔 Notifications (WebSocket query)")
        (case status
          :loading ($ :div.loading "Loading notifications…")
-         :error   ($ :div.error "Failed to load notifications")
+         :error ($ :div.error "Failed to load notifications")
          :success (if (seq data)
                     ($ :<>
                        (for [{:keys [id message severity timestamp]} data]
@@ -33,7 +33,7 @@
           ($ :span {:style {:font-size "0.75rem" :color "#999"}} "(polling every 3s via WS)"))
        (case status
          :loading ($ :div.loading "Loading…")
-         :error   ($ :div.error "Failed to load")
+         :error ($ :div.error "Failed to load")
          :success ($ :div
                      ($ :div.detail-field ($ :span.label "Message: ") (:message data))
                      ($ :div.detail-field ($ :span.label "Severity: ") (:severity data))
@@ -48,7 +48,7 @@
        ($ :h3 "💬 Chat (WebSocket mutation + invalidation)")
        (case status
          :loading ($ :div.loading "Loading messages…")
-         :error   ($ :div.error "Failed to load messages")
+         :error ($ :div.error "Failed to load messages")
          :success
          ($ :div
             (if (seq data)

@@ -37,7 +37,7 @@
   [:div {:style {:display "flex" :gap "0.5rem" :margin-bottom "1rem"}}
    (for [user ["alex" "maria"]]
      ^{:key user}
-     [:button {:class    (if (= user active-user) "primary" "secondary")
+     [:button {:class (if (= user active-user) "primary" "secondary")
                :on-click #(rf/dispatch [:ui/set :infinite/user user])}
       (str "👤 " (str/capitalize user))])])
 
@@ -47,10 +47,10 @@
         {:keys [status data error fetching? fetching-next?]}
         @(rf/subscribe [:re-frame.query/infinite-query :feed/items feed-params])
         {:keys [pages has-next?]} data
-        items      (mapcat :items pages)
+        items (mapcat :items pages)
         show-stats @(rf/subscribe [:ui/get :infinite/show-stats])
-        new-title  (or @(rf/subscribe [:ui/get :infinite/new-title]) "")
-        mutation   @(rf/subscribe [:re-frame.query/mutation :feed/add-item {}])]
+        new-title (or @(rf/subscribe [:ui/get :infinite/new-title]) "")
+        mutation @(rf/subscribe [:re-frame.query/mutation :feed/add-item {}])]
     [:div
      [:p {:style {:color "#666" :margin-bottom "1rem"}}
       "Cursor-based infinite feed " [:strong "per user"] ". "
@@ -98,7 +98,7 @@
 
       (case status
         :loading [:div.loading "Loading feed…"]
-        :error   [:div.error "Error: " (or (:message error) (pr-str error))]
+        :error [:div.error "Error: " (or (:message error) (pr-str error))]
         (:success :idle)
         [:div
          (if (seq items)

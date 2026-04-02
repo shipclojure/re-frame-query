@@ -14,7 +14,7 @@
              "(query-level: 2s)"))
        (case status
          :loading ($ :div.loading "Loading stats…")
-         :error   ($ :div.error "Failed to load stats")
+         :error ($ :div.error "Failed to load stats")
          :success ($ :div
                      ($ :div.detail-field ($ :span.label "Uptime: ") (:uptime data))
                      ($ :div.detail-field ($ :span.label "Requests: ") (:request_count data))
@@ -31,7 +31,7 @@
              "(subscription-level: 1s)"))
        (case status
          :loading ($ :div.loading "Loading stats…")
-         :error   ($ :div.error "Failed to load stats")
+         :error ($ :div.error "Failed to load stats")
          :success ($ :div
                      ($ :div.detail-field ($ :span.label "Uptime: ") (:uptime data))
                      ($ :div.detail-field ($ :span.label "Requests: ") (:request_count data))

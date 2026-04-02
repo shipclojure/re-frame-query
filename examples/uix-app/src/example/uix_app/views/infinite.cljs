@@ -46,15 +46,15 @@
           (str "👤 " (str/capitalize user))))))
 
 (defui panel []
-  (let [user        (or (urf/use-subscribe [:ui/get :infinite/user]) "alex")
+  (let [user (or (urf/use-subscribe [:ui/get :infinite/user]) "alex")
         feed-params {:user user}
         {:keys [status data error fetching? fetching-next?]}
         (urf/use-subscribe [:re-frame.query/infinite-query :feed/items feed-params])
         {:keys [pages has-next?]} data
-        items       (mapcat :items pages)
-        show-stats  (urf/use-subscribe [:ui/get :infinite/show-stats])
-        new-title   (or (urf/use-subscribe [:ui/get :infinite/new-title]) "")
-        mutation    (urf/use-subscribe [:re-frame.query/mutation :feed/add-item {}])]
+        items (mapcat :items pages)
+        show-stats (urf/use-subscribe [:ui/get :infinite/show-stats])
+        new-title (or (urf/use-subscribe [:ui/get :infinite/new-title]) "")
+        mutation (urf/use-subscribe [:re-frame.query/mutation :feed/add-item {}])]
     ($ :div
        ($ :p {:style {:color "#666" :margin-bottom "1rem"}}
           "Cursor-based infinite feed " ($ :strong "per user") ". "
@@ -102,7 +102,7 @@
 
           (case status
             :loading ($ :div.loading "Loading feed…")
-            :error   ($ :div.error "Error: " (or (:message error) (pr-str error)))
+            :error ($ :div.error "Error: " (or (:message error) (pr-str error)))
             (:success :idle)
             ($ :div
                (if (seq items)

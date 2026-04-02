@@ -15,15 +15,15 @@
     (let [qid [:todos/list {}]
           old (get-in db [:re-frame.query/queries qid :data])
           new (mapv #(if (= (:id %) id) (assoc % :done done) %) old)]
-      {:db            (assoc-in db [:snapshots qid] old)
+      {:db (assoc-in db [:snapshots qid] old)
        :abort-request qid
-       :dispatch      [:re-frame.query/set-query-data :todos/list {} new]})))
+       :dispatch [:re-frame.query/set-query-data :todos/list {} new]})))
 
 (rf/reg-event-fx :todos/rollback
   (fn [{:keys [db]} [_ _params _error]]
     (let [qid [:todos/list {}]
           old (get-in db [:snapshots qid])]
-      {:db       (update db :snapshots dissoc qid)
+      {:db (update db :snapshots dissoc qid)
        :dispatch [:re-frame.query/set-query-data :todos/list {} old]})))
 
 (rf/reg-event-db :todos/clear-snapshot
@@ -44,7 +44,7 @@
                                (rf/dispatch
                                 [:re-frame.query/execute-mutation :todos/toggle
                                  {:id id :done (not done) :fail-mode? fail-mode?}
-                                 {:on-start   [[:todos/optimistic-toggle]]
+                                 {:on-start [[:todos/optimistic-toggle]]
                                   :on-success [[:todos/clear-snapshot]]
                                   :on-failure [[:todos/rollback]]}]))})
        ($ :span {:style (cond-> {:font-size "0.95rem"}
@@ -76,7 +76,7 @@
           ($ :h3 "✅ Todos (optimistic updates)")
           (case status
             :loading ($ :div.loading "Loading todos…")
-            :error   ($ :div.error "Failed to load todos")
+            :error ($ :div.error "Failed to load todos")
             :success ($ :<>
                         (for [todo data]
                           ($ todo-item {:key (:id todo) :todo todo :fail-mode? fail-mode?})))

@@ -1,11 +1,12 @@
-{;; Use 2-space "inner" indent for re-frame and re-frame-query registration
+{:remove-multiple-non-indenting-spaces? true
+ ;; Use 2-space "inner" indent for re-frame and re-frame-query registration
  ;; forms instead of aligning args under the first argument.
- :extra-indents {reg-query       [[:inner 0]]
-                 reg-mutation    [[:inner 0]]
-                 reg-event-db    [[:inner 0]]
-                 reg-event-fx    [[:inner 0]]
-                 reg-sub         [[:inner 0]]
-                 reg-sub-raw     [[:inner 0]]
-                 reg-fx          [[:inner 0]]
-                 reg-cofx        [[:inner 0]]
-                 reg-flow        [[:inner 0]]}}
+ :extra-indents {reg-query [[:inner 0]]
+                 reg-mutation [[:inner 0]]
+                 reg-event-db [[:inner 0]]
+                 reg-event-fx [[:inner 0]]
+                 reg-sub [[:inner 0]]
+                 reg-sub-raw [[:inner 0]]
+                 reg-fx [[:inner 0]]
+                 reg-cofx [[:inner 0]]
+                 reg-flow [[:inner 0]]}}

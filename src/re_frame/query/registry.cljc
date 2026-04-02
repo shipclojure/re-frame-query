@@ -5,7 +5,7 @@
 (defonce ^:private registry
   (atom {:queries {}
          :mutations {}
-         :config  {}}))
+         :config {}}))
 
 (defn reg-query
   "Register a query definition.
@@ -145,17 +145,17 @@
                        :invalidates (fn [_] [[:books]])}}})"
   [config]
   {:pre [(map? config)]}
-  (let [queries    (or (:queries config) {})
-        mutations  (or (:mutations config) {})
-        effect-fn  (:default-effect-fn config)]
+  (let [queries (or (:queries config) {})
+        mutations (or (:mutations config) {})
+        effect-fn (:default-effect-fn config)]
     (validate-queries! queries)
     (validate-mutations! mutations)
     (when (and effect-fn (not (fn? effect-fn)))
       (throw (ex-info ":default-effect-fn must be a function" {:value effect-fn})))
     (reset! registry
-            {:queries   queries
+            {:queries queries
              :mutations mutations
-             :config    (if effect-fn {:effect-fn effect-fn} {})})
+             :config (if effect-fn {:effect-fn effect-fn} {})})
     nil))
 
 (defn clear-registry!

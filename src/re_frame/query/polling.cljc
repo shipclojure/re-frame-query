@@ -33,19 +33,19 @@
   "Schedule `f` to run every `ms` milliseconds. Returns an interval handle."
   [f ms]
   #?(:cljs (js/setInterval f ms)
-     :clj  (let [running (atom true)
-                 fut     (future
-                           (while @running
-                             (Thread/sleep ms)
-                             (when @running (f))))]
-             {:future fut :running running})))
+     :clj (let [running (atom true)
+                fut (future
+                      (while @running
+                        (Thread/sleep ms)
+                        (when @running (f))))]
+            {:future fut :running running})))
 
 (defn- clear-interval
   "Cancel a previously scheduled interval."
   [handle]
   #?(:cljs (js/clearInterval handle)
-     :clj  (do (reset! (:running handle) false)
-               (future-cancel (:future handle)))))
+     :clj (do (reset! (:running handle) false)
+              (future-cancel (:future handle)))))
 
 ;; ---------------------------------------------------------------------------
 ;; Internal helpers

@@ -18,7 +18,7 @@
           ($ :h3 "👤 Current User")
           (case user-status
             :loading ($ :div.loading "Loading user…")
-            :error   ($ :div.error "Failed to load user")
+            :error ($ :div.error "Failed to load user")
             :success ($ :div
                         ($ :div.detail-field ($ :span.label "Name: ") (:name user-data))
                         ($ :div.detail-field ($ :span.label "Email: ") (:email user-data))

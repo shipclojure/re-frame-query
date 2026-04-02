@@ -12,10 +12,10 @@
 ;; ---------------------------------------------------------------------------
 
 (defn- build-query-effects [query-config k params]
-  (let [query-fn     (:query-fn query-config)
-        effect-fn    (or (:effect-fn query-config)
-                         (registry/get-default-effect-fn))
-        request      (query-fn params)]
+  (let [query-fn (:query-fn query-config)
+        effect-fn (or (:effect-fn query-config)
+                      (registry/get-default-effect-fn))
+        request (query-fn params)]
     (if effect-fn
       (effect-fn request
                  [:re-frame.query/query-success k params]
@@ -27,20 +27,20 @@
   (fn [{:keys [db]} [_ k params]]
     (let [query-config (or (registry/get-query k)
                            (throw (ex-info (str "No query registered for key: " k) {:key k})))
-          _            (when (util/infinite-query? query-config)
-                         (throw (ex-info (str "Query " k " is an infinite query — use :re-frame.query/ensure-infinite-query instead")
-                                         {:key k})))
-          qid          (util/query-id k params)
-          query        (get-in db [:re-frame.query/queries qid])
-          now          (util/now-ms)]
+          _ (when (util/infinite-query? query-config)
+              (throw (ex-info (str "Query " k " is an infinite query — use :re-frame.query/ensure-infinite-query instead")
+                              {:key k})))
+          qid (util/query-id k params)
+          query (get-in db [:re-frame.query/queries qid])
+          now (util/now-ms)]
       (if (and (util/stale? query now)
                (not (:fetching? query)))
         (let [refreshing? (and (= :success (:status query))
                                (some? (:data query)))]
           (merge {:db (update-in db [:re-frame.query/queries qid] util/merge-with-default
-                                 {:status    (if refreshing? :success :loading)
+                                 {:status (if refreshing? :success :loading)
                                   :fetching? true
-                                  :stale?    false})}
+                                  :stale? false})}
                  (build-query-effects query-config k params)))
         {:db db}))))
 
@@ -49,34 +49,34 @@
   (fn [{:keys [db]} [_ k params]]
     (let [query-config (or (registry/get-query k)
                            (throw (ex-info (str "No query registered for key: " k) {:key k})))
-          qid          (util/query-id k params)
-          query        (get-in db [:re-frame.query/queries qid])
-          refreshing?  (and (= :success (:status query))
-                            (some? (:data query)))]
+          qid (util/query-id k params)
+          query (get-in db [:re-frame.query/queries qid])
+          refreshing? (and (= :success (:status query))
+                           (some? (:data query)))]
       (merge {:db (update-in db [:re-frame.query/queries qid] merge
-                             {:status    (if refreshing? :success :loading)
+                             {:status (if refreshing? :success :loading)
                               :fetching? true
-                              :stale?    false})}
+                              :stale? false})}
              (build-query-effects query-config k params)))))
 
 (rf/reg-event-db
   :re-frame.query/query-success
   (fn [db [_ k params data]]
-    (let [qid            (util/query-id k params)
-          query-config   (registry/get-query k)
-          now            (util/now-ms)
-          tags-fn        (or (:tags query-config) (constantly []))
-          tags           (set (tags-fn params))
-          transform-fn   (:transform-response query-config)]
+    (let [qid (util/query-id k params)
+          query-config (registry/get-query k)
+          now (util/now-ms)
+          tags-fn (or (:tags query-config) (constantly []))
+          tags (set (tags-fn params))
+          transform-fn (:transform-response query-config)]
       (update-in db [:re-frame.query/queries qid]
                  util/merge-with-default
-                 {:status        :success
-                  :data          (cond-> data (fn? transform-fn) (transform-fn params))
-                  :error         nil
-                  :fetching?     false
-                  :fetched-at    now
-                  :stale?        false
-                  :tags          tags
+                 {:status :success
+                  :data (cond-> data (fn? transform-fn) (transform-fn params))
+                  :error nil
+                  :fetching? false
+                  :fetched-at now
+                  :stale? false
+                  :tags tags
                   :stale-time-ms (:stale-time-ms query-config)
                   :cache-time-ms (or (:cache-time-ms query-config)
                                      gc/default-cache-time-ms)}))))
@@ -84,12 +84,12 @@
 (rf/reg-event-db
   :re-frame.query/query-failure
   (fn [db [_ k params error]]
-    (let [qid          (util/query-id k params)
+    (let [qid (util/query-id k params)
           query-config (registry/get-query k)
           transform-fn (:transform-error query-config)]
       (update-in db [:re-frame.query/queries qid] util/merge-with-default
-                 {:status    :error
-                  :error     (cond-> error (fn? transform-fn) (transform-fn params))
+                 {:status :error
+                  :error (cond-> error (fn? transform-fn) (transform-fn params))
                   :fetching? false}))))
 
 ;; ---------------------------------------------------------------------------
@@ -111,23 +111,23 @@
   (fn [{:keys [db]} [_ k params opts]]
     (let [mutation-config (or (registry/get-mutation k)
                               (throw (ex-info (str "No mutation registered for key: " k) {:key k})))
-          mutation-fn    (:mutation-fn mutation-config)
-          effect-fn      (or (:effect-fn mutation-config)
-                             (registry/get-default-effect-fn))
-          mid            (util/query-id k params)
-          request        (mutation-fn params)
-          hooks          (select-keys opts [:on-success :on-failure])
-          effects        (if effect-fn
-                           (effect-fn request
-                                      [:re-frame.query/mutation-success k params hooks]
-                                      [:re-frame.query/mutation-failure k params hooks])
+          mutation-fn (:mutation-fn mutation-config)
+          effect-fn (or (:effect-fn mutation-config)
+                        (registry/get-default-effect-fn))
+          mid (util/query-id k params)
+          request (mutation-fn params)
+          hooks (select-keys opts [:on-success :on-failure])
+          effects (if effect-fn
+                    (effect-fn request
+                               [:re-frame.query/mutation-success k params hooks]
+                               [:re-frame.query/mutation-failure k params hooks])
                            ;; mutation-fn returns a full effects map
-                           request)
-          start-fx       (dispatch-hooks (:on-start opts) params)]
+                    request)
+          start-fx (dispatch-hooks (:on-start opts) params)]
       (-> (merge
            {:db (assoc-in db [:re-frame.query/mutations mid]
                           {:status :loading
-                           :error  nil})
+                           :error nil})
             :fx []}
            effects)
           (update :fx into start-fx)))))
@@ -136,18 +136,18 @@
   :re-frame.query/mutation-success
   (fn [{:keys [db]} [_ k params hooks data]]
     (let [mutation-config (registry/get-mutation k)
-          mid             (util/query-id k params)
-          invalidates-fn  (or (:invalidates mutation-config) (constantly []))
-          tags            (invalidates-fn params)
-          transform-fn    (:transform-response mutation-config)
-          transformed     (cond-> data (fn? transform-fn) (transform-fn params))
-          invalidate-fx   (when (seq tags)
-                            [[:dispatch [:re-frame.query/invalidate-tags tags]]])
-          hook-fx         (dispatch-hooks (:on-success hooks) params transformed)]
+          mid (util/query-id k params)
+          invalidates-fn (or (:invalidates mutation-config) (constantly []))
+          tags (invalidates-fn params)
+          transform-fn (:transform-response mutation-config)
+          transformed (cond-> data (fn? transform-fn) (transform-fn params))
+          invalidate-fx (when (seq tags)
+                          [[:dispatch [:re-frame.query/invalidate-tags tags]]])
+          hook-fx (dispatch-hooks (:on-success hooks) params transformed)]
       (-> {:db (assoc-in db [:re-frame.query/mutations mid]
                          {:status :success
-                          :data   transformed
-                          :error  nil})
+                          :data transformed
+                          :error nil})
            :fx []}
           (update :fx into invalidate-fx)
           (update :fx into hook-fx)))))
@@ -155,14 +155,14 @@
 (rf/reg-event-fx
   :re-frame.query/mutation-failure
   (fn [{:keys [db]} [_ k params hooks error]]
-    (let [mid             (util/query-id k params)
+    (let [mid (util/query-id k params)
           mutation-config (registry/get-mutation k)
-          transform-fn    (:transform-error mutation-config)
-          transformed     (cond-> error (fn? transform-fn) (transform-fn params))
-          hook-fx         (dispatch-hooks (:on-failure hooks) params transformed)]
+          transform-fn (:transform-error mutation-config)
+          transformed (cond-> error (fn? transform-fn) (transform-fn params))
+          hook-fx (dispatch-hooks (:on-failure hooks) params transformed)]
       (-> {:db (assoc-in db [:re-frame.query/mutations mid]
                          {:status :error
-                          :error  transformed})
+                          :error transformed})
            :fx []}
           (update :fx into hook-fx)))))
 
@@ -183,11 +183,11 @@
           now (util/now-ms)]
       (update-in db [:re-frame.query/queries qid]
                  util/merge-with-default
-                 {:status     :success
-                  :data       data
-                  :error      nil
-                  :fetching?  false
-                  :stale?     false
+                 {:status :success
+                  :data data
+                  :error nil
+                  :fetching? false
+                  :stale? false
                   :fetched-at now}))))
 
 ;; ---------------------------------------------------------------------------
@@ -197,17 +197,17 @@
 (rf/reg-event-fx
   :re-frame.query/invalidate-tags
   (fn [{:keys [db]} [_ tags]]
-    (let [queries  (get db :re-frame.query/queries {})
-          matched  (volatile! #{})
+    (let [queries (get db :re-frame.query/queries {})
+          matched (volatile! #{})
          ;; Mark all matching queries as stale, tracking which were matched
-          updated  (reduce-kv
-                    (fn [acc qid q]
-                      (if (util/tag-match? (:tags q) tags)
-                        (do (vswap! matched conj qid)
-                            (assoc acc qid (assoc q :stale? true)))
-                        (assoc acc qid q)))
-                    {}
-                    queries)
+          updated (reduce-kv
+                   (fn [acc qid q]
+                     (if (util/tag-match? (:tags q) tags)
+                       (do (vswap! matched conj qid)
+                           (assoc acc qid (assoc q :stale? true)))
+                       (assoc acc qid q)))
+                   {}
+                   queries)
          ;; Refetch only queries that were matched AND are currently active
          ;; Route infinite queries through refetch-infinite-query
           refetch-fx (->> @matched
@@ -245,17 +245,17 @@
 ;; ---------------------------------------------------------------------------
 
 (def ^:private empty-infinite-data
-  {:pages       []
+  {:pages []
    :page-params []
-   :has-next?   false})
+   :has-next? false})
 
 (defn- build-infinite-fetch-effects
   "Build effects to fetch a single page of an infinite query."
   [query-config k params cursor on-success-event]
-  (let [query-fn   (:query-fn query-config)
-        effect-fn  (or (:effect-fn query-config)
-                       (registry/get-default-effect-fn))
-        request    (query-fn (assoc params :cursor cursor))]
+  (let [query-fn (:query-fn query-config)
+        effect-fn (or (:effect-fn query-config)
+                      (registry/get-default-effect-fn))
+        request (query-fn (assoc params :cursor cursor))]
     (if effect-fn
       (effect-fn request
                  on-success-event
@@ -275,22 +275,22 @@
   (fn [{:keys [db]} [_ k params]]
     (let [query-config (or (registry/get-query k)
                            (throw (ex-info (str "No query registered for key: " k) {:key k})))
-          _            (when-not (util/infinite-query? query-config)
-                         (throw (ex-info (str "Query " k " is not an infinite query (missing :infinite config)") {:key k})))
-          qid          (util/query-id k params)
-          query        (get-in db [:re-frame.query/queries qid])
-          now          (util/now-ms)
+          _ (when-not (util/infinite-query? query-config)
+              (throw (ex-info (str "Query " k " is not an infinite query (missing :infinite config)") {:key k})))
+          qid (util/query-id k params)
+          query (get-in db [:re-frame.query/queries qid])
+          now (util/now-ms)
           {:keys [initial-cursor]} (:infinite query-config)]
       (if (and (util/stale? query now)
                (not (:fetching? query)))
         (let [refreshing? (and (= :success (:status query))
                                (some? (:data query)))]
           (merge {:db (update-in db [:re-frame.query/queries qid] util/merge-with-default
-                                 {:status         (if refreshing? :success :loading)
-                                  :data           (or (:data query) empty-infinite-data)
-                                  :fetching?      true
+                                 {:status (if refreshing? :success :loading)
+                                  :data (or (:data query) empty-infinite-data)
+                                  :fetching? true
                                   :fetching-next? false
-                                  :stale?         false})}
+                                  :stale? false})}
                  (build-infinite-fetch-effects
                   query-config k params initial-cursor
                   [:re-frame.query/infinite-page-success k params nil])))
@@ -302,9 +302,9 @@
     (let [query-config (registry/get-query k)]
       (when-not query-config
         (throw (ex-info (str "No query registered for key: " k) {:key k})))
-      (let [qid   (util/query-id k params)
+      (let [qid (util/query-id k params)
             query (get-in db [:re-frame.query/queries qid])
-            data  (:data query)]
+            data (:data query)]
        ;; No-op if: no data yet, no next cursor, or already fetching
         (if (and data
                  (:has-next? data)
@@ -321,52 +321,52 @@
 (rf/reg-event-fx
   :re-frame.query/infinite-page-success
   (fn [{:keys [db]} [_ k params mode page-data]]
-    (let [qid             (util/query-id k params)
-          query-config    (registry/get-query k)
-          query           (get-in db [:re-frame.query/queries qid])
-          now             (util/now-ms)
-          tags-fn         (or (:tags query-config) (constantly []))
-          tags            (set (tags-fn params))
-          transform-fn    (:transform-response query-config)
-          transformed     (cond-> page-data (fn? transform-fn) (transform-fn params))
-          infinite-cfg    (:infinite query-config)
+    (let [qid (util/query-id k params)
+          query-config (registry/get-query k)
+          query (get-in db [:re-frame.query/queries qid])
+          now (util/now-ms)
+          tags-fn (or (:tags query-config) (constantly []))
+          tags (set (tags-fn params))
+          transform-fn (:transform-response query-config)
+          transformed (cond-> page-data (fn? transform-fn) (transform-fn params))
+          infinite-cfg (:infinite query-config)
           get-next-cursor (:get-next-cursor infinite-cfg)
-          next-cursor     (get-next-cursor transformed)
-          max-pages       (:max-pages query-config)
-          refetch-state   (:refetch-state query)
-          base-state      {:status         :success
-                           :error          nil
-                           :fetching?      false
-                           :fetching-next? false
-                           :fetched-at     now
-                           :stale?         false
-                           :tags           tags
-                           :stale-time-ms  (:stale-time-ms query-config)
-                           :cache-time-ms  (or (:cache-time-ms query-config)
-                                               gc/default-cache-time-ms)}
-          make-data       (fn [pages page-params]
-                            {:pages       pages
-                             :page-params page-params
-                             :has-next?   (some? next-cursor)
-                             :next-cursor next-cursor})]
+          next-cursor (get-next-cursor transformed)
+          max-pages (:max-pages query-config)
+          refetch-state (:refetch-state query)
+          base-state {:status :success
+                      :error nil
+                      :fetching? false
+                      :fetching-next? false
+                      :fetched-at now
+                      :stale? false
+                      :tags tags
+                      :stale-time-ms (:stale-time-ms query-config)
+                      :cache-time-ms (or (:cache-time-ms query-config)
+                                         gc/default-cache-time-ms)}
+          make-data (fn [pages page-params]
+                      {:pages pages
+                       :page-params page-params
+                       :has-next? (some? next-cursor)
+                       :next-cursor next-cursor})]
       (cond
        ;; --- Sequential re-fetch mode ---
        ;; Pages accumulate in refetch-state, not in :data (atomic swap)
         (some? refetch-state)
-        (let [acc-pages      (conj (:pages refetch-state) transformed)
-              acc-params     (conj (:page-params refetch-state)
-                                   (:current-cursor refetch-state))
-              pages-fetched  (count acc-pages)
-              target         (:target-page-count refetch-state)
-              done?          (or (>= pages-fetched target)
-                                 (nil? next-cursor))
+        (let [acc-pages (conj (:pages refetch-state) transformed)
+              acc-params (conj (:page-params refetch-state)
+                               (:current-cursor refetch-state))
+              pages-fetched (count acc-pages)
+              target (:target-page-count refetch-state)
+              done? (or (>= pages-fetched target)
+                        (nil? next-cursor))
               [final-pages final-params] (apply-max-pages
                                           (vec acc-pages) (vec acc-params) max-pages)]
           (if done?
            ;; All pages re-fetched — atomic swap into :data
             {:db (update-in db [:re-frame.query/queries qid] merge
                             (assoc base-state
-                                   :data          (make-data final-pages final-params)
+                                   :data (make-data final-pages final-params)
                                    :refetch-state nil))}
            ;; More pages needed — continue the chain
             (merge
@@ -381,10 +381,10 @@
 
        ;; --- Append mode (fetch-next-page) ---
         (= mode :append)
-        (let [old-data     (:data query)
-              new-pages    (conj (:pages old-data) transformed)
-              new-params   (conj (:page-params old-data)
-                                 (:next-cursor old-data))
+        (let [old-data (:data query)
+              new-pages (conj (:pages old-data) transformed)
+              new-params (conj (:page-params old-data)
+                               (:next-cursor old-data))
               [final-pages final-params] (apply-max-pages
                                           (vec new-pages) (vec new-params) max-pages)]
           {:db (update-in db [:re-frame.query/queries qid] merge
@@ -401,16 +401,16 @@
 (rf/reg-event-db
   :re-frame.query/infinite-page-failure
   (fn [db [_ k params error]]
-    (let [qid          (util/query-id k params)
+    (let [qid (util/query-id k params)
           query-config (registry/get-query k)
           transform-fn (:transform-error query-config)]
      ;; On failure: set error, clear refetch-state, preserve old :data
       (update-in db [:re-frame.query/queries qid] merge
-                 {:status         :error
-                  :error          (cond-> error (fn? transform-fn) (transform-fn params))
-                  :fetching?      false
+                 {:status :error
+                  :error (cond-> error (fn? transform-fn) (transform-fn params))
+                  :fetching? false
                   :fetching-next? false
-                  :refetch-state  nil}))))
+                  :refetch-state nil}))))
 
 ;; Modified refetch-query for infinite queries — starts sequential re-fetch
 (rf/reg-event-fx
@@ -418,32 +418,32 @@
   (fn [{:keys [db]} [_ k params]]
     (let [query-config (or (registry/get-query k)
                            (throw (ex-info (str "No query registered for key: " k) {:key k})))
-          qid          (util/query-id k params)
-          query        (get-in db [:re-frame.query/queries qid])
-          data         (:data query)
-          page-count   (count (:pages data))
+          qid (util/query-id k params)
+          query (get-in db [:re-frame.query/queries qid])
+          data (:data query)
+          page-count (count (:pages data))
           {:keys [initial-cursor]} (:infinite query-config)]
       (if (pos? page-count)
        ;; Has pages — start sequential re-fetch
         (merge
          {:db (update-in db [:re-frame.query/queries qid] merge
-                         {:fetching?     true
-                          :stale?        false
+                         {:fetching? true
+                          :stale? false
                           :refetch-state {:target-page-count page-count
-                                          :pages             []
-                                          :page-params       []
-                                          :current-cursor    initial-cursor}})}
+                                          :pages []
+                                          :page-params []
+                                          :current-cursor initial-cursor}})}
          (build-infinite-fetch-effects
           query-config k params initial-cursor
           [:re-frame.query/infinite-page-success k params nil]))
        ;; No pages yet — just fetch the first page
         (merge
          {:db (update-in db [:re-frame.query/queries qid] util/merge-with-default
-                         {:status         :loading
-                          :data           empty-infinite-data
-                          :fetching?      true
+                         {:status :loading
+                          :data empty-infinite-data
+                          :fetching? true
                           :fetching-next? false
-                          :stale?         false})}
+                          :stale? false})}
          (build-infinite-fetch-effects
           query-config k params initial-cursor
           [:re-frame.query/infinite-page-success k params nil]))))))
@@ -456,17 +456,17 @@
   :re-frame.query/mark-active
   (fn [{:keys [db]} [_ k params]]
     (let [qid (util/query-id k params)]
-      {:db                       (assoc-in db [:re-frame.query/queries qid :active?] true)
+      {:db (assoc-in db [:re-frame.query/queries qid :active?] true)
        :re-frame.query/cancel-gc {:query-id qid}})))
 
 (rf/reg-event-fx
   :re-frame.query/mark-inactive
   (fn [{:keys [db]} [_ k params]]
-    (let [qid        (util/query-id k params)
-          query      (get-in db [:re-frame.query/queries qid])
+    (let [qid (util/query-id k params)
+          query (get-in db [:re-frame.query/queries qid])
           cache-time (or (:cache-time-ms query) gc/default-cache-time-ms)]
-      {:db                         (assoc-in db [:re-frame.query/queries qid :active?] false)
-       :re-frame.query/schedule-gc {:query-id      qid
+      {:db (assoc-in db [:re-frame.query/queries qid :active?] false)
+       :re-frame.query/schedule-gc {:query-id qid
                                     :cache-time-ms cache-time}})))
 
 ;; ---------------------------------------------------------------------------
@@ -491,11 +491,11 @@
               (fn [queries]
                 (reduce-kv
                  (fn [acc qid q]
-                   (let [cache-ms  (:cache-time-ms q)
-                         fetched   (:fetched-at q 0)
-                         expired?  (and cache-ms
-                                        fetched
-                                        (> (- now fetched) cache-ms))]
+                   (let [cache-ms (:cache-time-ms q)
+                         fetched (:fetched-at q 0)
+                         expired? (and cache-ms
+                                       fetched
+                                       (> (- now fetched) cache-ms))]
                      (if (and expired? (not (:active? q)))
                        acc
                        (assoc acc qid q))))

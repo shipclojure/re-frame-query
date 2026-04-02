@@ -28,25 +28,25 @@
 ;; ---------------------------------------------------------------------------
 
 (def ^:private idle-state
-  {:status    :idle
-   :data      nil
-   :error     nil
+  {:status :idle
+   :data nil
+   :error nil
    :fetching? false
-   :stale?    true})
+   :stale? true})
 
 (def ^:private idle-infinite-state
-  {:status         :idle
-   :data           {:pages [] :page-params [] :has-next? false}
-   :error          nil
-   :fetching?      false
+  {:status :idle
+   :data {:pages [] :page-params [] :has-next? false}
+   :error nil
+   :fetching? false
    :fetching-next? false
-   :stale?         true})
+   :stale? true})
 
 (defn- resolve-query
   "Look up a query by qid, compute stale?, return idle-state if absent."
   [queries qid]
   (if-let [query (get queries qid)]
-    (let [now   (util/now-ms)
+    (let [now (util/now-ms)
           stale (util/stale? query now)]
       (assoc query :stale? stale))
     idle-state))
@@ -55,7 +55,7 @@
   "Like resolve-query but strips internal :refetch-state."
   [queries qid]
   (if-let [query (get queries qid)]
-    (let [now   (util/now-ms)
+    (let [now (util/now-ms)
           stale (util/stale? query now)]
       (-> query
           (assoc :stale? stale)
@@ -69,12 +69,12 @@
 (rf/reg-sub-raw
   :re-frame.query/query
   (fn [app-db [_ k params opts]]
-    (let [qid           (util/query-id k params)
-          skip?         (:skip? opts)
-          sub-id        (gensym "poll-sub-")
-          query-config  (registry/get-query k)
-          interval-ms   (or (:polling-interval-ms opts)
-                            (:polling-interval-ms query-config))]
+    (let [qid (util/query-id k params)
+          skip? (:skip? opts)
+          sub-id (gensym "poll-sub-")
+          query-config (registry/get-query k)
+          interval-ms (or (:polling-interval-ms opts)
+                          (:polling-interval-ms query-config))]
       (when-not skip?
         (rf/dispatch [:re-frame.query/ensure-query k params])
         (rf/dispatch [:re-frame.query/mark-active k params])
@@ -186,7 +186,7 @@
     (let [mid (util/query-id k params)]
       (get mutations mid
            {:status :idle
-            :error  nil}))))
+            :error nil}))))
 
 (rf/reg-sub
   :re-frame.query/mutation-status

@@ -10,7 +10,7 @@
   (let [{:keys [id title author]} book]
     ($ :div.book-card
        {:on-mouse-enter #(rfq/prefetch :book/detail {:id id})
-        :on-click       #(rf/dispatch [:ui/set :prefetch/selected-id id])}
+        :on-click #(rf/dispatch [:ui/set :prefetch/selected-id id])}
        ($ :div.title title)
        ($ :div.author "by " author)
        ($ :div {:style {:font-size "0.75rem" :color "#999" :margin-top "0.25rem"}}
@@ -23,7 +23,7 @@
        ($ :h3 "Book Detail")
        (case status
          :loading ($ :div.loading "Loading book…")
-         :error   ($ :div.error "Error loading book")
+         :error ($ :div.error "Error loading book")
          :success ($ :div
                      ($ :div.detail-field ($ :span.label "ID: ") (str (:id data)))
                      ($ :div.detail-field ($ :span.label "Title: ") (:title data))
@@ -44,7 +44,7 @@
        ($ :h3 "📚 Books (hover to prefetch)")
        (case status
          :loading ($ :div.loading "Loading books…")
-         :error   ($ :div.error "Failed to load books")
+         :error ($ :div.error "Failed to load books")
          :success ($ :<>
                      (for [book data]
                        ($ book-card-with-prefetch {:key (:id book) :book book})))

@@ -2,13 +2,13 @@
   "Internal utility functions for re-frame-query.")
 
 (def default-query
-  {:status    :idle
-   :data      nil
-   :error     nil
+  {:status :idle
+   :data nil
+   :error nil
    :fetching? false
-   :stale?    true
-   :active?   false
-   :tags      #{}})
+   :stale? true
+   :active? false
+   :tags #{}})
 
 (defn merge-with-default
   [& maps]
@@ -17,7 +17,7 @@
 (defn now-ms
   "Returns current time in milliseconds since epoch."
   []
-  #?(:clj  (System/currentTimeMillis)
+  #?(:clj (System/currentTimeMillis)
      :cljs (.now js/Date)))
 
 (defn query-id

@@ -251,13 +251,13 @@
   []
   (rf/reg-global-interceptor
    (rf/->interceptor
-    :id    :re-frame.query/debug-log
+    :id :re-frame.query/debug-log
     :before (fn [context]
               (let [[event-id & args] (get-in context [:coeffects :event])]
                 (when (and (keyword? event-id)
                            (= "re-frame.query" (namespace event-id)))
                   (let [label (str "📦 " event-id)]
                     #?(:cljs (js/console.log label (clj->js (vec args)))
-                       :clj  (println label (vec args))))))
+                       :clj (println label (vec args))))))
               context)))
   nil)

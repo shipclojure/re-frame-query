@@ -7,10 +7,10 @@
 (defn mutation-status-badge
   "Renders a colored badge for the mutation status."
   [status]
-  (let [styles {:idle    {:bg "#e0e0e0" :fg "#666"}
+  (let [styles {:idle {:bg "#e0e0e0" :fg "#666"}
                 :loading {:bg "#e8f0fe" :fg "#0f3460"}
                 :success {:bg "#e8f5e9" :fg "#2e7d32"}
-                :error   {:bg "#fdecea" :fg "#c62828"}}
+                :error {:bg "#fdecea" :fg "#c62828"}}
         {:keys [bg fg]} (get styles status (:idle styles))]
     [:span {:style {:background bg :color fg :padding "0.25rem 0.75rem"
                     :border-radius "12px" :font-size "0.8rem" :font-weight 600}}
@@ -20,7 +20,7 @@
   "Form that creates a book and shows the full mutation lifecycle.
    Includes a Reset button to clear the status back to idle."
   []
-  (let [title  (or @(rf/subscribe [:ui/get :mut/title]) "")
+  (let [title (or @(rf/subscribe [:ui/get :mut/title]) "")
         author (or @(rf/subscribe [:ui/get :mut/author]) "")
         {:keys [status data error]}
         @(rf/subscribe [:re-frame.query/mutation :books/create-demo {:title title :author author}])]
@@ -37,9 +37,9 @@
                  "✅ Book created: " [:strong (str (:title data))]
                  " by " (:author data)
                  " (id: " (:id data) ")"]
-       :error   [:div {:style {:background "#fdecea" :padding "0.75rem" :border-radius "6px"
-                               :margin-bottom "0.75rem"}}
-                 "❌ Error: " (pr-str error)]
+       :error [:div {:style {:background "#fdecea" :padding "0.75rem" :border-radius "6px"
+                             :margin-bottom "0.75rem"}}
+               "❌ Error: " (pr-str error)]
        nil)
 
      ;; Form

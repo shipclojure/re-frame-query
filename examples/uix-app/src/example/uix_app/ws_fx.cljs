@@ -31,7 +31,7 @@
 (rf/reg-fx
   :ws-send
   (fn [{:keys [channel payload on-success on-failure]}]
-    (let [ws         (ensure-ws!)
+    (let [ws (ensure-ws!)
           request-id (str (random-uuid))]
       ;; Register a one-shot listener for the response
       (let [handler (fn handler [event]
@@ -49,6 +49,6 @@
         (.addEventListener ws "message" handler))
       ;; Send (or queue) the request
       (ws-send! ws (js/JSON.stringify
-                    (clj->js {:channel    channel
-                              :payload    payload
+                    (clj->js {:channel channel
+                              :payload payload
                               :request_id request-id}))))))
