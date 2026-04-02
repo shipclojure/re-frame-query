@@ -1195,6 +1195,18 @@
           #"No query registered for key"
           (rf/subscribe [:re-frame.query/query :nonexistent/query {}]))))))
 
+(deftest ensure-query-rejects-infinite-query-test
+  (testing "ensure-query throws when called with an infinite query key"
+    (rfq/set-default-effect-fn! noop-effect-fn)
+    (rfq/reg-query :feed/items
+      {:query-fn (fn [_] {:method :get :url "/api/feed"})
+       :infinite {:initial-cursor nil
+                  :get-next-cursor (fn [resp] (:next_cursor resp))}})
+    (is (thrown-with-msg?
+         #?(:clj clojure.lang.ExceptionInfo :cljs ExceptionInfo)
+         #"infinite query.*ensure-infinite-query"
+         (process-event [:re-frame.query/ensure-query :feed/items {}])))))
+
 ;; ---------------------------------------------------------------------------
 ;; Query state shape completeness tests
 ;; ---------------------------------------------------------------------------

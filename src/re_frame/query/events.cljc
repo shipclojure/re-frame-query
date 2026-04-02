@@ -27,6 +27,9 @@
   (fn [{:keys [db]} [_ k params]]
     (let [query-config (or (registry/get-query k)
                            (throw (ex-info (str "No query registered for key: " k) {:key k})))
+          _            (when (util/infinite-query? query-config)
+                         (throw (ex-info (str "Query " k " is an infinite query — use :re-frame.query/ensure-infinite-query instead")
+                                         {:key k})))
           qid          (util/query-id k params)
           query        (get-in db [:re-frame.query/queries qid])
           now          (util/now-ms)]
