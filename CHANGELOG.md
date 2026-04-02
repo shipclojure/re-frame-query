@@ -4,6 +4,22 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.2.1] - 2026-04-02
+
+### Fixed
+
+- **`invalidate-tags` refetched all active queries** — previously, any tag invalidation triggered a refetch of every active query in the cache, regardless of whether its tags matched. Now only queries whose tags match the invalidation set are refetched, as intended. This eliminates N×M unnecessary network requests in apps with multiple active queries.
+
+### Added
+
+- **`ensure-query` rejects infinite queries** — dispatching `::rfq/ensure-query` on a query registered with `:infinite` config now throws with a clear error directing users to `::rfq/ensure-infinite-query`. Previously this would silently treat the query as a regular single-result query, producing incorrect cache state.
+
+### Changed
+
+- **Early validation in event handlers** — all event handlers (`ensure-query`, `refetch-query`, `execute-mutation`, `ensure-infinite-query`, `refetch-infinite-query`) now validate config at the top of the `let` binding using `(or (get-query k) (throw ...))`. Previously, some handlers destructured the config before validating it, allowing silent `nil` propagation.
+- **`dispatch-hooks` always returns `[]`** — the internal `dispatch-hooks` helper now returns an empty vector instead of `nil` when no hooks are configured. This simplifies all mutation handler callsites by removing `fnil`/`seq` guard ceremony.
+- **Test suite split into domain-specific namespaces** — the monolithic `query_test.cljc` (2600 lines) is now 6 focused files (`events_test`, `mutations_test`, `invalidation_test`, `gc_test`, `polling_test`, `infinite_test`) plus a shared `test_helpers` namespace. 87 tests, 401 assertions.
+
 ## [0.2.0] - 2026-03-22
 
 ### Added
