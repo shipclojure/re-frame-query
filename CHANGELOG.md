@@ -4,7 +4,7 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
-## [0.2.1] - 2026-04-02
+## [0.3.0] - 2026-04-02
 
 ### Fixed
 
@@ -13,6 +13,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ### Added
 
 - **`ensure-query` rejects infinite queries** — dispatching `::rfq/ensure-query` on a query registered with `:infinite` config now throws with a clear error directing users to `::rfq/ensure-infinite-query`. Previously this would silently treat the query as a regular single-result query, producing incorrect cache state.
+- **Bidirectional infinite queries (`fetch-previous-page`)** — infinite queries now support backward pagination via `:get-previous-cursor` in the `:infinite` config. Call `rfq/fetch-previous-page` or dispatch `::rfq/fetch-previous-page` to prepend pages. When `:max-pages` is set, prepending trims from the end (opposite of `fetch-next-page` which trims from the start), enabling a true sliding window in both directions. Queries without `:get-previous-cursor` are unchanged — no new keys appear in their data.
 
 ### Changed
 

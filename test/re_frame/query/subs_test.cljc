@@ -69,9 +69,10 @@
           qid (util/query-id :feed/items {})
           result (#'subs/resolve-infinite-query queries qid)]
       (is (= :idle (:status result)))
-      (is (= {:pages [] :page-params [] :has-next? false} (:data result)))
+      (is (= {:pages [] :page-params [] :has-next? false :has-prev? false} (:data result)))
       (is (false? (:fetching? result)))
       (is (false? (:fetching-next? result)))
+      (is (false? (:fetching-prev? result)))
       (is (true? (:stale? result)))))
 
   (testing "returns idle-infinite-state for a qid not in the queries map"
@@ -103,7 +104,7 @@
     (let [now (util/now-ms)
           qid (util/query-id :feed/items {})
           queries {qid {:status :success
-                        :data {:pages [] :page-params [] :has-next? false}
+                        :data {:pages [] :page-params [] :has-next? false :has-prev? false}
                         :fetching? true
                         :fetched-at now
                         :stale-time-ms 30000

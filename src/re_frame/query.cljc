@@ -212,6 +212,22 @@
   [k params]
   (rf/dispatch [:re-frame.query/fetch-next-page k params]))
 
+(defn fetch-previous-page
+  "Fetch the previous page of an infinite query.
+
+  Reads the current `prev-cursor` from the cache and fetches the previous page,
+  prepending it to the pages vector. Requires `:get-previous-cursor` in the
+  query's `:infinite` config. No-op if there is no previous page (`has-prev?`
+  is false) or a fetch is already in progress.
+
+  When `:max-pages` is set, older pages are trimmed from the end (opposite
+  of `fetch-next-page` which trims from the start).
+
+  Example:
+    (rfq/fetch-previous-page :feed/items {:category \"tech\"})"
+  [k params]
+  (rf/dispatch [:re-frame.query/fetch-previous-page k params]))
+
 ;; ---------------------------------------------------------------------------
 ;; Prefetching
 ;; ---------------------------------------------------------------------------

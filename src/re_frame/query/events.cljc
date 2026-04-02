@@ -247,7 +247,8 @@
 (def ^:private empty-infinite-data
   {:pages []
    :page-params []
-   :has-next? false})
+   :has-next? false
+   :has-prev? false})
 
 (defn- build-infinite-fetch-effects
   "Build effects to fetch a single page of an infinite query."
@@ -263,12 +264,19 @@
       request)))
 
 (defn- apply-max-pages
-  "Trim pages/page-params to max-pages from the end (sliding window)."
-  [pages page-params max-pages]
-  (if (and max-pages (> (count pages) max-pages))
-    [(subvec pages (- (count pages) max-pages))
-     (subvec page-params (- (count page-params) max-pages))]
-    [pages page-params]))
+  "Trim pages/page-params to max-pages (sliding window).
+   direction :forward (default) — trim from the start, keep the latest pages.
+   direction :backward — trim from the end, keep the earliest pages."
+  ([pages page-params max-pages]
+   (apply-max-pages pages page-params max-pages :forward))
+  ([pages page-params max-pages direction]
+   (if (and max-pages (> (count pages) max-pages))
+     (if (= direction :backward)
+       [(subvec pages 0 max-pages)
+        (subvec page-params 0 max-pages)]
+       [(subvec pages (- (count pages) max-pages))
+        (subvec page-params (- (count page-params) max-pages))])
+     [pages page-params])))
 
 (rf/reg-event-fx
   :re-frame.query/ensure-infinite-query
@@ -290,6 +298,7 @@
                                   :data (or (:data query) empty-infinite-data)
                                   :fetching? true
                                   :fetching-next? false
+                                  :fetching-prev? false
                                   :stale? false})}
                  (build-infinite-fetch-effects
                   query-config k params initial-cursor
@@ -309,13 +318,37 @@
         (if (and data
                  (:has-next? data)
                  (not (:fetching? query))
-                 (not (:fetching-next? query)))
+                 (not (:fetching-next? query))
+                 (not (:fetching-prev? query)))
           (let [next-cursor (get-in data [:next-cursor])]
             (merge {:db (update-in db [:re-frame.query/queries qid] merge
                                    {:fetching-next? true})}
                    (build-infinite-fetch-effects
                     query-config k params next-cursor
                     [:re-frame.query/infinite-page-success k params :append])))
+          {:db db})))))
+
+(rf/reg-event-fx
+  :re-frame.query/fetch-previous-page
+  (fn [{:keys [db]} [_ k params]]
+    (let [query-config (registry/get-query k)]
+      (when-not query-config
+        (throw (ex-info (str "No query registered for key: " k) {:key k})))
+      (let [qid (util/query-id k params)
+            query (get-in db [:re-frame.query/queries qid])
+            data (:data query)]
+       ;; No-op if: no data yet, no prev cursor, or already fetching
+        (if (and data
+                 (:has-prev? data)
+                 (not (:fetching? query))
+                 (not (:fetching-next? query))
+                 (not (:fetching-prev? query)))
+          (let [prev-cursor (:prev-cursor data)]
+            (merge {:db (update-in db [:re-frame.query/queries qid] merge
+                                   {:fetching-prev? true})}
+                   (build-infinite-fetch-effects
+                    query-config k params prev-cursor
+                    [:re-frame.query/infinite-page-success k params :prepend])))
           {:db db})))))
 
 (rf/reg-event-fx
@@ -331,24 +364,30 @@
           transformed (cond-> page-data (fn? transform-fn) (transform-fn params))
           infinite-cfg (:infinite query-config)
           get-next-cursor (:get-next-cursor infinite-cfg)
+          get-prev-cursor (:get-previous-cursor infinite-cfg)
           next-cursor (get-next-cursor transformed)
+          prev-cursor (when get-prev-cursor (get-prev-cursor transformed))
           max-pages (:max-pages query-config)
           refetch-state (:refetch-state query)
           base-state {:status :success
                       :error nil
                       :fetching? false
                       :fetching-next? false
+                      :fetching-prev? false
                       :fetched-at now
                       :stale? false
                       :tags tags
                       :stale-time-ms (:stale-time-ms query-config)
                       :cache-time-ms (or (:cache-time-ms query-config)
                                          gc/default-cache-time-ms)}
-          make-data (fn [pages page-params]
-                      {:pages pages
-                       :page-params page-params
-                       :has-next? (some? next-cursor)
-                       :next-cursor next-cursor})]
+          make-data (fn [pages page-params & {:keys [next prev]}]
+                      (cond-> {:pages pages
+                               :page-params page-params
+                               :has-next? (some? next)
+                               :next-cursor next}
+                        ;; Only include prev-cursor fields when the query supports it
+                        (some? get-prev-cursor) (assoc :has-prev? (some? prev)
+                                                       :prev-cursor prev)))]
       (cond
        ;; --- Sequential re-fetch mode ---
        ;; Pages accumulate in refetch-state, not in :data (atomic swap)
@@ -361,12 +400,17 @@
               done? (or (>= pages-fetched target)
                         (nil? next-cursor))
               [final-pages final-params] (apply-max-pages
-                                          (vec acc-pages) (vec acc-params) max-pages)]
+                                          (vec acc-pages) (vec acc-params) max-pages)
+              ;; Capture prev-cursor from the first refetched page
+              first-page-prev (or (:first-page-prev-cursor refetch-state)
+                                  (when (= 1 pages-fetched) prev-cursor))]
           (if done?
            ;; All pages re-fetched — atomic swap into :data
             {:db (update-in db [:re-frame.query/queries qid] merge
                             (assoc base-state
-                                   :data (make-data final-pages final-params)
+                                   :data (make-data final-pages final-params
+                                                    :next next-cursor
+                                                    :prev first-page-prev)
                                    :refetch-state nil))}
            ;; More pages needed — continue the chain
             (merge
@@ -374,7 +418,8 @@
                              {:refetch-state (assoc refetch-state
                                                     :pages acc-pages
                                                     :page-params acc-params
-                                                    :current-cursor next-cursor)})}
+                                                    :current-cursor next-cursor
+                                                    :first-page-prev-cursor first-page-prev)})}
              (build-infinite-fetch-effects
               query-config k params next-cursor
               [:re-frame.query/infinite-page-success k params nil]))))
@@ -389,14 +434,33 @@
                                           (vec new-pages) (vec new-params) max-pages)]
           {:db (update-in db [:re-frame.query/queries qid] merge
                           (assoc base-state
-                                 :data (make-data final-pages final-params)))})
+                                 :data (make-data final-pages final-params
+                                                  :next next-cursor
+                                                  ;; Keep old prev-cursor (from first page)
+                                                  :prev (:prev-cursor old-data))))})
+
+       ;; --- Prepend mode (fetch-previous-page) ---
+        (= mode :prepend)
+        (let [old-data (:data query)
+              new-pages (into [transformed] (:pages old-data))
+              new-params (into [(:prev-cursor old-data)] (:page-params old-data))
+              [final-pages final-params] (apply-max-pages
+                                          (vec new-pages) (vec new-params) max-pages :backward)]
+          {:db (update-in db [:re-frame.query/queries qid] merge
+                          (assoc base-state
+                                 :data (make-data final-pages final-params
+                                                  ;; Keep old next-cursor (from last page)
+                                                  :next (:next-cursor old-data)
+                                                  :prev prev-cursor)))})
 
        ;; --- Initial first page load ---
         :else
         {:db (update-in db [:re-frame.query/queries qid] merge
                         (assoc base-state
                                :data (make-data [transformed]
-                                                [(:initial-cursor infinite-cfg)])))}))))
+                                                [(:initial-cursor infinite-cfg)]
+                                                :next next-cursor
+                                                :prev prev-cursor)))}))))
 
 (rf/reg-event-db
   :re-frame.query/infinite-page-failure
@@ -410,6 +474,7 @@
                   :error (cond-> error (fn? transform-fn) (transform-fn params))
                   :fetching? false
                   :fetching-next? false
+                  :fetching-prev? false
                   :refetch-state nil}))))
 
 ;; Modified refetch-query for infinite queries — starts sequential re-fetch
@@ -432,7 +497,8 @@
                           :refetch-state {:target-page-count page-count
                                           :pages []
                                           :page-params []
-                                          :current-cursor initial-cursor}})}
+                                          :current-cursor initial-cursor
+                                          :first-page-prev-cursor nil}})}
          (build-infinite-fetch-effects
           query-config k params initial-cursor
           [:re-frame.query/infinite-page-success k params nil]))
@@ -443,6 +509,7 @@
                           :data empty-infinite-data
                           :fetching? true
                           :fetching-next? false
+                          :fetching-prev? false
                           :stale? false})}
          (build-infinite-fetch-effects
           query-config k params initial-cursor

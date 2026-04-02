@@ -36,10 +36,11 @@
 
 (def ^:private idle-infinite-state
   {:status :idle
-   :data {:pages [] :page-params [] :has-next? false}
+   :data {:pages [] :page-params [] :has-next? false :has-prev? false}
    :error nil
    :fetching? false
    :fetching-next? false
+   :fetching-prev? false
    :stale? true})
 
 (defn- resolve-query

@@ -45,8 +45,7 @@
       (is (= :loading (:status query)))
       (is (true? (:fetching? query)))
       (is (false? (:fetching-next? query)))
-      (is (= {:pages [] :page-params [] :has-next? false}
-             (:data query)))))
+      (is (= {:pages [] :page-params [] :has-next? false :has-prev? false} (:data query)))))
 
   (testing "keeps :success status when stale data exists (background refetch)"
     (reg-infinite-feed! {:stale-time-ms 1000})
@@ -343,3 +342,153 @@
       (h/process-event [:re-frame.query/remove-query qid])
       (is (nil? (get-in (h/app-db) [:re-frame.query/queries qid]))
           "infinite query removed by GC"))))
+
+;; ---------------------------------------------------------------------------
+;; Bidirectional helpers
+;; ---------------------------------------------------------------------------
+
+(defn reg-bidirectional-feed!
+  "Helper: register an infinite feed with both next and previous cursors."
+  ([] (reg-bidirectional-feed! {}))
+  ([extra-config]
+   (rfq/set-default-effect-fn! h/noop-effect-fn)
+   (rfq/reg-query :feed/items
+     (merge
+      {:query-fn (fn [{:keys [cursor]}]
+                   {:method :get :url (str "/api/feed?cursor=" (or cursor ""))})
+       :infinite {:initial-cursor nil
+                  :get-next-cursor (fn [resp] (:next_cursor resp))
+                  :get-previous-cursor (fn [resp] (:prev_cursor resp))}
+       :tags (constantly [[:feed]])}
+      extra-config))))
+
+;; ---------------------------------------------------------------------------
+;; fetch-previous-page tests
+;; ---------------------------------------------------------------------------
+
+(deftest fetch-previous-page-basic-test
+  (testing "prepends page and updates prev-cursor"
+    (reg-bidirectional-feed!)
+    ;; Initial page has both cursors
+    (h/process-event [:re-frame.query/infinite-page-success :feed/items {} nil
+                      {:items [{:id 5}] :next_cursor "next-5" :prev_cursor "prev-5"}])
+    (let [qid (util/query-id :feed/items {})
+          data-before (get-in (h/app-db) [:re-frame.query/queries qid :data])]
+      (is (= "prev-5" (:prev-cursor data-before)))
+      (is (true? (:has-prev? data-before)))
+      (is (= "next-5" (:next-cursor data-before)))
+      ;; Fetch previous page
+      (h/process-event [:re-frame.query/fetch-previous-page :feed/items {}])
+      (is (true? (get-in (h/app-db) [:re-frame.query/queries qid :fetching-prev?]))
+          "fetching-prev? is true while loading")
+      ;; Previous page arrives
+      (h/process-event [:re-frame.query/infinite-page-success :feed/items {} :prepend
+                        {:items [{:id 2}] :next_cursor "next-2" :prev_cursor "prev-2"}])
+      (let [data (get-in (h/app-db) [:re-frame.query/queries qid :data])]
+        (is (= 2 (count (:pages data)))
+            "now has 2 pages")
+        (is (= [{:id 2}] (:items (first (:pages data))))
+            "new page is prepended at the front")
+        (is (= [{:id 5}] (:items (second (:pages data))))
+            "old page is at the back")
+        (is (= "prev-2" (:prev-cursor data))
+            "prev-cursor updated from new page")
+        (is (= "next-5" (:next-cursor data))
+            "next-cursor preserved from old last page")
+        (is (false? (get-in (h/app-db) [:re-frame.query/queries qid :fetching-prev?]))
+            "fetching-prev? cleared after success")))))
+
+(deftest fetch-previous-page-noop-when-no-prev-cursor-test
+  (testing "no-op when has-prev? is false"
+    (reg-bidirectional-feed!)
+    ;; Initial page with no prev cursor
+    (h/process-event [:re-frame.query/infinite-page-success :feed/items {} nil
+                      {:items [{:id 1}] :next_cursor "abc" :prev_cursor nil}])
+    (let [qid (util/query-id :feed/items {})
+          query-before (get-in (h/app-db) [:re-frame.query/queries qid])]
+      (is (false? (:has-prev? (:data query-before))))
+      (h/process-event [:re-frame.query/fetch-previous-page :feed/items {}])
+      (is (= query-before (get-in (h/app-db) [:re-frame.query/queries qid]))
+          "state unchanged — no fetch triggered"))))
+
+(deftest fetch-previous-page-noop-during-active-fetch-test
+  (testing "no-op when already fetching"
+    (reg-bidirectional-feed!)
+    (h/process-event [:re-frame.query/infinite-page-success :feed/items {} nil
+                      {:items [{:id 1}] :next_cursor "abc" :prev_cursor "prev-1"}])
+    ;; Start fetching prev
+    (h/process-event [:re-frame.query/fetch-previous-page :feed/items {}])
+    (let [qid (util/query-id :feed/items {})
+          query-during (get-in (h/app-db) [:re-frame.query/queries qid])]
+      (is (true? (:fetching-prev? query-during)))
+      ;; Second fetch-previous-page should be a no-op
+      (h/process-event [:re-frame.query/fetch-previous-page :feed/items {}])
+      (is (= query-during (get-in (h/app-db) [:re-frame.query/queries qid]))
+          "no change during active prev fetch"))))
+
+(deftest fetch-previous-page-with-max-pages-test
+  (testing "prepend with max-pages trims from the end"
+    (reg-bidirectional-feed! {:max-pages 2})
+    ;; Load 2 pages forward
+    (h/process-event [:re-frame.query/infinite-page-success :feed/items {} nil
+                      {:items [{:id 10}] :next_cursor "n10" :prev_cursor "p10"}])
+    (h/process-event [:re-frame.query/infinite-page-success :feed/items {} :append
+                      {:items [{:id 20}] :next_cursor "n20" :prev_cursor "p20"}])
+    (let [qid (util/query-id :feed/items {})]
+      (is (= 2 (count (get-in (h/app-db) [:re-frame.query/queries qid :data :pages]))))
+      ;; Now prepend — exceeds max-pages, should trim from end
+      (h/process-event [:re-frame.query/fetch-previous-page :feed/items {}])
+      (h/process-event [:re-frame.query/infinite-page-success :feed/items {} :prepend
+                        {:items [{:id 5}] :next_cursor "n5" :prev_cursor "p5"}])
+      (let [data (get-in (h/app-db) [:re-frame.query/queries qid :data])]
+        (is (= 2 (count (:pages data)))
+            "still 2 pages after trim")
+        (is (= [{:id 5}] (:items (first (:pages data))))
+            "prepended page is first")
+        (is (= [{:id 10}] (:items (second (:pages data))))
+            "second page preserved, third trimmed")
+        (is (= "p5" (:prev-cursor data))
+            "prev-cursor from new first page")
+        (is (true? (:has-next? data))
+            "has-next? still true — old next-cursor preserved from last page before trim")))))
+
+(deftest bidirectional-flow-test
+  (testing "initial load → fetch next → fetch prev"
+    (reg-bidirectional-feed!)
+    ;; Initial page
+    (h/process-event [:re-frame.query/infinite-page-success :feed/items {} nil
+                      {:items [{:id 5}] :next_cursor "n5" :prev_cursor "p5"}])
+    ;; Fetch next
+    (h/process-event [:re-frame.query/fetch-next-page :feed/items {}])
+    (h/process-event [:re-frame.query/infinite-page-success :feed/items {} :append
+                      {:items [{:id 10}] :next_cursor "n10" :prev_cursor "p10"}])
+    (let [qid (util/query-id :feed/items {})
+          data (get-in (h/app-db) [:re-frame.query/queries qid :data])]
+      (is (= 2 (count (:pages data))))
+      (is (= "n10" (:next-cursor data))
+          "next-cursor updated from appended page")
+      (is (= "p5" (:prev-cursor data))
+          "prev-cursor preserved from first page"))
+    ;; Now fetch prev
+    (h/process-event [:re-frame.query/fetch-previous-page :feed/items {}])
+    (h/process-event [:re-frame.query/infinite-page-success :feed/items {} :prepend
+                      {:items [{:id 2}] :next_cursor "n2" :prev_cursor "p2"}])
+    (let [qid (util/query-id :feed/items {})
+          data (get-in (h/app-db) [:re-frame.query/queries qid :data])]
+      (is (= 3 (count (:pages data))))
+      (is (= "n10" (:next-cursor data))
+          "next-cursor still from last page")
+      (is (= "p2" (:prev-cursor data))
+          "prev-cursor updated from new first page"))))
+
+(deftest queries-without-get-previous-cursor-unchanged-test
+  (testing "queries without get-previous-cursor have no prev fields in data"
+    (reg-infinite-feed!)
+    (h/process-event [:re-frame.query/infinite-page-success :feed/items {} nil
+                      {:items [{:id 1}] :next_cursor "abc"}])
+    (let [qid (util/query-id :feed/items {})
+          data (get-in (h/app-db) [:re-frame.query/queries qid :data])]
+      (is (not (contains? data :has-prev?))
+          "no has-prev? key when get-previous-cursor not configured")
+      (is (not (contains? data :prev-cursor))
+          "no prev-cursor key when get-previous-cursor not configured"))))
