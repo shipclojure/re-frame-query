@@ -2,6 +2,7 @@
   "Re-frame event handlers for query and mutation lifecycle."
   (:require
    [re-frame.core :as rf]
+   [re-frame.query.db :as qdb]
    [re-frame.query.gc :as gc]
    [re-frame.query.polling :as polling]
    [re-frame.query.registry :as registry]
@@ -179,16 +180,7 @@
 (rf/reg-event-db
   :re-frame.query/set-query-data
   (fn [db [_ k params data]]
-    (let [qid (util/query-id k params)
-          now (util/now-ms)]
-      (update-in db [:re-frame.query/queries qid]
-                 util/merge-with-default
-                 {:status :success
-                  :data data
-                  :error nil
-                  :fetching? false
-                  :stale? false
-                  :fetched-at now}))))
+    (qdb/set-query-data db k params data)))
 
 ;; ---------------------------------------------------------------------------
 ;; Invalidation
@@ -543,28 +535,9 @@
 (rf/reg-event-db
   :re-frame.query/remove-query
   (fn [db [_ qid]]
-    (let [query (get-in db [:re-frame.query/queries qid])]
-      (if (and query (not (:active? query)))
-       ;; Query is still inactive — safe to remove
-        (update db :re-frame.query/queries dissoc qid)
-       ;; Query became active again — leave it alone (timer was a no-op)
-        db))))
+    (qdb/remove-query db qid)))
 
 (rf/reg-event-db
   :re-frame.query/garbage-collect
   (fn [db [_ now]]
-    (let [now (or now (util/now-ms))]
-      (update db :re-frame.query/queries
-              (fn [queries]
-                (reduce-kv
-                 (fn [acc qid q]
-                   (let [cache-ms (:cache-time-ms q)
-                         fetched (:fetched-at q 0)
-                         expired? (and cache-ms
-                                       fetched
-                                       (> (- now fetched) cache-ms))]
-                     (if (and expired? (not (:active? q)))
-                       acc
-                       (assoc acc qid q))))
-                 {}
-                 queries))))))
+    (qdb/garbage-collect db now)))

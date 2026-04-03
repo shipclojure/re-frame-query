@@ -173,6 +173,16 @@
 ;; Direct Cache Manipulation
 ;; ---------------------------------------------------------------------------
 
+;; For inline db operations inside your own event handlers (optimistic
+;; updates, cache seeding, manual GC), require re-frame.query.db directly:
+;;
+;;   (ns my-app.events
+;;     (:require [re-frame.query.db :as rfq-db]))
+;;
+;;   (rfq-db/get-query-data db k params)
+;;   (rfq-db/set-query-data db k params data)
+;;   (rfq-db/get-query     db k params)
+
 (defn set-query-data
   "Directly set the cached data for a query without fetching.
 

@@ -4,6 +4,21 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.4.0] - 2026-04-03
+
+### Added
+
+- **`re-frame.query.db` namespace** — new namespace of pure `db → db` functions for reading and transforming the query cache inline inside your own event handlers, without dispatching extra events. Import as `[re-frame.query.db :as rfq-db]`.
+  - `get-query [db k params]` — full cache entry
+  - `get-query-data [db k params]` — just `:data`
+  - `set-query-data [db k params data]` — write to cache (`:success`, fresh)
+  - `remove-query [db qid]` — evict one inactive query
+  - `garbage-collect [db]` / `[db now]` — bulk eviction of expired inactive queries
+
+### Changed
+
+- **Event handlers delegate to `re-frame.query.db`** — the `set-query-data`, `remove-query`, and `garbage-collect` event handlers now call the pure db functions directly, eliminating duplicated logic.
+
 ## [0.3.1] - 2026-04-03
 
 ### Changed
