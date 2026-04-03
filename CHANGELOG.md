@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.3.1] - 2026-04-03
+
+### Changed
+
+- **`enable-debug-logging!` accepts options map** — pass `{:clj->js? false}` to skip `clj->js` conversion and log raw ClojureScript values instead. Useful when Chrome custom formatters (e.g. cljs-devtools) are enabled. Default behaviour (`clj->js? true`) is unchanged.
+
 ## [0.3.0] - 2026-04-02
 
 ### Fixed

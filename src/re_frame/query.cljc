@@ -262,18 +262,31 @@
   "Install a global interceptor that logs all :re-frame.query/* events to the
   browser console. Call once at app startup (dev only).
 
-  Example:
-    (when ^boolean goog.DEBUG (rfq/enable-debug-logging!))"
-  []
-  (rf/reg-global-interceptor
-   (rf/->interceptor
-    :id :re-frame.query/debug-log
-    :before (fn [context]
-              (let [[event-id & args] (get-in context [:coeffects :event])]
-                (when (and (keyword? event-id)
-                           (= "re-frame.query" (namespace event-id)))
-                  (let [label (str "📦 " event-id)]
-                    #?(:cljs (js/console.log label (clj->js (vec args)))
-                       :clj (println label (vec args))))))
-              context)))
-  nil)
+  Options (optional map):
+    :clj->js? — When true (default), converts args via clj->js before logging.
+                 Set to false when using Chrome custom formatters (e.g. cljs-devtools),
+                 which render ClojureScript data structures natively.
+
+  Examples:
+    ;; Default — args converted to plain JS objects
+    (when ^boolean goog.DEBUG (rfq/enable-debug-logging!))
+
+    ;; With Chrome custom formatters — args logged as ClojureScript values
+    (when ^boolean goog.DEBUG (rfq/enable-debug-logging! {:clj->js? false}))"
+  ([] (enable-debug-logging! {}))
+  ([{:keys [clj->js?] :or {clj->js? true}}]
+   (rf/reg-global-interceptor
+    (rf/->interceptor
+     :id :re-frame.query/debug-log
+     :before (fn [context]
+               (let [[event-id & args] (get-in context [:coeffects :event])]
+                 (when (and (keyword? event-id)
+                            (= "re-frame.query" (namespace event-id)))
+                   (let [label (str "📦 " event-id)
+                         argv  (vec args)]
+                     #?(:cljs (if clj->js?
+                                (js/console.log label (clj->js argv))
+                                (js/console.log label argv))
+                        :clj (println label argv)))))
+               context)))
+   nil))
