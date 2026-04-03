@@ -5,7 +5,7 @@
    [deps-deploy.deps-deploy :as dd]))
 
 (def lib 'com.shipclojure/re-frame-query)
-(def version "0.3.1")
+(def version "0.4.0")
 (def class-dir "target/classes")
 (def jar-file (format "target/%s-%s.jar" lib version))
 
