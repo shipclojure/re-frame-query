@@ -146,7 +146,7 @@ Two full example apps with 8 tabs each (Basic CRUD, Polling, Dependent Queries, 
 | Reagent | Reagent + re-frame | 8710 | `examples/reagent-app/` |
 | UIx | UIx v2 + re-frame | 8720 | `examples/uix-app/` |
 
-Both use [MSW (Mock Service Worker)](https://mswjs.io/) to intercept fetch requests with an in-memory API.
+Both use [MSW (Mock Service Worker)](https://mswjs.io/) to intercept fetch requests with an in-memory API so you can see the queries in the network tab.
 
 ```bash
 cd examples/reagent-app   # or examples/uix-app
