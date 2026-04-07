@@ -41,6 +41,28 @@ Override or set the interval for a specific subscriber via the opts map:
 ;; When Component B unmounts → interval reverts to 5s
 ```
 
+## In-flight deduplication (default)
+
+By default, if a query is already fetching when a poll tick fires, the tick is **skipped**. This prevents stale-response races — if request T0 stalls past the next interval, T1 won't fire a duplicate request that could later overwrite fresher data.
+
+```clojure
+;; Default behavior — no config needed, ticks are skipped while fetching
+(rfq/reg-query :metrics/live
+  {:query-fn            (fn [_] {:method :get :url "/api/metrics"})
+   :polling-interval-ms 2000})
+```
+
+To opt out and fire every tick regardless of in-flight status (matches TanStack Query behavior), set `:polling-mode :force`:
+
+```clojure
+(rfq/reg-query :metrics/live
+  {:query-fn            (fn [_] {:method :get :url "/api/metrics"})
+   :polling-interval-ms 2000
+   :polling-mode        :force}) ;; fire even if prior request is in-flight
+```
+
+> **Note:** Manual `refetch-query` calls are always unconditional — `:polling-mode` only affects automatic poll ticks.
+
 ## Stopping polling
 
 Polling stops automatically when all subscribers with a polling interval unmount. No manual cleanup needed.

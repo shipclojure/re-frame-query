@@ -120,7 +120,7 @@
           "subscription-level override wins (lowest interval)"))))
 
 (deftest polling-dispatches-refetch-async
-  (testing "Polling timer dispatches refetch-query on each tick"
+  (testing "Polling timer dispatches poll-refetch on each tick"
     (rf-test/run-test-async
      (let [call-count (atom 0)]
        (rf/reg-fx :test-http (fn [_] (swap! call-count inc)))
@@ -136,8 +136,8 @@
         ;; Start polling at 100ms via subscriber API
        (let [qid (util/query-id :books/list {})]
          (polling/add-subscriber! qid :sub-1 :books/list {} 100)
-          ;; Wait for the first refetch-query to fire
-         (rf-test/wait-for [:re-frame.query/refetch-query]
+          ;; Wait for the first poll-refetch to fire
+         (rf-test/wait-for [:re-frame.query/poll-refetch]
                            (is (>= @call-count 1)
                                "at least one refetch effect fired from polling")
                             ;; Clean up
@@ -295,7 +295,87 @@
         ;; Subscribe without skip — fetch fires
        (let [sub (rf/subscribe [:re-frame.query/query :books/detail {:id 2}])]
          @sub
-         (is (= 1 @call-count) "fetch fires when skip is removed"))))))
+         (is (= 1 @call-count)
+             "fetch fires when skip is removed"))))))
+
+;; ---------------------------------------------------------------------------
+;; skip-polling-if-fetching? tests
+;; ---------------------------------------------------------------------------
+
+(deftest poll-refetch-skips-when-fetching-by-default
+  (testing "poll-refetch is a no-op when query is already fetching (default)"
+    (let [call-count (atom 0)]
+      (rf/reg-fx :test-http (fn [_] (swap! call-count inc)))
+      (rfq/set-default-effect-fn!
+       (fn [request on-success on-failure]
+         {:test-http (assoc request :on-success on-success :on-failure on-failure)}))
+      (rfq/reg-query :books/list
+        {:query-fn (fn [_] {:method :get :url "/api/books"})})
+      ;; Populate with data and simulate an in-flight fetch
+      (h/process-event [:re-frame.query/query-success :books/list {} [{:id 1}]])
+      (swap! rf-db/app-db assoc-in
+             [:re-frame.query/queries (util/query-id :books/list {}) :fetching?] true)
+      (reset! call-count 0)
+      ;; poll-refetch should be a no-op since fetching? is true
+      (h/process-event [:re-frame.query/poll-refetch :books/list {}])
+      (is (zero? @call-count)
+          "no HTTP call — poll tick skipped while fetching"))))
+
+(deftest poll-refetch-fires-when-force-mode
+  (testing "poll-refetch fires even when fetching if :polling-mode :force"
+    (let [call-count (atom 0)]
+      (rf/reg-fx :test-http (fn [_] (swap! call-count inc)))
+      (rfq/set-default-effect-fn!
+       (fn [request on-success on-failure]
+         {:test-http (assoc request :on-success on-success :on-failure on-failure)}))
+      (rfq/reg-query :books/list
+        {:query-fn (fn [_] {:method :get :url "/api/books"})
+         :polling-mode :force})
+      ;; Populate with data and simulate an in-flight fetch
+      (h/process-event [:re-frame.query/query-success :books/list {} [{:id 1}]])
+      (swap! rf-db/app-db assoc-in
+             [:re-frame.query/queries (util/query-id :books/list {}) :fetching?] true)
+      (reset! call-count 0)
+      ;; poll-refetch should still fire — opted out of skip
+      (h/process-event [:re-frame.query/poll-refetch :books/list {}])
+      (is (= 1 @call-count)
+          "HTTP call fired — polling-mode :force overrides skip"))))
+
+(deftest poll-refetch-fires-when-not-fetching
+  (testing "poll-refetch fires normally when no request is in-flight"
+    (let [call-count (atom 0)]
+      (rf/reg-fx :test-http (fn [_] (swap! call-count inc)))
+      (rfq/set-default-effect-fn!
+       (fn [request on-success on-failure]
+         {:test-http (assoc request :on-success on-success :on-failure on-failure)}))
+      (rfq/reg-query :books/list
+        {:query-fn (fn [_] {:method :get :url "/api/books"})})
+      ;; Populate with data, not fetching
+      (h/process-event [:re-frame.query/query-success :books/list {} [{:id 1}]])
+      (reset! call-count 0)
+      ;; poll-refetch should fire — nothing in-flight
+      (h/process-event [:re-frame.query/poll-refetch :books/list {}])
+      (is (= 1 @call-count)
+          "HTTP call fired — no in-flight request"))))
+
+(deftest manual-refetch-ignores-skip-polling-if-fetching
+  (testing "manual refetch-query always fires regardless of fetching? and config"
+    (let [call-count (atom 0)]
+      (rf/reg-fx :test-http (fn [_] (swap! call-count inc)))
+      (rfq/set-default-effect-fn!
+       (fn [request on-success on-failure]
+         {:test-http (assoc request :on-success on-success :on-failure on-failure)}))
+      (rfq/reg-query :books/list
+        {:query-fn (fn [_] {:method :get :url "/api/books"})})
+      ;; Populate with data and simulate an in-flight fetch
+      (h/process-event [:re-frame.query/query-success :books/list {} [{:id 1}]])
+      (swap! rf-db/app-db assoc-in
+             [:re-frame.query/queries (util/query-id :books/list {}) :fetching?] true)
+      (reset! call-count 0)
+      ;; Manual refetch-query should fire unconditionally
+      (h/process-event [:re-frame.query/refetch-query :books/list {}])
+      (is (= 1 @call-count)
+          "manual refetch-query fires even when fetching"))))
 
 (deftest dependent-query-pattern
   (testing "Query B skips until query A has data, then fetches with A's result"

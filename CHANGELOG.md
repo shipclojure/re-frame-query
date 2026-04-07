@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.5.0] - 2026-04-07
+
+### Fixed
+
+- **Polling no longer fires duplicate requests when a fetch is in-flight** — polling now dispatches `::rfq/poll-refetch` instead of `::rfq/refetch-query`. By default, if a query is already fetching when a poll tick fires, the tick is skipped — preventing stale-response races where a late T0 response overwrites a fresher T1 response. Set `:polling-mode :force` on the query config to restore the old behavior (fire regardless). Manual `refetch-query` calls remain unconditional.
+
+
 ## [0.4.0] - 2026-04-03
 
 ### Added
@@ -14,6 +21,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   - `set-query-data [db k params data]` — write to cache (`:success`, fresh)
   - `remove-query [db qid]` — evict one inactive query
   - `garbage-collect [db]` / `[db now]` — bulk eviction of expired inactive queries
+
 
 ### Changed
 

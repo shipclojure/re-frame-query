@@ -45,20 +45,38 @@
                  (build-query-effects query-config k params)))
         {:db db}))))
 
+(defn- refetch-effects
+  "Build the effects map for refetching a query. Shared by refetch-query
+   and poll-refetch."
+  [db query-config k params]
+  (let [qid (util/query-id k params)
+        query (get-in db [:re-frame.query/queries qid])
+        refreshing? (and (= :success (:status query))
+                         (some? (:data query)))]
+    (merge {:db (update-in db [:re-frame.query/queries qid] merge
+                           {:status (if refreshing? :success :loading)
+                            :fetching? true
+                            :stale? false})}
+           (build-query-effects query-config k params))))
+
 (rf/reg-event-fx
   :re-frame.query/refetch-query
+  (fn [{:keys [db]} [_ k params]]
+    (let [query-config (or (registry/get-query k)
+                           (throw (ex-info (str "No query registered for key: " k) {:key k})))]
+      (refetch-effects db query-config k params))))
+
+(rf/reg-event-fx
+  :re-frame.query/poll-refetch
   (fn [{:keys [db]} [_ k params]]
     (let [query-config (or (registry/get-query k)
                            (throw (ex-info (str "No query registered for key: " k) {:key k})))
           qid (util/query-id k params)
           query (get-in db [:re-frame.query/queries qid])
-          refreshing? (and (= :success (:status query))
-                           (some? (:data query)))]
-      (merge {:db (update-in db [:re-frame.query/queries qid] merge
-                             {:status (if refreshing? :success :loading)
-                              :fetching? true
-                              :stale? false})}
-             (build-query-effects query-config k params)))))
+          force? (= :force (:polling-mode query-config))]
+      (if (and (not force?) (:fetching? query))
+        {:db db}
+        (refetch-effects db query-config k params)))))
 
 (rf/reg-event-db
   :re-frame.query/query-success

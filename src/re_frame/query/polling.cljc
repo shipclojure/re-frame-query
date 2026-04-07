@@ -72,7 +72,7 @@
     (if target-ms
       ;; Start a new timer at the effective interval
       (let [new-handle (set-interval
-                        (fn [] (rf/dispatch [:re-frame.query/refetch-query k params]))
+                        (fn [] (rf/dispatch [:re-frame.query/poll-refetch k params]))
                         target-ms)]
         (swap! poll-state assoc-in [query-id :handle] new-handle))
       ;; No positive intervals → stop polling, clean up entry
