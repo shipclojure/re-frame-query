@@ -12,12 +12,38 @@ Set a default polling interval when registering the query:
    :polling-interval-ms 5000}) ;; every 5 seconds
 ```
 
-Every subscription to `:stocks/prices` will poll at 5s automatically:
+### With effectful subscriptions
+
+The `::rfq/query` subscription handles the full lifecycle — fetching, active tracking, polling start/stop — automatically:
 
 ```clojure
 ;; Starts polling at 5s — no extra config needed
 @(rf/subscribe [::rfq/query :stocks/prices {}])
 ```
+
+### With passive subscriptions and manual lifecycle
+
+If you prefer explicit control (e.g. route-based lifecycle), use `::rfq/query-state` for reading and manage lifecycle with events. The effectful `::rfq/query` subscription can still be used solely for its polling side effects:
+
+```clojure
+;; On route enter — start fetching and mark active
+(rf/dispatch [::rfq/ensure-query :stocks/prices {}])
+(rf/dispatch [::rfq/mark-active :stocks/prices {}])
+
+;; In a view — read with a passive sub (no side effects)
+(let [{:keys [status data fetching?]}
+      @(rf/subscribe [::rfq/query-state :stocks/prices {}])]
+  ...)
+
+;; To also get polling, subscribe with the effectful sub somewhere
+;; (e.g. in the root component for this route):
+@(rf/subscribe [::rfq/query :stocks/prices {}])
+
+;; On route leave
+(rf/dispatch [::rfq/mark-inactive :stocks/prices {}])
+```
+
+> **Tip:** Polling lifecycle (start/stop) is tied to the `::rfq/query` subscription mount/unmount. If you only use passive subscriptions with manual events, polling won't start automatically. Mount one effectful `::rfq/query` subscription per polling query to drive the timer.
 
 ## Per-subscription polling
 
@@ -66,3 +92,7 @@ To opt out and fire every tick regardless of in-flight status (matches TanStack 
 ## Stopping polling
 
 Polling stops automatically when all subscribers with a polling interval unmount. No manual cleanup needed.
+
+## Limitations
+
+Polling is currently only supported for standard queries (`::rfq/query`). [Infinite queries](infinite-queries.md) do not support automatic polling. If you have a use case for polling infinite queries, please [open an issue](https://github.com/shipclojure/re-frame-query/issues/new).
