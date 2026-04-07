@@ -1,5 +1,5 @@
 (ns example.uix-app.http-fx
-  "Registers an :http re-frame effect handler that uses js/fetch.
+  "Registers an :http-xhrio re-frame effect handler that uses js/fetch.
    Sends/receives JSON and dispatches re-frame events on success/failure.
 
    Supports request cancellation via :abort-key — each request stores
@@ -27,7 +27,7 @@
 ;; ---------------------------------------------------------------------------
 
 (rf/reg-fx
-  :http
+  :http-xhrio
   (fn [{:keys [method url body on-success on-failure abort-key]}]
     (let [controller (js/AbortController.)
           signal (.-signal controller)]

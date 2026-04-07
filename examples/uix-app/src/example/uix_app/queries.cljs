@@ -12,7 +12,7 @@
 
 (defn- ws-effect-fn
   "Effect adapter for WebSocket queries/mutations.
-   Uses :ws-send effect instead of :http."
+   Uses :ws-send effect instead of :http-xhrio."
   [request on-success on-failure]
   {:ws-send (assoc request :on-success on-success :on-failure on-failure)})
 
@@ -23,7 +23,7 @@
 (rfq/init!
  {:default-effect-fn
   (fn [request on-success on-failure]
-    {:http (assoc request :on-success on-success :on-failure on-failure)})
+    {:http-xhrio (assoc request :on-success on-success :on-failure on-failure)})
 
   :queries
   {;; Basic CRUD

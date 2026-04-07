@@ -6,7 +6,7 @@
 ;; Declarative (one-shot)
 (rfq/init!
   {:default-effect-fn (fn [request on-success on-failure]
-                        {:http (assoc request :on-success on-success :on-failure on-failure)})
+                        {:http-xhrio (assoc request :on-success on-success :on-failure on-failure)})
    :queries    {k query-config ...}
    :mutations  {k mutation-config ...}})
 

@@ -1,6 +1,6 @@
 (ns example.reagent-app.queries
   "Query and mutation registrations for the demo book app.
-   Uses :http effect (js/fetch) — requests are intercepted by MSW."
+   Uses :http-xhrio effect (js/fetch) — requests are intercepted by MSW."
   (:require
    [re-frame.query :as rfq]))
 
@@ -10,7 +10,7 @@
 
 (rfq/set-default-effect-fn!
  (fn [request on-success on-failure]
-   {:http (assoc request :on-success on-success :on-failure on-failure)}))
+   {:http-xhrio (assoc request :on-success on-success :on-failure on-failure)}))
 
 ;; ---------------------------------------------------------------------------
 ;; Queries — Basic CRUD
@@ -122,7 +122,7 @@
 
 (defn- ws-effect-fn
   "Effect adapter for WebSocket queries/mutations.
-   Uses :ws-send effect instead of :http."
+   Uses :ws-send effect instead of :http-xhrio."
   [request on-success on-failure]
   {:ws-send (assoc request :on-success on-success :on-failure on-failure)})
 

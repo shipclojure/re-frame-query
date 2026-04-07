@@ -56,7 +56,7 @@ TanStack Query solves the optimistic update race with `cancelQueries`, which abo
 ;; 1. Store AbortControllers per query in your transport layer
 (defonce abort-controllers (atom {}))
 
-(rf/reg-fx :http
+(rf/reg-fx :http-xhrio
   (fn [{:keys [method url body on-success on-failure abort-key]}]
     (let [controller (js/AbortController.)
           signal     (.-signal controller)]

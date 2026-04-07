@@ -19,7 +19,7 @@ re-frame-query is a TanStack Query / RTK Query inspired library for re-frame. Al
 ;; 1. Configure effect adapter (once at startup)
 (rfq/set-default-effect-fn!
   (fn [request on-success on-failure]
-    {:http (assoc request :on-success on-success :on-failure on-failure)}))
+    {:http-xhrio (assoc request :on-success on-success :on-failure on-failure)}))
 
 ;; 2. Register queries
 (rfq/reg-query :todos/list
@@ -111,7 +111,7 @@ Hooks are vectors of event vectors. Each hook event gets args conj'd onto it.
 - **Cache key = `[k params]`** — e.g. `[:todos/list {:user-id 42}]`
 - **Tags drive invalidation** — mutations declare `:invalidates`, queries declare `:tags`, matching triggers refetch
 - **GC timers are side-channel** — stored in atoms outside app-db to keep it serializable
-- **Transport-agnostic** — the `effect-fn` bridges to any re-frame effect (`:http`, `:ws-send`, etc.)
+- **Transport-agnostic** — the `effect-fn` bridges to any re-frame effect (`:http-xhrio`, `:ws-send`, etc.)
 - **`transform-response`** — `(fn [data params] -> data')` applied before caching; for infinite queries applied per-page
 
 ## Status Tracking

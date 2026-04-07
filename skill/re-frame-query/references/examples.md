@@ -7,7 +7,7 @@ Two complete example apps in [`examples/`](https://github.com/shipclojure/re-fra
 **HTTP (js/fetch + AbortController):**
 [`examples/reagent-app/src/example/reagent_app/http_fx.cljs`](https://github.com/shipclojure/re-frame-query/blob/main/examples/reagent-app/src/example/reagent_app/http_fx.cljs)
 
-Shows `:http` and `:abort-request` re-frame effects — JSON fetch with abort support for optimistic update cancellation.
+Shows `:http-xhrio` and `:abort-request` re-frame effects — JSON fetch with abort support for optimistic update cancellation.
 
 **WebSocket:**
 [`examples/reagent-app/src/example/reagent_app/ws_fx.cljs`](https://github.com/shipclojure/re-frame-query/blob/main/examples/reagent-app/src/example/reagent_app/ws_fx.cljs)

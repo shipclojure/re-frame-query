@@ -41,7 +41,7 @@ Declarative data fetching and caching for [re-frame](https://github.com/day8/re-
 (rfq/init!
   {:default-effect-fn
    (fn [request on-success on-failure]
-     {:http (assoc request :on-success on-success :on-failure on-failure)})
+     {:http-xhrio (assoc request :on-success on-success :on-failure on-failure)})
 
    :queries
    {:todos/list

@@ -84,7 +84,7 @@
      ($ :p {:style {:color "#666" :margin-bottom "1rem"}}
         "This demo uses a " ($ :strong "mock WebSocket") " transport instead of HTTP. "
         "Each query registers a per-query " ($ :code ":effect-fn") " that sends messages via "
-        ($ :code ":ws-send") " instead of " ($ :code ":http") ". "
+        ($ :code ":ws-send") " instead of " ($ :code ":http-xhrio") ". "
         "Everything else — caching, invalidation, polling, GC — works identically.")
      ($ notification-list)
      ($ latest-notification)
