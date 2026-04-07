@@ -55,10 +55,22 @@
   [k]
   (get-in @registry [:queries k]))
 
+(defn get-query!
+  "Retrieve a registered query config by key. Throws if not found."
+  [k]
+  (or (get-query k)
+      (throw (ex-info (str "No query registered for key: " k) {:key k}))))
+
 (defn get-mutation
   "Retrieve a registered mutation config by key. Returns nil if not found."
   [k]
   (get-in @registry [:mutations k]))
+
+(defn get-mutation!
+  "Retrieve a registered mutation config by key. Throws if not found."
+  [k]
+  (or (get-mutation k)
+      (throw (ex-info (str "No mutation registered for key: " k) {:key k}))))
 
 (defn set-default-effect-fn!
   "Set the global effect adapter function.

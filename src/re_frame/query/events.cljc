@@ -26,8 +26,7 @@
 (rf/reg-event-fx
   :re-frame.query/ensure-query
   (fn [{:keys [db]} [_ k params]]
-    (let [query-config (or (registry/get-query k)
-                           (throw (ex-info (str "No query registered for key: " k) {:key k})))
+    (let [query-config (registry/get-query! k)
           _ (when (util/infinite-query? query-config)
               (throw (ex-info (str "Query " k " is an infinite query — use :re-frame.query/ensure-infinite-query instead")
                               {:key k})))
@@ -62,15 +61,13 @@
 (rf/reg-event-fx
   :re-frame.query/refetch-query
   (fn [{:keys [db]} [_ k params]]
-    (let [query-config (or (registry/get-query k)
-                           (throw (ex-info (str "No query registered for key: " k) {:key k})))]
+    (let [query-config (registry/get-query! k)]
       (refetch-effects db query-config k params))))
 
 (rf/reg-event-fx
   :re-frame.query/poll-refetch
   (fn [{:keys [db]} [_ k params]]
-    (let [query-config (or (registry/get-query k)
-                           (throw (ex-info (str "No query registered for key: " k) {:key k})))
+    (let [query-config (registry/get-query! k)
           qid (util/query-id k params)
           query (get-in db [:re-frame.query/queries qid])
           force? (= :force (:polling-mode query-config))]
@@ -128,8 +125,7 @@
 (rf/reg-event-fx
   :re-frame.query/execute-mutation
   (fn [{:keys [db]} [_ k params opts]]
-    (let [mutation-config (or (registry/get-mutation k)
-                              (throw (ex-info (str "No mutation registered for key: " k) {:key k})))
+    (let [mutation-config (registry/get-mutation! k)
           mutation-fn (:mutation-fn mutation-config)
           effect-fn (or (:effect-fn mutation-config)
                         (registry/get-default-effect-fn))
