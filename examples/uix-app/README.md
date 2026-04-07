@@ -37,10 +37,11 @@ bridges re-frame subscriptions to React via `useSyncExternalStore`:
 (ns my-app.views
   (:require [uix.core :refer [defui $]]
             [uix.re-frame :as urf]
-            [re-frame.core :as rf]))
+            [re-frame.core :as rf]
+            [re-frame.query :as rfq]))
 
 (defui my-component []
-  (let [query (urf/use-subscribe [:re-frame.query/query :books/list {}])]
+  (let [query (urf/use-subscribe [::rfq/query :books/list {}])]
     (case (:status query)
       :loading ($ :div "Loading…")
       :success ($ :div (pr-str (:data query)))

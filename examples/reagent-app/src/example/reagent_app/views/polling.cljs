@@ -3,14 +3,15 @@
    Demonstrates :polling-interval-ms at query and subscription level,
    multiple subscribers with different intervals, and stopping polling."
   (:require
-   [re-frame.core :as rf]))
+   [re-frame.core :as rf]
+   [re-frame.query :as rfq]))
 
 (defn server-stats-auto
   "Subscribes to :server/stats with the query-level default interval (2s).
    Polling starts automatically when this component mounts."
   []
   (let [{:keys [status data]}
-        @(rf/subscribe [:re-frame.query/query :server/stats {}])]
+        @(rf/subscribe [::rfq/query :server/stats {}])]
     [:div.panel
      [:h3 "📊 Server Stats "
       [:span {:style {:font-size "0.75rem" :color "#999"}}
@@ -33,7 +34,7 @@
    interval becomes 1s (the lowest non-zero)."
   []
   (let [{:keys [status data]}
-        @(rf/subscribe [:re-frame.query/query :server/stats {}
+        @(rf/subscribe [::rfq/query :server/stats {}
                         {:polling-interval-ms 1000}])]
     [:div.panel
      [:h3 "⚡ Fast Stats "

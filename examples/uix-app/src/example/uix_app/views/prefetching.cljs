@@ -18,7 +18,7 @@
 
 (defui book-detail-instant [{:keys [book-id]}]
   (let [{:keys [status data fetching?]}
-        (urf/use-subscribe [:re-frame.query/query :book/detail {:id book-id}])]
+        (urf/use-subscribe [::rfq/query :book/detail {:id book-id}])]
     ($ :div.panel
        ($ :h3 "Book Detail")
        (case status
@@ -39,7 +39,7 @@
 
 (defui book-list-prefetch []
   (let [{:keys [status data]}
-        (urf/use-subscribe [:re-frame.query/query :books/list {}])]
+        (urf/use-subscribe [::rfq/query :books/list {}])]
     ($ :div.panel
        ($ :h3 "📚 Books (hover to prefetch)")
        (case status

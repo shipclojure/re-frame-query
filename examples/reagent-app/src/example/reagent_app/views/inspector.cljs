@@ -2,7 +2,8 @@
   "Live app-db inspector panel showing re-frame-query state."
   (:require
    [cljs.pprint :as pprint]
-   [re-frame.core :as rf]))
+   [re-frame.core :as rf]
+   [re-frame.query :as rfq]))
 
 (defn- pprint-str [x]
   (with-out-str (pprint/pprint x)))
@@ -37,8 +38,8 @@
   "Collapsible panel showing the current re-frame-query state in app-db."
   []
   (let [open? @(rf/subscribe [:ui/get :inspector/open?])
-        queries @(rf/subscribe [:re-frame.query/queries])
-        mutations @(rf/subscribe [:re-frame.query/mutations])]
+        queries @(rf/subscribe [::rfq/queries])
+        mutations @(rf/subscribe [::rfq/mutations])]
     [:div {:style {:margin-top "2rem"}}
      [:button
       {:class "secondary"

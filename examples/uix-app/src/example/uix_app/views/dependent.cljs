@@ -1,17 +1,18 @@
 (ns example.uix-app.views.dependent
   "Dependent queries demo: Query B waits for Query A's data."
   (:require
+   [re-frame.query :as rfq]
    [uix.core :refer [$ defui]]
    [uix.re-frame :as urf]))
 
 (defui user-favorites []
   (let [{user-status :status user-data :data}
-        (urf/use-subscribe [:re-frame.query/query :user/current {}])
+        (urf/use-subscribe [::rfq/query :user/current {}])
 
         user-id (:id user-data)
 
         {favs-status :status favs-data :data}
-        (urf/use-subscribe [:re-frame.query/query :user/favorites {:user-id user-id}
+        (urf/use-subscribe [::rfq/query :user/favorites {:user-id user-id}
                             {:skip? (nil? user-id)}])]
     ($ :div
        ($ :div.panel

@@ -3,6 +3,7 @@
   (:require
    [cljs.pprint :as pprint]
    [re-frame.core :as rf]
+   [re-frame.query :as rfq]
    [uix.core :refer [$ defui]]
    [uix.re-frame :as urf]))
 
@@ -35,8 +36,8 @@
 
 (defui panel []
   (let [open? (urf/use-subscribe [:ui/get :inspector/open?])
-        queries (urf/use-subscribe [:re-frame.query/queries])
-        mutations (urf/use-subscribe [:re-frame.query/mutations])]
+        queries (urf/use-subscribe [::rfq/queries])
+        mutations (urf/use-subscribe [::rfq/mutations])]
     ($ :div {:style {:margin-top "2rem"}}
        ($ :button
           {:class "secondary"

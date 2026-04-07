@@ -49,12 +49,12 @@
   (let [user (or (urf/use-subscribe [:ui/get :infinite/user]) "alex")
         feed-params {:user user}
         {:keys [status data error fetching? fetching-next?]}
-        (urf/use-subscribe [:re-frame.query/infinite-query :feed/items feed-params])
+        (urf/use-subscribe [::rfq/infinite-query :feed/items feed-params])
         {:keys [pages has-next?]} data
         items (mapcat :items pages)
         show-stats (urf/use-subscribe [:ui/get :infinite/show-stats])
         new-title (or (urf/use-subscribe [:ui/get :infinite/new-title]) "")
-        mutation (urf/use-subscribe [:re-frame.query/mutation :feed/add-item {}])]
+        mutation (urf/use-subscribe [::rfq/mutation :feed/add-item {}])]
     ($ :div
        ($ :p {:style {:color "#666" :margin-bottom "1rem"}}
           "Cursor-based infinite feed " ($ :strong "per user") ". "
@@ -76,7 +76,7 @@
              ($ :button.primary
                 {:disabled (or (empty? new-title) (= :loading (:status mutation)))
                  :on-click (fn []
-                             (rf/dispatch [:re-frame.query/execute-mutation
+                             (rf/dispatch [::rfq/execute-mutation
                                            :feed/add-item {:user user :title new-title}])
                              (rf/dispatch [:ui/set :infinite/new-title ""]))}
                 (if (= :loading (:status mutation)) "Adding…" "Add Post"))))

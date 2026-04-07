@@ -3,6 +3,7 @@
    rollback on server failure."
   (:require
    [re-frame.core :as rf]
+   [re-frame.query :as rfq]
    [uix.core :refer [$ defui]]
    [uix.re-frame :as urf]))
 
@@ -13,18 +14,18 @@
 (rf/reg-event-fx :todos/optimistic-toggle
   (fn [{:keys [db]} [_ {:keys [id done]}]]
     (let [qid [:todos/list {}]
-          old (get-in db [:re-frame.query/queries qid :data])
+          old (get-in db [::rfq/queries qid :data])
           new (mapv #(if (= (:id %) id) (assoc % :done done) %) old)]
       {:db (assoc-in db [:snapshots qid] old)
        :abort-request qid
-       :dispatch [:re-frame.query/set-query-data :todos/list {} new]})))
+       :dispatch [::rfq/set-query-data :todos/list {} new]})))
 
 (rf/reg-event-fx :todos/rollback
   (fn [{:keys [db]} [_ _params _error]]
     (let [qid [:todos/list {}]
           old (get-in db [:snapshots qid])]
       {:db (update db :snapshots dissoc qid)
-       :dispatch [:re-frame.query/set-query-data :todos/list {} old]})))
+       :dispatch [::rfq/set-query-data :todos/list {} old]})))
 
 (rf/reg-event-db :todos/clear-snapshot
   (fn [db [_ _params _data]]
@@ -42,7 +43,7 @@
                   :checked done
                   :on-change (fn [_]
                                (rf/dispatch
-                                [:re-frame.query/execute-mutation :todos/toggle
+                                [::rfq/execute-mutation :todos/toggle
                                  {:id id :done (not done) :fail-mode? fail-mode?}
                                  {:on-start [[:todos/optimistic-toggle]]
                                   :on-success [[:todos/clear-snapshot]]
@@ -54,7 +55,7 @@
 
 (defui panel []
   (let [{:keys [status data]}
-        (urf/use-subscribe [:re-frame.query/query :todos/list {}])
+        (urf/use-subscribe [::rfq/query :todos/list {}])
         fail-mode? (urf/use-subscribe [:ui/get :todos/fail-mode?])]
     ($ :div
        ($ :p {:style {:color "#666" :margin-bottom "1rem"}}

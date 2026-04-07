@@ -2,12 +2,13 @@
   "Polling demo: auto-refreshing server stats on an interval."
   (:require
    [re-frame.core :as rf]
+   [re-frame.query :as rfq]
    [uix.core :refer [$ defui]]
    [uix.re-frame :as urf]))
 
 (defui server-stats-auto []
   (let [{:keys [status data]}
-        (urf/use-subscribe [:re-frame.query/query :server/stats {}])]
+        (urf/use-subscribe [::rfq/query :server/stats {}])]
     ($ :div.panel
        ($ :h3 "📊 Server Stats "
           ($ :span {:style {:font-size "0.75rem" :color "#999"}}
@@ -23,7 +24,7 @@
 
 (defui server-stats-fast []
   (let [{:keys [status data]}
-        (urf/use-subscribe [:re-frame.query/query :server/stats {}
+        (urf/use-subscribe [::rfq/query :server/stats {}
                             {:polling-interval-ms 1000}])]
     ($ :div.panel
        ($ :h3 "⚡ Fast Stats "
