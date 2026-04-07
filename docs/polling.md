@@ -1,6 +1,6 @@
 # Polling
 
-Queries can automatically refetch on an interval. Polling is configured via `:polling-interval-ms`, either at the **query level** (default for all subscribers) or at the **subscription level** (per-component override). When multiple subscribers have different intervals, the **lowest non-zero** interval wins.
+Queries can automatically refetch on an interval. Polling is configured via `:polling-interval-ms`, either at the **query level** (default for all subscribers) or at the **subscription/event level** (per-caller override). When multiple subscribers have different intervals, the **lowest non-zero** interval wins.
 
 ## Query-level polling
 
@@ -14,36 +14,54 @@ Set a default polling interval when registering the query:
 
 ### With effectful subscriptions
 
-The `::rfq/query` subscription handles the full lifecycle — fetching, active tracking, polling start/stop — automatically:
+The `::rfq/query` subscription handles the full lifecycle — fetching, active tracking, polling start/stop — automatically. It reads `:polling-interval-ms` from the query config:
 
 ```clojure
 ;; Starts polling at 5s — no extra config needed
 @(rf/subscribe [::rfq/query :stocks/prices {}])
 ```
 
-### With passive subscriptions and manual lifecycle
+### With events and passive subscriptions
 
-If you prefer explicit control (e.g. route-based lifecycle), use `::rfq/query-state` for reading and manage lifecycle with events. The effectful `::rfq/query` subscription can still be used solely for its polling side effects:
+For explicit lifecycle control (e.g. route-based navigation), use events for lifecycle and `::rfq/query-state` for reading. `mark-active` reads `:polling-interval-ms` from its opts map or falls back to the query config:
 
 ```clojure
-;; On route enter — start fetching and mark active
+;; On route enter — start fetching, mark active, and start polling
 (rf/dispatch [::rfq/ensure-query :stocks/prices {}])
-(rf/dispatch [::rfq/mark-active :stocks/prices {}])
+(rf/dispatch [::rfq/mark-active :stocks/prices {}]) ;; reads interval from query config
 
-;; In a view — read with a passive sub (no side effects)
+;; Or override the interval per-caller:
+(rf/dispatch [::rfq/mark-active :stocks/prices {} {:polling-interval-ms 1000}])
+
+;; In views — read with a passive sub (no side effects)
 (let [{:keys [status data fetching?]}
       @(rf/subscribe [::rfq/query-state :stocks/prices {}])]
   ...)
 
-;; To also get polling, subscribe with the effectful sub somewhere
-;; (e.g. in the root component for this route):
-@(rf/subscribe [::rfq/query :stocks/prices {}])
-
-;; On route leave
+;; On route leave — stops polling and schedules GC
 (rf/dispatch [::rfq/mark-inactive :stocks/prices {}])
 ```
 
-> **Tip:** Polling lifecycle (start/stop) is tied to the `::rfq/query` subscription mount/unmount. If you only use passive subscriptions with manual events, polling won't start automatically. Mount one effectful `::rfq/query` subscription per polling query to drive the timer.
+### Subscriber identity (`:sub-id`)
+
+Each polling subscriber is tracked by a `:sub-id`. Effectful subscriptions automatically use a unique ID per component instance. For event-based lifecycle, a `:default` sub-id is used when none is provided — this works well for the common case of one caller per query.
+
+If **multiple callers** manage the same query independently (e.g. a dashboard and a sidebar both polling the same data), pass explicit `:sub-id` values so each caller only removes its own subscriber:
+
+```clojure
+;; Dashboard route
+(rf/dispatch [::rfq/mark-active :stocks/prices {} {:sub-id :dashboard}])
+;; ...later
+(rf/dispatch [::rfq/mark-inactive :stocks/prices {} {:sub-id :dashboard}])
+
+;; Sidebar (different interval, independent lifecycle)
+(rf/dispatch [::rfq/mark-active :stocks/prices {} {:sub-id :sidebar
+                                                    :polling-interval-ms 1000}])
+;; ...later — only removes the sidebar subscriber
+(rf/dispatch [::rfq/mark-inactive :stocks/prices {} {:sub-id :sidebar}])
+```
+
+When multiple subscribers exist for the same query, the **lowest non-zero** interval wins — same as with effectful subscriptions.
 
 ## Per-subscription polling
 
@@ -91,7 +109,11 @@ To opt out and fire every tick regardless of in-flight status (matches TanStack 
 
 ## Stopping polling
 
-Polling stops automatically when all subscribers with a polling interval unmount. No manual cleanup needed.
+Polling stops automatically when:
+- **Effectful subscriptions:** all subscribers with a polling interval unmount
+- **Event-based lifecycle:** `::rfq/mark-inactive` is dispatched
+
+No manual cleanup needed in either case.
 
 ## Limitations
 

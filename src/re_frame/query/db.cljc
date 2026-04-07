@@ -48,11 +48,11 @@
         now (util/now-ms)]
     (update-in db [:re-frame.query/queries qid]
                util/merge-with-default
-               {:status    :success
-                :data      data
-                :error     nil
+               {:status :success
+                :data data
+                :error nil
                 :fetching? false
-                :stale?    false
+                :stale? false
                 :fetched-at now})))
 
 ;; ---------------------------------------------------------------------------
@@ -79,7 +79,7 @@
              (reduce-kv
               (fn [acc qid q]
                 (let [cache-ms (:cache-time-ms q)
-                      fetched  (:fetched-at q 0)
+                      fetched (:fetched-at q 0)
                       expired? (and cache-ms
                                     fetched
                                     (> (- now fetched) cache-ms))]

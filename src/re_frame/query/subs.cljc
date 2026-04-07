@@ -71,13 +71,10 @@
     (let [qid (util/query-id k params)
           skip? (:skip? opts)
           sub-id (gensym "poll-sub-")
-          query-config (registry/get-query k)
-          interval-ms (or (:polling-interval-ms opts)
-                          (:polling-interval-ms query-config))]
+          mark-active-opts (assoc (dissoc opts :skip?) :sub-id sub-id)]
       (when-not skip?
         (rf/dispatch [:re-frame.query/ensure-query k params])
-        (rf/dispatch [:re-frame.query/mark-active k params])
-        (polling/add-subscriber! qid sub-id k params interval-ms))
+        (rf/dispatch [:re-frame.query/mark-active k params mark-active-opts]))
       (let [reaction
             #?(:cljs
                (ratom/make-reaction
@@ -94,8 +91,7 @@
                   reaction
                   (fn []
                     (when-not skip?
-                      (polling/remove-subscriber! qid sub-id)
-                      (rf/dispatch [:re-frame.query/mark-inactive k params])))))
+                      (rf/dispatch [:re-frame.query/mark-inactive k params {:sub-id sub-id}])))))
         reaction))))
 
 ;; ---------------------------------------------------------------------------

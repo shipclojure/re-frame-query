@@ -293,7 +293,7 @@
                  (when (and (keyword? event-id)
                             (= "re-frame.query" (namespace event-id)))
                    (let [label (str "📦 " event-id)
-                         argv  (vec args)]
+                         argv (vec args)]
                      #?(:cljs (if clj->js?
                                 (js/console.log label (clj->js argv))
                                 (js/console.log label argv))

@@ -527,20 +527,33 @@
 
 (rf/reg-event-fx
   :re-frame.query/mark-active
-  (fn [{:keys [db]} [_ k params]]
-    (let [qid (util/query-id k params)]
-      {:db (assoc-in db [:re-frame.query/queries qid :active?] true)
-       :re-frame.query/cancel-gc {:query-id qid}})))
+  (fn [{:keys [db]} [_ k params opts]]
+    (let [qid (util/query-id k params)
+          query-config (registry/get-query k)
+          interval-ms (or (:polling-interval-ms opts)
+                          (:polling-interval-ms query-config))
+          sub-id (or (:sub-id opts) :default)]
+      (cond-> {:db (assoc-in db [:re-frame.query/queries qid :active?] true)
+               :re-frame.query/cancel-gc {:query-id qid}}
+        interval-ms
+        (assoc :re-frame.query/start-poll {:query-id qid
+                                           :sub-id sub-id
+                                           :k k
+                                           :params params
+                                           :interval-ms interval-ms})))))
 
 (rf/reg-event-fx
   :re-frame.query/mark-inactive
-  (fn [{:keys [db]} [_ k params]]
+  (fn [{:keys [db]} [_ k params opts]]
     (let [qid (util/query-id k params)
           query (get-in db [:re-frame.query/queries qid])
-          cache-time (or (:cache-time-ms query) gc/default-cache-time-ms)]
+          cache-time (or (:cache-time-ms query) gc/default-cache-time-ms)
+          sub-id (or (:sub-id opts) :default)]
       {:db (assoc-in db [:re-frame.query/queries qid :active?] false)
        :re-frame.query/schedule-gc {:query-id qid
-                                    :cache-time-ms cache-time}})))
+                                    :cache-time-ms cache-time}
+       :re-frame.query/stop-poll {:query-id qid
+                                  :sub-id sub-id}})))
 
 ;; ---------------------------------------------------------------------------
 ;; Garbage Collection

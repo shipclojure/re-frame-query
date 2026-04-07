@@ -185,9 +185,9 @@
 
   (testing "Subscribing without :polling-interval-ms does not start polling"
     (rf-test/run-test-sync
-     (rfq/reg-query :books/list {:query-fn (fn [_] {})})
-     (let [qid (util/query-id :books/list {})
-           sub (rf/subscribe [:re-frame.query/query :books/list {}])]
+     (rfq/reg-query :books/no-poll {:query-fn (fn [_] {})})
+     (let [qid (util/query-id :books/no-poll {})
+           sub (rf/subscribe [:re-frame.query/query :books/no-poll {}])]
        @sub
        (is (not (contains? (polling/active-polls) qid))
            "no polling without interval")))))
@@ -299,7 +299,91 @@
              "fetch fires when skip is removed"))))))
 
 ;; ---------------------------------------------------------------------------
-;; skip-polling-if-fetching? tests
+;; mark-active / mark-inactive polling tests
+;; ---------------------------------------------------------------------------
+
+(deftest mark-active-inactive-polling-test
+  (testing "reads polling-interval-ms from query config with :default sub-id"
+    (rfq/reg-query :books/list
+      {:query-fn (fn [_] {:method :get :url "/api/books"})
+       :polling-interval-ms 5000})
+    (let [qid (util/query-id :books/list {})]
+      (h/process-event [:re-frame.query/mark-active :books/list {}])
+      (is (contains? (polling/active-polls) qid)
+          "polling started from query config")
+      (is (= 5000 (polling/current-interval qid))
+          "interval matches query config")
+      (h/process-event [:re-frame.query/mark-inactive :books/list {}])))
+
+  (testing "opts override query config interval"
+    (rfq/reg-query :books/list
+      {:query-fn (fn [_] {:method :get :url "/api/books"})
+       :polling-interval-ms 5000})
+    (let [qid (util/query-id :books/list {})]
+      (h/process-event [:re-frame.query/mark-active :books/list {} {:polling-interval-ms 1000}])
+      (is (= 1000 (polling/current-interval qid))
+          "opts override wins over query config")
+      (h/process-event [:re-frame.query/mark-inactive :books/list {}])))
+
+  (testing "mark-inactive stops polling started by mark-active"
+    (rfq/reg-query :books/list
+      {:query-fn (fn [_] {:method :get :url "/api/books"})
+       :polling-interval-ms 3000})
+    (let [qid (util/query-id :books/list {})]
+      (h/process-event [:re-frame.query/mark-active :books/list {}])
+      (is (contains? (polling/active-polls) qid))
+      (h/process-event [:re-frame.query/mark-inactive :books/list {}])
+      (is (not (contains? (polling/active-polls) qid))
+          "polling stopped after mark-inactive")))
+
+  (testing "no polling without interval in config or opts"
+    (rfq/reg-query :books/plain
+      {:query-fn (fn [_] {:method :get :url "/api/books"})})
+    (let [qid (util/query-id :books/plain {})]
+      (h/process-event [:re-frame.query/mark-active :books/plain {}])
+      (is (not (contains? (polling/active-polls) qid))
+          "no polling without interval"))))
+
+(deftest mark-active-inactive-multiple-sub-ids-test
+  (testing "multiple sub-ids contribute to effective interval, lowest wins"
+    (rfq/reg-query :books/list
+      {:query-fn (fn [_] {:method :get :url "/api/books"})})
+    (let [qid (util/query-id :books/list {})]
+      ;; Dashboard polls at 5s
+      (h/process-event [:re-frame.query/mark-active :books/list {}
+                        {:sub-id :dashboard :polling-interval-ms 5000}])
+      (is (= 5000 (polling/current-interval qid)))
+
+      ;; Sidebar polls at 1s — lowest wins
+      (h/process-event [:re-frame.query/mark-active :books/list {}
+                        {:sub-id :sidebar :polling-interval-ms 1000}])
+      (is (= 1000 (polling/current-interval qid))
+          "sidebar's 1s interval wins (lowest non-zero)")
+      (is (= 2 (polling/subscriber-count qid))
+          "two independent subscribers")))
+
+  (testing "removing one sub-id reverts to the other's interval"
+    (rfq/reg-query :books/list
+      {:query-fn (fn [_] {:method :get :url "/api/books"})})
+    (let [qid (util/query-id :books/list {})]
+      (h/process-event [:re-frame.query/mark-active :books/list {}
+                        {:sub-id :dashboard :polling-interval-ms 5000}])
+      (h/process-event [:re-frame.query/mark-active :books/list {}
+                        {:sub-id :sidebar :polling-interval-ms 1000}])
+      ;; Remove sidebar — reverts to dashboard's 5s
+      (h/process-event [:re-frame.query/mark-inactive :books/list {} {:sub-id :sidebar}])
+      (is (= 5000 (polling/current-interval qid))
+          "reverts to dashboard's 5s after sidebar removed")
+      (is (= 1 (polling/subscriber-count qid))
+          "one subscriber remains")
+
+      ;; Remove dashboard — polling stops
+      (h/process-event [:re-frame.query/mark-inactive :books/list {} {:sub-id :dashboard}])
+      (is (not (contains? (polling/active-polls) qid))
+          "polling stopped after all subscribers removed"))))
+
+;; ---------------------------------------------------------------------------
+;; Dedup of polling request tests
 ;; ---------------------------------------------------------------------------
 
 (deftest poll-refetch-skips-when-fetching-by-default
@@ -336,10 +420,10 @@
       (swap! rf-db/app-db assoc-in
              [:re-frame.query/queries (util/query-id :books/list {}) :fetching?] true)
       (reset! call-count 0)
-      ;; poll-refetch should still fire — opted out of skip
+      ;; poll-refetch should still fire — in-flight dedup disabled
       (h/process-event [:re-frame.query/poll-refetch :books/list {}])
       (is (= 1 @call-count)
-          "HTTP call fired — polling-mode :force overrides skip"))))
+          "HTTP call fired — polling-mode :force disables in-flight dedup"))))
 
 (deftest poll-refetch-fires-when-not-fetching
   (testing "poll-refetch fires normally when no request is in-flight"

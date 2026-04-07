@@ -6,10 +6,19 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## Unreleased
 
+### Added
+
+- **Polling via `mark-active` / `mark-inactive` events** — `mark-active` now accepts an opts map with `:polling-interval-ms` (falls back to query config) and `:sub-id` (defaults to `:default`). `mark-inactive` stops the subscriber's poll. This makes event-based lifecycle a first-class citizen for polling — no effectful subscription required.
+- **`get-query!` / `get-mutation!` in registry** — throwing variants of `get-query`/`get-mutation` that raise `ex-info` when the key is not registered, replacing the repeated `(or (get-query k) (throw ...))` pattern.
+
 ### Fixed
 
-- **Polling no longer fires duplicate requests when a fetch is in-flight** — polling now dispatches `::rfq/poll-refetch` instead of `::rfq/refetch-query`. By default, if a query is already fetching when a poll tick fires, the tick is skipped — preventing stale-response races where a late T0 response overwrites a fresher T1 response. Set `:polling-mode :force` on the query config to restore the old behavior (fire regardless). Manual `refetch-query` calls remain unconditional.
+- **Polling no longer fires duplicate requests when a fetch is in-flight** — polling now dispatches `::rfq/poll-refetch` instead of `::rfq/refetch-query`. By default, if a query is already fetching when a poll tick fires, the tick is skipped — preventing stale-response races where a late T0 response overwrites a fresher T1 response. Set `:polling-mode :force` on the query config to restore the old behavior. Manual `refetch-query` calls remain unconditional.
 
+### Changed
+
+- **Polling logic moved from subscriptions to events** — the effectful `::rfq/query` subscription no longer manages polling directly. It passes opts through to `mark-active`/`mark-inactive`, which are now the single authority for polling lifecycle.
+- **Event handlers use `registry/get-query!`** — all event handlers now use the throwing `get-query!` / `get-mutation!` variants, removing duplicated boilerplate.
 
 ## [0.4.0] - 2026-04-03
 
@@ -21,7 +30,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   - `set-query-data [db k params data]` — write to cache (`:success`, fresh)
   - `remove-query [db qid]` — evict one inactive query
   - `garbage-collect [db]` / `[db now]` — bulk eviction of expired inactive queries
-
 
 ### Changed
 
