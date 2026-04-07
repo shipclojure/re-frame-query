@@ -3,7 +3,7 @@
   <modelVersion>4.0.0</modelVersion>
   <groupId>com.shipclojure</groupId>
   <artifactId>re-frame-query</artifactId>
-  <version>0.4.0</version>
+  <version>0.5.0</version>
   <packaging>jar</packaging>
   <name>re-frame-query</name>
   <description>Declarative data fetching and caching for re-frame, inspired by TanStack Query and RTK Query</description>
@@ -23,7 +23,7 @@
     <url>https://github.com/shipclojure/re-frame-query</url>
     <connection>scm:git:git://github.com/shipclojure/re-frame-query.git</connection>
     <developerConnection>scm:git:ssh://git@github.com/shipclojure/re-frame-query.git</developerConnection>
-    <tag>v0.4.0</tag>
+    <tag>v0.5.0</tag>
   </scm>
   <dependencies>
   </dependencies>
