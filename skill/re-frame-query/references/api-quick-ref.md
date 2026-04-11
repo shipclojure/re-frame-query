@@ -25,11 +25,20 @@
 | `:cache-time-ms` | | ms before inactive query GC'd (default 5min) |
 | `:tags` | | `(fn [params] -> [[tag ...] ...])` |
 | `:effect-fn` | | per-query effect adapter (overrides global) |
-| `:polling-interval-ms` | | auto-refetch interval |
+| `:polling-interval-ms` | | auto-refetch interval (not supported for infinite queries) |
+| `:polling-mode` | | `:skip` (default) skips tick if in-flight; `:force` always fires |
 | `:transform-response` | | `(fn [data params] -> data')` |
 | `:transform-error` | | `(fn [error params] -> error')` |
-| `:infinite` | | `{:initial-cursor val :get-next-cursor (fn [resp] -> cursor-or-nil)}` |
+| `:infinite` | | `{:initial-cursor val :get-next-cursor fn}` — see below |
 | `:max-pages` | | sliding window cap for infinite queries |
+
+## Infinite Config Keys (inside `:infinite`)
+
+| Key | Required | Description |
+|---|---|---|
+| `:initial-cursor` | ✅ | Starting cursor value |
+| `:get-next-cursor` | ✅ | `(fn [page-response] -> cursor-or-nil)` |
+| `:get-previous-cursor` | | `(fn [page-response] -> cursor-or-nil)` — enables backward pagination |
 
 ## Mutation Config Keys
 
@@ -44,17 +53,22 @@
 ## Events
 
 ```clojure
-[::rfq/ensure-query k params]           ;; fetch if stale/absent
+[::rfq/ensure-query k params]           ;; fetch if stale/absent (regular queries only)
 [::rfq/refetch-query k params]          ;; force refetch
+[::rfq/mark-active k params]            ;; manual lifecycle
+[::rfq/mark-active k params opts]       ;; opts: {:polling-interval-ms N :sub-id kw}
+[::rfq/mark-inactive k params]          ;; manual lifecycle
+[::rfq/mark-inactive k params opts]     ;; opts: {:sub-id kw}
 [::rfq/execute-mutation k params]       ;; run mutation
-[::rfq/execute-mutation k params opts]  ;; with lifecycle hooks
+[::rfq/execute-mutation k params opts]  ;; opts: {:on-start [...] :on-success [...] :on-failure [...]}
 [::rfq/set-query-data k params data]    ;; direct cache write
-[::rfq/invalidate-tags tags]            ;; invalidate + refetch active
+[::rfq/invalidate-tags tags]            ;; invalidate + refetch only matching active queries
 [::rfq/reset-api-state]                 ;; clear all state + timers
 [::rfq/reset-mutation k params]         ;; clear mutation to idle
+[::rfq/ensure-infinite-query k params]  ;; fetch first page if absent/stale
 [::rfq/fetch-next-page k params]        ;; infinite: append next page
-[::rfq/mark-active k params]            ;; manual lifecycle
-[::rfq/mark-inactive k params]          ;; manual lifecycle
+[::rfq/fetch-previous-page k params]    ;; infinite: prepend previous page (requires :get-previous-cursor)
+[::rfq/refetch-infinite-query k params] ;; infinite: sequential re-fetch from page 1
 ```
 
 ## Subscriptions
@@ -97,8 +111,10 @@
 {:pages       [page1-resp page2-resp ...]
  :page-params [cursor1 cursor2 ...]
  :has-next?   bool
- :next-cursor val}
-;; + :fetching-next? on the query map
+ :has-prev?   bool     ;; present when :get-previous-cursor is configured
+ :next-cursor val
+ :prev-cursor val}
+;; + :fetching-next? / :fetching-prev? on the query map
 ```
 
 ## Mutation Lifecycle Hooks
@@ -107,8 +123,21 @@
 (rf/dispatch [::rfq/execute-mutation :todos/toggle {:id 5 :done true}
               {:on-start   [[:my/on-start-event]]    ;; receives params
                :on-success [[:my/on-success-event]]  ;; receives params, data
-               :on-failure [[:my/on-failure-event]]   ;; receives params, error
+               :on-failure [[:my/on-failure-event]]  ;; receives params, error
                }])
+```
+
+## `re-frame.query.db` — Inline Cache Operations
+
+```clojure
+(require '[re-frame.query.db :as rfq-db])
+
+(rfq-db/get-query      db k params)       ;; full cache entry or nil
+(rfq-db/get-query-data db k params)       ;; :data or nil
+(rfq-db/set-query-data db k params data)  ;; write data, mark :success + fresh
+(rfq-db/remove-query   db qid)            ;; evict inactive query
+(rfq-db/garbage-collect db)               ;; bulk evict all expired inactive queries
+(rfq-db/garbage-collect db now-ms)
 ```
 
 ## app-db Layout
@@ -125,6 +154,7 @@
 | [`src/re_frame/query.cljc`](https://github.com/shipclojure/re-frame-query/blob/main/src/re_frame/query.cljc) | Public API namespace (require this) |
 | [`src/re_frame/query/events.cljc`](https://github.com/shipclojure/re-frame-query/blob/main/src/re_frame/query/events.cljc) | All event handlers |
 | [`src/re_frame/query/subs.cljc`](https://github.com/shipclojure/re-frame-query/blob/main/src/re_frame/query/subs.cljc) | All subscriptions |
+| [`src/re_frame/query/db.cljc`](https://github.com/shipclojure/re-frame-query/blob/main/src/re_frame/query/db.cljc) | Pure db → db cache operations |
 | [`src/re_frame/query/registry.cljc`](https://github.com/shipclojure/re-frame-query/blob/main/src/re_frame/query/registry.cljc) | Query/mutation registration storage |
 | [`src/re_frame/query/gc.cljc`](https://github.com/shipclojure/re-frame-query/blob/main/src/re_frame/query/gc.cljc) | Garbage collection timers |
 | [`src/re_frame/query/polling.cljc`](https://github.com/shipclojure/re-frame-query/blob/main/src/re_frame/query/polling.cljc) | Polling interval management |

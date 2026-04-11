@@ -9,7 +9,9 @@ description: "Develop with re-frame-query: declarative data fetching and caching
 
 re-frame-query is a TanStack Query / RTK Query inspired library for re-frame. All state lives in `app-db` under `:re-frame.query/queries` and `:re-frame.query/mutations`.
 
-**Namespace:** `[re-frame.query :as rfq]`
+**Namespaces:**
+- `[re-frame.query :as rfq]` — public API (events, subs, registration)
+- `[re-frame.query.db :as rfq-db]` — pure `db → db` functions for inline cache operations
 
 **Key pattern:** register a query once with `rfq/reg-query`, then subscribe with `[::rfq/query k params]` — subscribing triggers fetch, caching, refetch, and GC automatically.
 
@@ -54,20 +56,55 @@ Alternative: use `rfq/init!` for one-shot declarative registration of all querie
 ### Passive (no side effects, for manual lifecycle)
 
 ```clojure
-;; Pure read — use with manual ensure-query/mark-active/mark-inactive
+;; Pure read — prefer these when managing lifecycle via navigation hooks
 @(rf/subscribe [::rfq/query-state :todos/list {:user-id 42}])
+@(rf/subscribe [::rfq/infinite-query-state :feed/items {}])
 ```
 
-Use passive subs when managing lifecycle via navigation hooks:
+Use passive subs when managing lifecycle explicitly (e.g. route hooks):
 
 ```clojure
 ;; Route enter
 (rf/dispatch [::rfq/ensure-query :todos/list {:user-id 42}])
 (rf/dispatch [::rfq/mark-active :todos/list {:user-id 42}])
-;; View uses ::rfq/query-state (pure read)
+;; View uses ::rfq/query-state (pure read, same shape)
 ;; Route leave
 (rf/dispatch [::rfq/mark-inactive :todos/list {:user-id 42}])
 ```
+
+## Polling
+
+Polling can be started either via subscription opts or via `mark-active`:
+
+```clojure
+;; Via subscription opts
+@(rf/subscribe [::rfq/query :stats/live {} {:polling-interval-ms 5000}])
+
+;; Via mark-active (event-based lifecycle, no effectful sub needed)
+(rf/dispatch [::rfq/mark-active :stats/live {} {:polling-interval-ms 5000 :sub-id :my-widget}])
+(rf/dispatch [::rfq/mark-inactive :stats/live {} {:sub-id :my-widget}])
+```
+
+Polling skips a tick when a request is already in-flight (prevents stale-response races). Set `:polling-mode :force` on the query config to restore unconditional polling. Infinite queries do not support polling.
+
+## Inline Cache Operations (`re-frame.query.db`)
+
+Use `rfq-db` to read/write the query cache inside your own event handlers without dispatching extra events:
+
+```clojure
+(ns my-app.events
+  (:require [re-frame.query.db :as rfq-db]))
+
+(rf/reg-event-fx ::optimistic-toggle
+  (fn [{:keys [db]} [_ {:keys [id]}]]
+    (let [current (rfq-db/get-query-data db :todos/list {:user-id 1})
+          patched  (map #(if (= (:id %) id) (update % :done not) %) current)]
+      {:db (-> db
+               (assoc-in [:app/snapshot] current)
+               (rfq-db/set-query-data :todos/list {:user-id 1} patched))})))
+```
+
+Functions: `get-query`, `get-query-data`, `set-query-data`, `remove-query`, `garbage-collect`.
 
 ## Infinite Queries
 
@@ -75,25 +112,26 @@ Use passive subs when managing lifecycle via navigation hooks:
 (rfq/reg-query :feed/items
   {:query-fn      (fn [{:keys [cursor]}]
                     {:method :get :url (str "/api/feed?cursor=" (or cursor 0))})
-   :infinite      {:initial-cursor 0
-                   :get-next-cursor (fn [resp] (:next_cursor resp))}
+   :infinite      {:initial-cursor    0
+                   :get-next-cursor     (fn [resp] (:next_cursor resp))
+                   :get-previous-cursor (fn [resp] (:prev_cursor resp))}  ;; optional
    :tags          (constantly [[:feed]])})
 
-;; Subscribe (effectful)
+;; Subscribe
 (let [{:keys [data fetching-next?]} @(rf/subscribe [::rfq/infinite-query :feed/items {}])
-      {:keys [pages has-next?]} data]
-  ;; pages = [page1-resp page2-resp ...]
+      {:keys [pages has-next? has-prev?]} data]
   ...)
 
-;; Load more
+;; Paginate
 (rf/dispatch [::rfq/fetch-next-page :feed/items {}])
+(rf/dispatch [::rfq/fetch-previous-page :feed/items {}])  ;; requires :get-previous-cursor
 ```
 
-On invalidation, all loaded pages are re-fetched sequentially with fresh cursors. Old data preserved until complete (atomic swap).
+On invalidation, all loaded pages are re-fetched sequentially with fresh cursors. Old data preserved until complete (atomic swap). Use `::rfq/ensure-infinite-query` (not `::rfq/ensure-query`) for infinite queries.
 
 ## Optimistic Updates
 
-Use mutation lifecycle hooks + `set-query-data`:
+Use mutation lifecycle hooks + `rfq-db` inside your event handlers:
 
 ```clojure
 (rf/dispatch [::rfq/execute-mutation :todos/toggle {:id 5 :done true}
@@ -109,10 +147,10 @@ Hooks are vectors of event vectors. Each hook event gets args conj'd onto it.
 - **Events are pure data** — never pass functions as event arguments
 - **All state in app-db** — queries under `:re-frame.query/queries`, mutations under `:re-frame.query/mutations`
 - **Cache key = `[k params]`** — e.g. `[:todos/list {:user-id 42}]`
-- **Tags drive invalidation** — mutations declare `:invalidates`, queries declare `:tags`, matching triggers refetch
+- **Tags drive invalidation** — mutations declare `:invalidates`, queries declare `:tags`, only matching queries are refetched
 - **GC timers are side-channel** — stored in atoms outside app-db to keep it serializable
 - **Transport-agnostic** — the `effect-fn` bridges to any re-frame effect (`:http-xhrio`, `:ws-send`, etc.)
-- **`transform-response`** — `(fn [data params] -> data')` applied before caching; for infinite queries applied per-page
+- **`ensure-query` is for regular queries only** — use `ensure-infinite-query` for infinite queries
 
 ## Status Tracking
 
