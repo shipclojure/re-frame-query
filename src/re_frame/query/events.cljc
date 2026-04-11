@@ -390,10 +390,10 @@
                       (cond-> {:pages pages
                                :page-params page-params
                                :has-next? (some? next)
-                               :next-cursor next}
-                        ;; Only include prev-cursor fields when the query supports it
-                        (some? get-prev-cursor) (assoc :has-prev? (some? prev)
-                                                       :prev-cursor prev)))]
+                               :next-cursor next
+                               :has-prev? (some? prev)}
+                        ;; Only include prev-cursor when the query supports it
+                        (some? get-prev-cursor) (assoc :prev-cursor prev)))]
       (cond
        ;; --- Sequential re-fetch mode ---
        ;; Pages accumulate in refetch-state, not in :data (atomic swap)

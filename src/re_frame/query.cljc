@@ -238,6 +238,26 @@
   [k params]
   (rf/dispatch [:re-frame.query/fetch-previous-page k params]))
 
+(defn infinite-query-data
+  "Subscribe to just the `:data` field of an infinite query's passive state.
+
+  Returns `{:pages [...] :page-params [...] :has-next? bool :has-prev? bool}`
+  without triggering a fetch or any lifecycle side effects.
+
+  Components subscribed here only re-render when the pages data changes —
+  not when `:fetching-next?`, `:fetching-prev?`, or `:stale?` toggle.
+  This avoids unnecessary re-renders during stale-while-revalidate background
+  refetches.
+
+  Requires the query lifecycle to be managed separately via
+  `::rfq/ensure-infinite-query` and `::rfq/mark-active` / `::rfq/mark-inactive`,
+  or by having another component subscribed to `::rfq/infinite-query`.
+
+  Example:
+    @(rf/subscribe [::rfq/infinite-query-data :feed/items {:user \"alex\"}])"
+  [k params]
+  (rf/subscribe [:re-frame.query/infinite-query-data k params]))
+
 ;; ---------------------------------------------------------------------------
 ;; Prefetching
 ;; ---------------------------------------------------------------------------

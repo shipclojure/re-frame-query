@@ -171,6 +171,17 @@
     (:error query)))
 
 ;; ---------------------------------------------------------------------------
+;; Derived infinite query subscriptions
+;; ---------------------------------------------------------------------------
+
+(rf/reg-sub
+  :re-frame.query/infinite-query-data
+  (fn [[_ k params] _]
+    (rf/subscribe [:re-frame.query/infinite-query-state k params]))
+  (fn [query _]
+    (:data query)))
+
+;; ---------------------------------------------------------------------------
 ;; Mutation subscriptions
 ;; ---------------------------------------------------------------------------
 

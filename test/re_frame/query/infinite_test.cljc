@@ -482,13 +482,13 @@
           "prev-cursor updated from new first page"))))
 
 (deftest queries-without-get-previous-cursor-unchanged-test
-  (testing "queries without get-previous-cursor have no prev fields in data"
+  (testing "queries without get-previous-cursor have has-prev? false but no prev-cursor"
     (reg-infinite-feed!)
     (h/process-event [:re-frame.query/infinite-page-success :feed/items {} nil
                       {:items [{:id 1}] :next_cursor "abc"}])
     (let [qid (util/query-id :feed/items {})
           data (get-in (h/app-db) [:re-frame.query/queries qid :data])]
-      (is (not (contains? data :has-prev?))
-          "no has-prev? key when get-previous-cursor not configured")
+      (is (false? (:has-prev? data))
+          "has-prev? is always present and false when no previous page exists")
       (is (not (contains? data :prev-cursor))
-          "no prev-cursor key when get-previous-cursor not configured"))))
+          "prev-cursor only present when :get-previous-cursor is configured"))))

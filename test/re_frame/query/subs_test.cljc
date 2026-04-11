@@ -196,3 +196,56 @@
            queries (get (h/app-db) :re-frame.query/queries {})]
        (is (false? sub))
        (is (empty? queries) "no cache entry was created")))))
+
+;; ---------------------------------------------------------------------------
+;; ::rfq/infinite-query-data
+;; ---------------------------------------------------------------------------
+
+(deftest infinite-query-data-returns-data-field-test
+  (testing "returns :data from the infinite query state"
+    (rf-test/run-test-sync
+     (rfq/reg-query :feed/items
+       {:query-fn (fn [_] {:method :get :url "/api/feed"})
+        :infinite {:initial-cursor 0 :get-next-cursor (fn [r] (:next r))}})
+     (rf/dispatch-sync [:re-frame.query/infinite-page-success :feed/items {} nil
+                        {:items [{:id 1}] :next 10}])
+     (let [data @(rf/subscribe [:re-frame.query/infinite-query-data :feed/items {}])]
+       (is (= [{:items [{:id 1}] :next 10}] (:pages data)))
+       (is (true? (:has-next? data)))
+       (is (false? (:has-prev? data))))))
+
+  (testing "returns idle data shape when no pages loaded yet"
+    (rf-test/run-test-sync
+     (rfq/reg-query :feed/items
+       {:query-fn (fn [_] {:method :get :url "/api/feed"})
+        :infinite {:initial-cursor 0 :get-next-cursor (fn [r] (:next r))}})
+     (let [data @(rf/subscribe [:re-frame.query/infinite-query-data :feed/items {}])]
+       ;; idle-infinite-state includes has-prev? false as a default
+       (is (= [] (:pages data)))
+       (is (false? (:has-next? data)))
+       (is (false? (:has-prev? data))))))
+
+  (testing "returns has-prev? when :get-previous-cursor is configured"
+    (rf-test/run-test-sync
+     (rfq/reg-query :feed/items
+       {:query-fn (fn [_] {:method :get :url "/api/feed"})
+        :infinite {:initial-cursor 0
+                   :get-next-cursor (fn [r] (:next r))
+                   :get-previous-cursor (fn [r] (:prev r))}})
+     (rf/dispatch-sync [:re-frame.query/infinite-page-success :feed/items {} nil
+                        {:items [{:id 1}] :next 10 :prev nil}])
+     (let [data @(rf/subscribe [:re-frame.query/infinite-query-data :feed/items {}])]
+       (is (false? (:has-prev? data)))
+       (is (true? (:has-next? data)))))))
+
+(deftest infinite-query-data-does-not-trigger-fetch-test
+  (testing "subscribing does not create a cache entry"
+    (rf-test/run-test-sync
+     (rfq/set-default-effect-fn! h/noop-effect-fn)
+     (rfq/reg-query :feed/items
+       {:query-fn (fn [_] {:method :get :url "/api/feed"})
+        :infinite {:initial-cursor 0 :get-next-cursor (fn [r] (:next r))}})
+     (let [_ @(rf/subscribe [:re-frame.query/infinite-query-data :feed/items {}])
+           queries (get (h/app-db) :re-frame.query/queries {})]
+       (is (empty? queries) "no cache entry was created")))))
+
