@@ -1,8 +1,14 @@
 (ns re-frame.query.subs-test
   (:require
-   [clojure.test :refer [deftest is testing]]
+   [clojure.test :refer [deftest is testing use-fixtures]]
+   [re-frame.core :as rf]
+   [re-frame.query :as rfq]
    [re-frame.query.subs :as subs]
-   [re-frame.query.util :as util]))
+   [re-frame.query.test-helpers :as h]
+   [re-frame.query.util :as util]
+   [day8.re-frame.test :as rf-test]))
+
+(use-fixtures :each {:before h/reset-db! :after h/reset-db!})
 
 ;; ---------------------------------------------------------------------------
 ;; resolve-query tests
@@ -116,3 +122,77 @@
       (is (nil? (:refetch-state result))
           "refetch-state is stripped from the subscription result")
       (is (= :success (:status result))))))
+
+;; ---------------------------------------------------------------------------
+;; Derived subscriptions (query-data, query-status, query-fetching?, query-error)
+;; ---------------------------------------------------------------------------
+;;
+;; These derive from ::rfq/query-state (passive), NOT ::rfq/query (effectful).
+;; Subscribing to them must NOT trigger a fetch or create a cache entry.
+
+(deftest derived-subs-return-correct-fields-test
+  (testing "query-data returns :data field"
+    (rf-test/run-test-sync
+     (rfq/reg-query :books/list {:query-fn (fn [_] {:method :get :url "/api/books"})})
+     (rf/dispatch-sync [:re-frame.query/query-success :books/list {} [{:id 1 :title "Dune"}]])
+     (let [sub @(rf/subscribe [:re-frame.query/query-data :books/list {}])]
+       (is (= [{:id 1 :title "Dune"}] sub)))))
+
+  (testing "query-status returns :status field"
+    (rf-test/run-test-sync
+     (rfq/reg-query :books/list {:query-fn (fn [_] {:method :get :url "/api/books"})})
+     (rf/dispatch-sync [:re-frame.query/query-success :books/list {} [{:id 1}]])
+     (let [sub @(rf/subscribe [:re-frame.query/query-status :books/list {}])]
+       (is (= :success sub)))))
+
+  (testing "query-fetching? returns :fetching? field"
+    (rf-test/run-test-sync
+     (rfq/reg-query :books/list {:query-fn (fn [_] {:method :get :url "/api/books"})})
+     (rf/dispatch-sync [:re-frame.query/query-success :books/list {} []])
+     (let [sub @(rf/subscribe [:re-frame.query/query-fetching? :books/list {}])]
+       (is (false? sub)))))
+
+  (testing "query-error returns :error field"
+    (rf-test/run-test-sync
+     (rfq/reg-query :books/list {:query-fn (fn [_] {:method :get :url "/api/books"})})
+     (rf/dispatch-sync [:re-frame.query/query-failure :books/list {} {:status 500}])
+     (let [sub @(rf/subscribe [:re-frame.query/query-error :books/list {}])]
+       (is (= {:status 500} sub))))))
+
+(deftest derived-subs-do-not-trigger-fetch-test
+  (testing "subscribing to query-data does not create a cache entry or trigger a fetch"
+    (rf-test/run-test-sync
+     (rfq/set-default-effect-fn! h/noop-effect-fn)
+     (rfq/reg-query :books/list {:query-fn (fn [_] {:method :get :url "/api/books"})})
+     ;; Subscribe to derived sub only — no ::rfq/query subscription
+     (let [sub @(rf/subscribe [:re-frame.query/query-data :books/list {}])
+           queries (get (h/app-db) :re-frame.query/queries {})]
+       (is (nil? sub) "returns nil when cache is empty")
+       (is (empty? queries) "no cache entry was created"))))
+
+  (testing "subscribing to query-status returns :idle without fetching"
+    (rf-test/run-test-sync
+     (rfq/set-default-effect-fn! h/noop-effect-fn)
+     (rfq/reg-query :books/list {:query-fn (fn [_] {:method :get :url "/api/books"})})
+     (let [sub @(rf/subscribe [:re-frame.query/query-status :books/list {}])
+           queries (get (h/app-db) :re-frame.query/queries {})]
+       (is (= :idle sub))
+       (is (empty? queries) "no cache entry was created"))))
+
+  (testing "subscribing to query-error returns nil without fetching"
+    (rf-test/run-test-sync
+     (rfq/set-default-effect-fn! h/noop-effect-fn)
+     (rfq/reg-query :books/list {:query-fn (fn [_] {:method :get :url "/api/books"})})
+     (let [sub @(rf/subscribe [:re-frame.query/query-error :books/list {}])
+           queries (get (h/app-db) :re-frame.query/queries {})]
+       (is (nil? sub))
+       (is (empty? queries) "no cache entry was created"))))
+
+  (testing "subscribing to query-fetching? returns false without fetching"
+    (rf-test/run-test-sync
+     (rfq/set-default-effect-fn! h/noop-effect-fn)
+     (rfq/reg-query :books/list {:query-fn (fn [_] {:method :get :url "/api/books"})})
+     (let [sub @(rf/subscribe [:re-frame.query/query-fetching? :books/list {}])
+           queries (get (h/app-db) :re-frame.query/queries {})]
+       (is (false? sub))
+       (is (empty? queries) "no cache entry was created")))))

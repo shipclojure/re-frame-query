@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [Unreleased]
+
+### Fixed
+
+- **Derived subscriptions no longer trigger fetches** ⚠️ **Breaking change** — `::rfq/query-data`, `::rfq/query-status`, `::rfq/query-fetching?`, and `::rfq/query-error` were incorrectly depending on the effectful `::rfq/query` subscription, causing a fetch to be triggered whenever any of them were subscribed to. They now derive from the passive `::rfq/query-state`, matching their documented "no fetch" contract. If you were relying on these subscriptions to trigger fetches, replace them with `::rfq/query` or dispatch `::rfq/ensure-query` explicitly.
+
 ## [0.5.0] - 2026-04-07
 
 ### Added

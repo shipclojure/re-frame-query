@@ -145,28 +145,28 @@
 (rf/reg-sub
   :re-frame.query/query-data
   (fn [[_ k params] _]
-    (rf/subscribe [:re-frame.query/query k params]))
+    (rf/subscribe [:re-frame.query/query-state k params]))
   (fn [query _]
     (:data query)))
 
 (rf/reg-sub
   :re-frame.query/query-status
   (fn [[_ k params] _]
-    (rf/subscribe [:re-frame.query/query k params]))
+    (rf/subscribe [:re-frame.query/query-state k params]))
   (fn [query _]
     (:status query)))
 
 (rf/reg-sub
   :re-frame.query/query-fetching?
   (fn [[_ k params] _]
-    (rf/subscribe [:re-frame.query/query k params]))
+    (rf/subscribe [:re-frame.query/query-state k params]))
   (fn [query _]
     (:fetching? query)))
 
 (rf/reg-sub
   :re-frame.query/query-error
   (fn [[_ k params] _]
-    (rf/subscribe [:re-frame.query/query k params]))
+    (rf/subscribe [:re-frame.query/query-state k params]))
   (fn [query _]
     (:error query)))
 
