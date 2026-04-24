@@ -31,7 +31,7 @@
               (throw (ex-info (str "Query " k " is an infinite query — use :re-frame.query/ensure-infinite-query instead")
                               {:key k})))
           qid (util/query-id k params)
-          query (get-in db [:re-frame.query/queries qid])
+          query (qdb/get-query db qid)
           now (util/now-ms)]
       (if (and (util/stale? query now)
                (not (:fetching? query)))
