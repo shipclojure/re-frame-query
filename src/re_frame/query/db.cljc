@@ -23,8 +23,10 @@
 
 (defn get-query
   "Return the full cache entry map for a query, or nil if not cached."
-  [db k params]
-  (get-in db [:re-frame.query/queries (util/query-id k params)]))
+  ([db qid]
+   (get-in db [:re-frame.query/queries qid]))
+  ([db k params]
+   (get-in db [:re-frame.query/queries (util/query-id k params)])))
 
 (defn get-query-data
   "Return just the :data field of a cached query, or nil if not cached."
