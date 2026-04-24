@@ -4,8 +4,6 @@
    automatically track active queries via the Reagent Reaction lifecycle."
   (:require
    [re-frame.core :as rf]
-   [re-frame.query.polling :as polling]
-   [re-frame.query.registry :as registry]
    [re-frame.query.util :as util]
    #?(:cljs [reagent.ratom :as ratom])))
 
