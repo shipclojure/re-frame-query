@@ -15,10 +15,10 @@ For cursor-based pagination (infinite scroll, "load more"), register a query wit
 
 ## `:infinite` config keys
 
-| Key | Required | Description |
-|---|---|---|
-| `:initial-cursor` | ✅ | Cursor for the first page (e.g., `0`, `nil`, `""`) |
-| `:get-next-cursor` | ✅ | `(fn [page-response] -> cursor-or-nil)` — returns `nil` when there are no more pages |
+| Key                | Required | Description                                                                          |
+|--------------------|----------|--------------------------------------------------------------------------------------|
+| `:initial-cursor`  | ✅       | Cursor for the first page (e.g., `0`, `nil`, `""`)                                   |
+| `:get-next-cursor` | ✅       | `(fn [page-response] -> cursor-or-nil)` — returns `nil` when there are no more pages |
 
 ## Optional: `:max-pages`
 
@@ -40,9 +40,9 @@ Set `:max-pages` on the query config to cap how many pages are kept in memory (s
 
 The subscription returns the same shape as `::rfq/query` with additional infinite-specific fields:
 
-| Key | Description |
-|---|---|
-| `:data` | `{:pages [...] :page-params [...] :has-next? bool :next-cursor val}` |
+| Key               | Description                                                                      |
+|-------------------|----------------------------------------------------------------------------------|
+| `:data`           | `{:pages [...] :page-params [...] :has-next? bool :next-cursor val}`             |
 | `:fetching-next?` | `true` only during a `fetch-next-page` call (not during initial load or refetch) |
 
 Like `::rfq/query`, subscribing triggers the first page fetch and marks the query active. Unsubscribing starts GC.

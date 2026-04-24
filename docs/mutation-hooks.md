@@ -17,6 +17,48 @@ Pass an opts map as the third argument to `execute-mutation` to hook into the mu
 
 Each hook is a vector of event vectors — all events in the vector are dispatched. Hooks are optional; omitting the opts map works exactly as before.
 
+## Hook Handler Signatures
+
+rfq **conj's its own args onto every hook event you register**. This is different from how day8/http-fx and most other re-frame HTTP effects work — those dispatch `(conj on-success-event response)`, appending only the response. rfq appends `params` **and** (for `:on-success`/`:on-failure`) the response or error.
+
+If you pre-bind data in the hook event vector, those values sit *before* rfq's appended args:
+
+```clojure
+;; Dispatch:
+[::rfq/execute-mutation :todos/toggle {:id 5}
+ {:on-success [[:my/hook extra-1 extra-2]]}]
+
+;; Hook handler receives:
+(fn [cofx [_ extra-1 extra-2 mutation-params response]] ...)
+;;               ^^^^^^^ ^^^^^^^  ^^^^^^^^^^^^^^^^  ^^^^^^^^
+;;               your pre-bound args  rfq args
+```
+
+### Signature cheat sheet
+
+```clojure
+;; No pre-bound args
+(rf/reg-event-fx :my/on-success
+  (fn [_ [_ params response]] ...))
+
+(rf/reg-event-fx :my/on-failure
+  (fn [_ [_ params error]] ...))
+
+(rf/reg-event-fx :my/on-start
+  (fn [_ [_ params]] ...))
+
+;; With pre-bound args (e.g. a user-supplied callback fn)
+(rf/dispatch [::rfq/execute-mutation :todos/add {:title "x"}
+              {:on-success [[:my/on-success some-data]]}])
+
+(rf/reg-event-fx :my/on-success
+  (fn [_ [_ some-data params response]] ...))
+```
+
+### Why this design?
+
+Hooks receive `params` so they can operate on the same input the mutation ran with — essential for optimistic-update snapshots keyed by the mutation input, rollback logic, and generic analytics/toast interceptors. Making `params` implicit (always passed) keeps hook events reusable across call sites without threading mutation inputs through the event vector manually.
+
 ## Optimistic Updates Recipe
 
 Use lifecycle hooks + `set-query-data` to build optimistic updates in pure re-frame:

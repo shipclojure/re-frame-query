@@ -129,9 +129,7 @@ Functions: `get-query`, `get-query-data`, `set-query-data`, `remove-query`, `gar
 
 On invalidation, all loaded pages are re-fetched sequentially with fresh cursors. Old data preserved until complete (atomic swap). Use `::rfq/ensure-infinite-query` (not `::rfq/ensure-query`) for infinite queries.
 
-## Optimistic Updates
-
-Use mutation lifecycle hooks + `rfq-db` inside your event handlers:
+## Mutation Lifecycle Hooks
 
 ```clojure
 (rf/dispatch [::rfq/execute-mutation :todos/toggle {:id 5 :done true}
@@ -140,7 +138,34 @@ Use mutation lifecycle hooks + `rfq-db` inside your event handlers:
                :on-failure [[:todos/rollback]]}])        ;; receives params, error
 ```
 
-Hooks are vectors of event vectors. Each hook event gets args conj'd onto it.
+Hooks are vectors of event vectors. Each hook event gets args conj'd onto it — **always** `params`, plus `data` for `:on-success` or `error` for `:on-failure`. Handler signatures:
+
+```clojure
+(fn [_ [_ params]] ...)           ;; :on-start
+(fn [_ [_ params data]] ...)      ;; :on-success
+(fn [_ [_ params error]] ...)     ;; :on-failure
+
+;; With pre-bound args — rfq's args come AFTER yours:
+;; dispatch: {:on-success [[:my/hook pre-1 pre-2]]}
+(fn [_ [_ pre-1 pre-2 params data]] ...)
+```
+
+### ⚠️ Migration pitfall: `:http-xhrio` → rfq
+
+day8/http-fx dispatches `(conj on-success response)` — only the response is appended. rfq dispatches `(conj ev params data)` — **both** params and response are appended. A handler copied verbatim from an http-fx callback will silently bind the rfq mutation-params map to the `response` slot and drop the real response. Symptoms: `(:some-key response)` returns `nil`, downstream `assoc-in` paths collapse to `[... nil ...]`, and `app-db` gets corrupted at an unexpected branch. Always update the signature to include `mutation-params` between any pre-bound args and the response.
+
+See [docs/mutation-hooks.md](../../docs/mutation-hooks.md) for the full pattern with worked examples.
+
+## Optimistic Updates
+
+Use mutation lifecycle hooks + `rfq-db` inside your event handlers:
+
+```clojure
+(rf/dispatch [::rfq/execute-mutation :todos/toggle {:id 5 :done true}
+              {:on-start   [[:todos/optimistic-patch]]
+               :on-success [[:todos/clear-snapshot]]
+               :on-failure [[:todos/rollback]]}])
+```
 
 ## Key Design Rules
 

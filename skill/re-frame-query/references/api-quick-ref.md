@@ -127,6 +127,17 @@
                }])
 ```
 
+Handler signatures — rfq's args are appended **after** any pre-bound args in the hook event vector:
+
+```clojure
+(fn [_ [_ params]] ...)                ;; :on-start
+(fn [_ [_ params data]] ...)           ;; :on-success
+(fn [_ [_ params error]] ...)          ;; :on-failure
+(fn [_ [_ pre-1 pre-2 params data]] ...) ;; if dispatched with [[:hook pre-1 pre-2]]
+```
+
+> ⚠️ **Not the same as day8/http-fx.** http-fx appends only `response` to `:on-success`; rfq appends `params` then `data`. Copy/pasted http-fx success handlers will silently bind the mutation-params map to the `response` slot and drop the real response. See [docs/mutation-hooks.md](https://github.com/shipclojure/re-frame-query/blob/main/docs/mutation-hooks.md) for the full migration checklist.
+
 ## `re-frame.query.db` — Inline Cache Operations
 
 ```clojure
