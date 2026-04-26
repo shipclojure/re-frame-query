@@ -125,7 +125,7 @@ On success, mutations automatically invalidate matching tags — all active quer
 | [Prefetching](docs/prefetching.md) | Pre-populate cache on hover or route transition |
 | [Where Data Lives](docs/app-db.md) | `app-db` layout, inspectability, serialization |
 | [Effect Overrides](docs/effect-overrides.md) | Per-query transport, custom callbacks |
-| [Mutation Hooks](docs/mutation-hooks.md) | Lifecycle hooks, optimistic updates, request cancellation |
+| [Lifecycle Hooks](docs/lifecycle-hooks.md) | Mutation hooks, optimistic updates, request cancellation, query observability via interceptors |
 | [Infinite Queries](docs/infinite-queries.md) | Cursor-based pagination, sequential re-fetch, sliding window |
 
 ## How It Works

@@ -1,4 +1,11 @@
-# Mutation Lifecycle Hooks
+# Lifecycle Hooks
+
+re-frame-query exposes lifecycle information differently for mutations and queries:
+
+- **Mutations** support explicit per-call hooks (`:on-start`, `:on-success`, `:on-failure`) passed in the opts map to `execute-mutation`. They're scoped to a single action and commonly power optimistic updates.
+- **Queries** are observed via **re-frame global interceptors** on the library's lifecycle events. This matches the fact that query fetches can originate from many places (subscriptions, navigation events, polling, tag invalidation, prefetches) — a per-call hook would silently miss most of them.
+
+## Mutation Lifecycle Hooks
 
 Pass an opts map as the third argument to `execute-mutation` to hook into the mutation lifecycle:
 
@@ -17,7 +24,7 @@ Pass an opts map as the third argument to `execute-mutation` to hook into the mu
 
 Each hook is a vector of event vectors — all events in the vector are dispatched. Hooks are optional; omitting the opts map works exactly as before.
 
-## Hook Handler Signatures
+### Hook Handler Signatures
 
 rfq **conj's its own args onto every hook event you register**. This is different from how day8/http-fx and most other re-frame HTTP effects work — those dispatch `(conj on-success-event response)`, appending only the response. rfq appends `params` **and** (for `:on-success`/`:on-failure`) the response or error.
 
@@ -137,3 +144,96 @@ TanStack Query solves the optimistic update race with `cancelQueries`, which abo
 ```
 
 The aborted fetch silently drops (no `on-failure` dispatch), the optimistic data stays intact, and the mutation's `:invalidates` triggers a correct refetch when the server responds.
+
+## Observing Query Lifecycle
+
+Queries don't have per-call `:on-start`/`:on-success`/`:on-failure` hooks. The reason is that a single query key can be fetched from many entry points in the same session — `ensure-query`, `refetch-query`, polling ticks, tag invalidations, prefetches, or the `::rfq/query` subscription — and most of those paths have no natural place to carry caller-supplied opts. Baking hooks into only some of them would be a footgun.
+
+Instead, observe the library's **lifecycle events** with a re-frame global interceptor. The events are stable and part of the public surface:
+
+| Event | Carries | When |
+|---|---|---|
+| `[:re-frame.query/ensure-query k params]` | `k`, `params` | A fetch is about to start (not fired on cache hits) |
+| `[:re-frame.query/refetch-query k params]` | `k`, `params` | A forced refetch is starting |
+| `[:re-frame.query/query-success k params data]` | `k`, `params`, post-`:transform-response` data | Success, after `:db` commit |
+| `[:re-frame.query/query-failure k params error]` | `k`, `params`, post-`:transform-error` error | Failure, after `:db` commit |
+
+Because these fire regardless of which entry point triggered the fetch, a single interceptor will reliably observe *every* lifecycle transition for the queries you care about.
+
+### Global interceptor (all queries)
+
+Use `rfq/parse-result-event` to extract the event into a map, and
+`re-frame.interceptor/update-effect` to enqueue dispatches via `:fx` —
+keeping the interceptor a pure `context -> context` function:
+
+```clojure
+(require '[re-frame.interceptor :as rfi])
+
+(rf/reg-global-interceptor
+  (rf/->interceptor
+    :id :my-app/query-telemetry
+    :after
+    (fn [context]
+      (let [{:keys [event-id k params data error]}
+            (rfq/parse-result-event (get-in context [:coeffects :event]))]
+        (case event-id
+          :re-frame.query/query-success
+          (rfi/update-effect context :fx (fnil conj [])
+                             [:dispatch [:analytics/query-succeeded k params]])
+
+          :re-frame.query/query-failure
+          (rfi/update-effect context :fx (fnil conj [])
+                             [:dispatch [:analytics/query-failed k params error]])
+
+          context)))))
+```
+
+The `:after` hook runs after the handler commits, so for `query-success` / `query-failure` the fresh data is already in `app-db` — any event you enqueue via `:fx` will see the updated state.
+
+### Route-scoped interceptors
+
+Interceptors don't have to live forever. Register on route enter, clear on route leave — the interceptor only sees events dispatched while it's installed, so there's no global pollution.
+
+Do the registration and clearing in the route-enter/leave **functions** themselves (e.g. reitit's `:controllers` `:start`/`:stop`, or whatever your router calls before dispatching its enter/leave events). re-frame events should remain pure data; `reg-global-interceptor` and `clear-global-interceptor` are side effects, so they don't belong inside an event handler.
+
+```clojure
+(require '[re-frame.interceptor :as rfi])
+
+(defn books-route-enter []
+  (rf/reg-global-interceptor
+    (rf/->interceptor
+      :id :books/page-telemetry       ;; unique id used to uninstall later
+      :after
+      (fn [context]
+        (let [{:keys [event-id k]}
+              (rfq/parse-result-event (get-in context [:coeffects :event]))]
+          (if (and (= k :books/list)
+                   (#{:re-frame.query/query-success
+                      :re-frame.query/query-failure} event-id))
+            (rfi/update-effect context :fx (fnil conj [])
+                               [:dispatch [:analytics/books-event event-id]])
+            context)))))
+  (rf/dispatch [::rfq/ensure-query :books/list {:page 1}]))
+
+(defn books-route-leave []
+  (rf/clear-global-interceptor :books/page-telemetry)
+  (rf/dispatch [::rfq/mark-inactive :books/list {:page 1}]))
+
+;; Wire into your router. With reitit:
+;; {:name :books
+;;  :controllers [{:start books-route-enter
+;;                 :stop  books-route-leave}]}
+```
+
+Pair this with [polling's route enter/leave pattern](polling.md) — the two use the same lifecycle, so a single pair of route hooks can wire both fetching and observability.
+
+### When you'd use this
+
+- **Analytics / tracing** for query completion times across the app.
+- **Toast-on-failure** policies that apply to a whole route or section.
+- **Post-success cache syncing** — e.g. when `:books/list` succeeds, patch a derived `:books/count` query.
+- **Debug logging** in development (this is exactly what [`rfq/enable-debug-logging!`](../src/re_frame/query.cljc) does — a global interceptor on all `:re-frame.query/*` events).
+
+### What about before the fetch ("on-start")?
+
+The `ensure-query` / `refetch-query` events themselves fire before the HTTP effect does. An `:after` interceptor on those sees the event *after* the `:db` update that marked the query `:loading`/`:fetching? true`, which is the natural "start" signal. If you need strict before-effect timing (rare), a `:before` interceptor sees the event even earlier — but in practice, `:loading` being in `app-db` is the observable contract most consumers want.

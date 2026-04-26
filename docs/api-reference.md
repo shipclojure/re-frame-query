@@ -60,7 +60,7 @@ With `(:require [re-frame.query :as rfq])`, use `::rfq/` shorthand:
 | `[::rfq/ensure-query k params]` | Fetch if stale/absent (called automatically by subscription; can also used for prefetching) |
 | `[::rfq/refetch-query k params]` | Force refetch regardless of staleness |
 | `[::rfq/execute-mutation k params]` | Execute a mutation |
-| `[::rfq/execute-mutation k params opts]` | Execute with [lifecycle hooks](mutation-hooks.md) |
+| `[::rfq/execute-mutation k params opts]` | Execute with [lifecycle hooks](lifecycle-hooks.md) |
 | `[::rfq/set-query-data k params data]` | Directly set cached query data (for optimistic updates, rollback) |
 | `[::rfq/invalidate-tags tags]` | Mark matching queries stale & refetch active ones |
 | `[::rfq/remove-query qid]` | Remove a specific query from cache (used internally by GC) |
@@ -104,3 +104,19 @@ With `(:require [re-frame.query :as rfq])`, use `::rfq/` shorthand:
  :stale-time-ms <ms>
  :cache-time-ms <ms>}
 ```
+
+## Event Introspection
+
+| Function | Description |
+|---|---|
+| `rfq/parse-result-event` | `(rfq/parse-result-event event-vec)` — parses one of the four query result events (`::rfq/query-success`, `::rfq/query-failure`, `::rfq/infinite-page-success`, `::rfq/infinite-page-failure`) into a map. Returns `nil` for any other event. Use inside global interceptors so you don't have to positionally destructure rfq event vectors. See [Lifecycle Hooks](lifecycle-hooks.md#observing-query-lifecycle). |
+
+Returned map shapes:
+
+| Event | Map |
+|---|---|
+| `[::rfq/query-success k params data]` | `{:event-id :k :params :data}` |
+| `[::rfq/query-failure k params error]` | `{:event-id :k :params :error}` |
+| `[::rfq/infinite-page-success k params mode page-data]` | `{:event-id :k :params :mode :data}` (`:mode` is `nil` \| `:append` \| `:prepend`) |
+| `[::rfq/infinite-page-failure k params error]` | `{:event-id :k :params :error}` |
+| anything else | `nil` |
