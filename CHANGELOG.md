@@ -4,15 +4,17 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
-## [Unreleased]
+## [0.8.0] - 2026-04-26
 
 ### Added
 
 - **`rfq/parse-result-event`** — utility that turns one of the four query result event vectors (`::rfq/query-success`, `::rfq/query-failure`, `::rfq/infinite-page-success`, `::rfq/infinite-page-failure`) into a map `{:event-id :k :params (:data | :error) [:mode]}`. Returns `nil` for any other event vector. Centralizes the rfq event-shape so users can implement future proof (non breaking change) interceptors of the lifecycle events. This is a band aid on the fact that these events should've been dispatched with map based args from the start (Oops).
+- **`db/get-query`** — now has multi-arity support. `(get-query db qid)` called directly with the query-id & `(get-query db k params)` where qid is built inside
 
 ### Docs
 
 - **Renamed `docs/mutation-hooks.md` → `docs/lifecycle-hooks.md`** and added a "Observing Query Lifecycle" section documenting the `reg-global-interceptor` pattern for query telemetry, analytics, and route-scoped side effects. Mutation hook content is unchanged. References in `README.md`, `docs/api-reference.md`, and the skill docs updated.
+- **Updated ai skill** with the latest changes and patterns
 
 ## [0.7.0] - 2026-04-11
 
