@@ -55,3 +55,43 @@
   "Returns true if the query config has an :infinite key."
   [query-config]
   (boolean (:infinite query-config)))
+
+(defn parse-result-event
+  "Parses one of the four rfq query result events into a map, hiding the
+   positional event-vector shape from callers (interceptors, telemetry, etc.).
+
+   Recognized events and the maps they produce:
+     [:re-frame.query/query-success         k params data]
+       => {:event-id ... :k ... :params ... :data data}
+
+     [:re-frame.query/query-failure         k params error]
+       => {:event-id ... :k ... :params ... :error error}
+
+     [:re-frame.query/infinite-page-success k params mode page-data]
+       => {:event-id ... :k ... :params ... :mode mode :data page-data}
+          (mode is nil | :append | :prepend)
+
+     [:re-frame.query/infinite-page-failure k params error]
+       => {:event-id ... :k ... :params ... :error error}
+
+   Returns nil for any other event vector — callers can branch on truthiness."
+  [event]
+  (let [[event-id k params a b] event
+        rfq-result-event? (#{:re-frame.query/query-success
+                             :re-frame.query/query-failure
+                             :re-frame.query/infinite-page-success
+                             :re-frame.query/infinite-page-failure}
+                           event-id)]
+    (when rfq-result-event?
+      (cond-> {:event-id event-id :k k :params params}
+        (= event-id :re-frame.query/query-success)
+        (assoc :data a)
+
+        (= event-id :re-frame.query/query-failure)
+        (assoc :error a)
+
+        (= event-id :re-frame.query/infinite-page-success)
+        (assoc :mode a :data b)
+
+        (= event-id :re-frame.query/infinite-page-failure)
+        (assoc :error a)))))

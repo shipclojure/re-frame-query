@@ -30,7 +30,8 @@
    [re-frame.query.polling]
    ;; Functional requires
    [re-frame.query.registry :as registry]
-   [re-frame.query.subs]))
+   [re-frame.query.subs]
+   [re-frame.query.util :as util]))
 
 ;; ---------------------------------------------------------------------------
 ;; Public Registration API
@@ -283,6 +284,37 @@
     @(rf/subscribe [::rfq/query :book/detail {:id 42}])"
   [k params]
   (rf/dispatch [:re-frame.query/ensure-query k params]))
+
+;; ---------------------------------------------------------------------------
+;; Event Introspection
+;; ---------------------------------------------------------------------------
+
+(def parse-result-event
+  "Parse one of the four rfq query result events into a map, hiding the
+  positional event-vector shape from interceptors and telemetry code.
+
+  Returns `{:event-id :k :params <:data or :error> [:mode]}` or `nil` for
+  unrecognized events. The event kind is identified by `:event-id`; `:mode`
+  is only present for infinite-page-success events (`nil`, `:append`, or
+  `:prepend`).
+
+  Example — route-scoped telemetry interceptor:
+
+    (require '[re-frame.interceptor :as rfi])
+
+    (rf/->interceptor
+      :id :books/page-telemetry
+      :after
+      (fn [context]
+        (let [{:keys [event-id k data error]}
+              (rfq/parse-result-event
+                (get-in context [:coeffects :event]))]
+          (if (= k :books/list)
+            (rfi/update-effect context :fx (fnil conj [])
+                               [:dispatch [:analytics/books-result
+                                           event-id (or data error)]])
+            context))))"
+  util/parse-result-event)
 
 ;; ---------------------------------------------------------------------------
 ;; Debug Logging
