@@ -10,6 +10,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 - **`set-query-data` now marks the entry stale and preserves `:fetching?`** ⚠️ **Behavior change** — `::rfq/set-query-data` and `rfq-db/set-query-data` now write `:stale? true` (was `:stale? false`). Cache writes from your code are by definition unverified — the next `ensure-query` (or any active subscriber) will background-refetch to confirm. If a request is already in flight when `set-query-data` is called, `:fetching?` is preserved as `true` (was unconditionally cleared) so subscribers don't see a momentary "not fetching" lie. This makes the placeholder-data pattern work out of the box (see [issue #1](https://github.com/shipclojure/re-frame-query/issues/1)): seed `:todo/get` from `:todo/list` on route enter, dispatch `ensure-query`, and the user sees instant data while the real fetch runs in the background. Optimistic-update flows are unaffected in practice — the in-flight `:fetching?` guard dedupes requests, and the mutation's `:invalidates` triggers the same refetch you'd want anyway.
 
+### Docs
+
+- **New [`docs/placeholder-data.md`](docs/placeholder-data.md)** — documents seeding the cache from existing client data on route enter, the behavior contract of `set-query-data`, and how the pattern relates to prefetching and optimistic updates.
+
 ## [0.8.0] - 2026-04-26
 
 ### Added
