@@ -74,3 +74,62 @@
   (testing "nil tags"
     (is (false? (util/tag-match? nil [[:todos :all]])))
     (is (false? (util/tag-match? #{[:todos :all]} nil)))))
+
+(deftest parse-result-event-test
+  (testing "query-success"
+    (is (= {:event-id :re-frame.query/query-success
+            :k :todos/list
+            :params {:user-id 42}
+            :data [{:id 1}]}
+           (util/parse-result-event
+            [:re-frame.query/query-success :todos/list {:user-id 42} [{:id 1}]]))))
+
+  (testing "query-failure"
+    (is (= {:event-id :re-frame.query/query-failure
+            :k :todos/list
+            :params {:user-id 42}
+            :error {:status 500}}
+           (util/parse-result-event
+            [:re-frame.query/query-failure :todos/list {:user-id 42} {:status 500}]))))
+
+  (testing "infinite-page-success — initial page (mode = nil)"
+    (is (= {:event-id :re-frame.query/infinite-page-success
+            :k :feed/items
+            :params {}
+            :mode nil
+            :data {:items [1 2] :next 1}}
+           (util/parse-result-event
+            [:re-frame.query/infinite-page-success :feed/items {} nil
+             {:items [1 2] :next 1}]))))
+
+  (testing "infinite-page-success — :append"
+    (is (= {:event-id :re-frame.query/infinite-page-success
+            :k :feed/items
+            :params {}
+            :mode :append
+            :data {:items [3 4] :next 2}}
+           (util/parse-result-event
+            [:re-frame.query/infinite-page-success :feed/items {} :append
+             {:items [3 4] :next 2}]))))
+
+  (testing "infinite-page-success — :prepend"
+    (is (= :prepend
+           (:mode (util/parse-result-event
+                   [:re-frame.query/infinite-page-success :feed/items {} :prepend
+                    {:items [-1 0] :prev nil}])))))
+
+  (testing "infinite-page-failure"
+    (is (= {:event-id :re-frame.query/infinite-page-failure
+            :k :feed/items
+            :params {}
+            :error {:status 503}}
+           (util/parse-result-event
+            [:re-frame.query/infinite-page-failure :feed/items {} {:status 503}]))))
+
+  (testing "unrecognized event returns nil"
+    (is (nil? (util/parse-result-event
+               [:re-frame.query/ensure-query :todos/list {}])))
+    (is (nil? (util/parse-result-event
+               [:my.app/some-event :foo :bar])))
+    (is (nil? (util/parse-result-event [])))
+    (is (nil? (util/parse-result-event nil)))))
