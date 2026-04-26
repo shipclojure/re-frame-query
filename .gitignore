@@ -24,3 +24,4 @@ Thumbs.db
 .clj-kondo/.cache/
 .clj-kondo/imports/
 /test-results/
+.agent-shell/
