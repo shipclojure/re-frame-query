@@ -188,14 +188,18 @@
   "Directly set the cached data for a query without fetching.
 
   Dispatches `::rfq/set-query-data` which replaces the `:data` field in the
-  query cache entry and sets `:status` to `:success`. Creates the entry if
-  it doesn't exist.
+  query cache entry, sets `:status` to `:success`, and marks the entry
+  **stale** — the data has not been verified by the server, so the next
+  `ensure-query` (or any active subscriber) will background-refetch.
+  Creates the entry if it doesn't exist.
 
   Use cases:
-    - Optimistic updates (patch cache before mutation completes)
-    - Rollback (restore snapshot on mutation failure)
-    - Seeding cache from another query's response
-    - Manually populating cache from external data
+    - Placeholder data (seed `:todo/get` from `:todo/list` on route enter
+      so the user sees something instantly while the real fetch runs).
+    - Optimistic updates (patch cache before mutation completes — the
+      mutation's `:invalidates` triggers the refetch that confirms it).
+    - Rollback (restore snapshot on mutation failure).
+    - Manually populating cache from external data.
 
   Example:
     ;; Optimistically mark a todo as done

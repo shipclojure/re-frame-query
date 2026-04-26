@@ -1217,4 +1217,24 @@
       ;; Rollback
       (h/process-event [:re-frame.query/set-query-data :books/list {} snapshot])
       (is (= [{:id 1}] (get-in (h/app-db) [:re-frame.query/queries qid :data]))
-          "data rolled back to snapshot"))))
+          "data rolled back to snapshot")))
+
+  (testing "marks the entry stale so the next ensure-query background-refetches"
+    (rfq/reg-query :books/list {:query-fn (fn [_] {})})
+    (h/process-event [:re-frame.query/set-query-data :books/list {} [{:id 99}]])
+    (let [qid (util/query-id :books/list {})]
+      (is (true? (get-in (h/app-db) [:re-frame.query/queries qid :stale?]))
+          "data written via set-query-data is unverified — must be marked stale")))
+
+  (testing "preserves :fetching? when a request is already in flight"
+    (rfq/reg-query :books/list {:query-fn (fn [_] {})})
+    (rfq/set-default-effect-fn! h/noop-effect-fn)
+    ;; Kick off a fetch — :fetching? is now true, no response yet
+    (h/process-event [:re-frame.query/ensure-query :books/list {}])
+    (let [qid (util/query-id :books/list {})]
+      (is (true? (get-in (h/app-db) [:re-frame.query/queries qid :fetching?]))
+          "precondition: fetch is in flight")
+      ;; Seed placeholder data while the request is still in flight
+      (h/process-event [:re-frame.query/set-query-data :books/list {} [{:id 99}]])
+      (is (true? (get-in (h/app-db) [:re-frame.query/queries qid :fetching?]))
+          "set-query-data must not lie about an in-flight request"))))

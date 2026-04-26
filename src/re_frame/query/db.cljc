@@ -40,21 +40,32 @@
 (defn set-query-data
   "Return an updated db with `data` written into the query cache entry.
 
-  Sets :status to :success, clears :error and :fetching?, marks the entry
-  as fresh. Creates the cache entry if it does not exist.
+  Sets :status to :success, clears :error, marks the entry as **stale** —
+  the data has not been verified by the server, so the next `ensure-query`
+  (or any active subscriber) will background-refetch. Preserves :fetching?
+  if a request is already in flight; otherwise sets it to false.
+  Creates the cache entry if it does not exist.
 
-  Use for optimistic updates or seeding the cache without fetching:
+  Common uses:
+    - Placeholder data (e.g. seed `:todo/get` from `:todo/list` on route
+      enter so the user sees something instantly while the real fetch runs).
+    - Optimistic updates — the data is treated as provisional until either
+      a mutation's `:invalidates` triggers a refetch or the next
+      `ensure-query` resolves.
+
+  Example:
     (rfq-db/set-query-data db :items/table {:page 1} new-items)"
   [db k params data]
   (let [qid (util/query-id k params)
-        now (util/now-ms)]
+        now (util/now-ms)
+        in-flight? (boolean (get-in db [:re-frame.query/queries qid :fetching?]))]
     (update-in db [:re-frame.query/queries qid]
                util/merge-with-default
                {:status :success
                 :data data
                 :error nil
-                :fetching? false
-                :stale? false
+                :fetching? in-flight?
+                :stale? true
                 :fetched-at now})))
 
 ;; ---------------------------------------------------------------------------

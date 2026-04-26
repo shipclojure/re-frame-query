@@ -18,3 +18,5 @@ When the component later mounts and subscribes, it finds cached data and skips t
 ```
 
 Prefetch respects stale-time and in-flight deduplication — it won't re-fetch data that's already fresh or already being fetched. It does **not** mark the query as active, so the data is subject to normal GC rules.
+
+> **Related:** if you want to seed the cache from existing client data (e.g. populating `:todos/get` from `:todos/list` on route enter) rather than from the network, see [Placeholder Data](placeholder-data.md). That pattern intentionally marks the entry stale so a refetch confirms it.

@@ -61,7 +61,7 @@ With `(:require [re-frame.query :as rfq])`, use `::rfq/` shorthand:
 | `[::rfq/refetch-query k params]` | Force refetch regardless of staleness |
 | `[::rfq/execute-mutation k params]` | Execute a mutation |
 | `[::rfq/execute-mutation k params opts]` | Execute with [lifecycle hooks](lifecycle-hooks.md) |
-| `[::rfq/set-query-data k params data]` | Directly set cached query data (for optimistic updates, rollback) |
+| `[::rfq/set-query-data k params data]` | Directly set cached query data (for [placeholder data](placeholder-data.md), optimistic updates, rollback). Marks the entry stale — the next `ensure-query` background-refetches. |
 | `[::rfq/invalidate-tags tags]` | Mark matching queries stale & refetch active ones |
 | `[::rfq/remove-query qid]` | Remove a specific query from cache (used internally by GC) |
 | `[::rfq/garbage-collect]` | Bulk remove all expired inactive queries |
