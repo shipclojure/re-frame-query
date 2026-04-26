@@ -1,6 +1,6 @@
 ---
 name: re-frame-query
-description: "Develop with re-frame-query: declarative data fetching and caching for re-frame (ClojureScript). Use when writing, reviewing, or debugging code that uses re-frame-query (rfq) for queries, mutations, cache invalidation, polling, infinite scroll, or optimistic updates. Triggers include mentions of re-frame-query, rfq, ::rfq/query, ::rfq/execute-mutation, reg-query, reg-mutation, query-fn, stale-time-ms, invalidate-tags, fetch-next-page, or any re-frame.query namespaced keywords."
+description: "Develop with re-frame-query: declarative data fetching and caching for re-frame (ClojureScript). Use when writing, reviewing, or debugging code that uses re-frame-query (rfq) for queries, mutations, cache invalidation, polling, infinite scroll, optimistic updates, or query lifecycle observability via interceptors. Triggers include mentions of re-frame-query, rfq, ::rfq/query, ::rfq/execute-mutation, reg-query, reg-mutation, query-fn, stale-time-ms, invalidate-tags, fetch-next-page, parse-result-event, query-success, query-failure, infinite-page-success, infinite-page-failure, or any re-frame.query namespaced keywords."
 ---
 
 # re-frame-query Development
@@ -154,7 +154,7 @@ Hooks are vectors of event vectors. Each hook event gets args conj'd onto it —
 
 day8/http-fx dispatches `(conj on-success response)` — only the response is appended. rfq dispatches `(conj ev params data)` — **both** params and response are appended. A handler copied verbatim from an http-fx callback will silently bind the rfq mutation-params map to the `response` slot and drop the real response. Symptoms: `(:some-key response)` returns `nil`, downstream `assoc-in` paths collapse to `[... nil ...]`, and `app-db` gets corrupted at an unexpected branch. Always update the signature to include `mutation-params` between any pre-bound args and the response.
 
-See [docs/mutation-hooks.md](../../docs/mutation-hooks.md) for the full pattern with worked examples.
+See [docs/lifecycle-hooks.md](../../docs/lifecycle-hooks.md) for the full pattern with worked examples.
 
 ## Optimistic Updates
 
@@ -166,6 +166,40 @@ Use mutation lifecycle hooks + `rfq-db` inside your event handlers:
                :on-success [[:todos/clear-snapshot]]
                :on-failure [[:todos/rollback]]}])
 ```
+
+## Observing Query Lifecycle
+
+Queries do **not** have per-call hooks (no `:on-success` opt on `::rfq/query`). Fetches originate from too many places — `ensure-query`, `refetch-query`, polling, tag invalidation, prefetch, the `::rfq/query` subscription — for per-call hooks to be reliable. Instead, observe the lifecycle events with a global interceptor:
+
+| Event | Carries |
+|---|---|
+| `[::rfq/query-success k params data]` | post-`:transform-response` data |
+| `[::rfq/query-failure k params error]` | post-`:transform-error` error |
+| `[::rfq/infinite-page-success k params mode page-data]` | mode is `nil` \| `:append` \| `:prepend` |
+| `[::rfq/infinite-page-failure k params error]` | |
+
+Always use `rfq/parse-result-event` to extract — never positionally destructure rfq event vectors:
+
+```clojure
+(require '[re-frame.interceptor :as rfi])
+
+(rf/->interceptor
+  :id :my-app/query-telemetry
+  :after
+  (fn [context]
+    (let [{:keys [event-id k params data error]}
+          (rfq/parse-result-event (get-in context [:coeffects :event]))]
+      (if (= k :books/list)
+        (rfi/update-effect context :fx (fnil conj [])
+                           [:dispatch [:analytics/event event-id k params]])
+        context))))
+```
+
+`parse-result-event` returns `{:event-id :k :params (:data | :error) [:mode]}` or `nil` for any non-matching event — so `when-let`/`if` on the destructured map is your filter.
+
+**Important:** `rf/reg-global-interceptor` and `rf/clear-global-interceptor` are side effects — do NOT call them inside re-frame event handlers. For route-scoped install/uninstall, call them from your router's enter/leave functions (e.g. reitit `:controllers` `:start`/`:stop`).
+
+Use cases: analytics, route-scoped toast-on-failure, debug logging, post-success cache syncing across queries.
 
 ## Key Design Rules
 

@@ -136,7 +136,13 @@ Handler signatures — rfq's args are appended **after** any pre-bound args in t
 (fn [_ [_ pre-1 pre-2 params data]] ...) ;; if dispatched with [[:hook pre-1 pre-2]]
 ```
 
-> ⚠️ **Not the same as day8/http-fx.** http-fx appends only `response` to `:on-success`; rfq appends `params` then `data`. Copy/pasted http-fx success handlers will silently bind the mutation-params map to the `response` slot and drop the real response. See [docs/mutation-hooks.md](https://github.com/shipclojure/re-frame-query/blob/main/docs/mutation-hooks.md) for the full migration checklist.
+> ⚠️ **Not the same as day8/http-fx.** http-fx appends only `response` to `:on-success`; rfq appends `params` then `data`. Copy/pasted http-fx success handlers will silently bind the mutation-params map to the `response` slot and drop the real response. See [docs/lifecycle-hooks.md](https://github.com/shipclojure/re-frame-query/blob/main/docs/lifecycle-hooks.md) for the full migration checklist.
+
+## Query Lifecycle Events
+
+Queries have **no per-call hooks** — observe via global interceptors on `::rfq/query-success`, `::rfq/query-failure`, `::rfq/infinite-page-success`, `::rfq/infinite-page-failure`. Inside the interceptor, use `(rfq/parse-result-event event-vec)` to get a map (`{:event-id :k :params (:data | :error) [:mode]}`) instead of positionally destructuring. Returns `nil` for non-matching events.
+
+See SKILL.md → "Observing Query Lifecycle" for the full pattern.
 
 ## `re-frame.query.db` — Inline Cache Operations
 
