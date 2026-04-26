@@ -70,34 +70,55 @@ No `:on-success` / `:on-failure` wiring needed — the library auto-injects call
 
 ### 3. Use a query
 
-Think of `(rf/subscribe [::rfq/query k params])` like a **`use-query` hook** —
-subscribing is all you need. It triggers the fetch, caches the result, and
-keeps it fresh.
+There are two ways to wire a query into a view — pick whichever fits your app. Both end up with the same data shape in `app-db`.
+
+#### Option A — Route-driven (recommended)
+
+Trigger the fetch from your router's enter/leave hooks; render with the **passive** `::rfq/query-state` sub. This matches re-frame's [pure-subscription philosophy](https://day8.github.io/re-frame/FAQs/LoadOnMount/) — fetching is an explicit event, the view just reads.
 
 ```clojure
+;; 1. In your router (e.g. reitit :controllers), wire enter/leave to events
+;;    {:name :todos
+;;     :controllers [{:start #(rf/dispatch [:routes/todos-entered])
+;;                    :stop  #(rf/dispatch [:routes/todos-left])}]}
+
+(rf/reg-event-fx :routes/todos-entered
+  (fn [_ _]
+    {:fx [[:dispatch [::rfq/ensure-query :todos/list {:user-id 42}]]
+          [:dispatch [::rfq/mark-active   :todos/list {:user-id 42}]]]}))
+
+(rf/reg-event-fx :routes/todos-left
+  (fn [_ _]
+    {:fx [[:dispatch [::rfq/mark-inactive :todos/list {:user-id 42}]]]}))
+
+;; 2. Views subscribe via the passive sub — pure read, no side effects
 (defn todos-view []
   (let [{:keys [status data error fetching?]}
-        @(rf/subscribe [::rfq/query :todos/list {:user-id 42}])]
+        @(rf/subscribe [::rfq/query-state :todos/list {:user-id 42}])]
     (case status
       :loading [:div "Loading..."]
       :error   [:div "Error: " (pr-str error)]
       :success [:div
                 [:ul (for [todo data]
-                       ^{:key (:id todo)}
-                       [:li (:title todo)])]
+                       ^{:key (:id todo)} [:li (:title todo)])]
                 (when fetching? [:span "Refreshing..."])]
       [:div "Idle"])))
 ```
 
-#### How does the subscription work?
+`mark-active` / `mark-inactive` drive the same lifecycle (polling, GC, refetch-on-invalidation) that `::rfq/query` manages automatically — you just own the trigger points. This is also where you'd install [route-scoped global interceptors](docs/lifecycle-hooks.md#observing-query-lifecycle) for analytics or per-page behaviour.
 
-Unlike a typical re-frame subscription that just reads from `app-db`, `::rfq/query` is built with `reg-sub-raw` — it uses Reagent's `Reaction` lifecycle to manage the query automatically:
+#### Option B — Causal subscription (`use-query`-style)
 
-- **On subscribe:** fetches data if absent/stale, marks query active, starts polling if configured
-- **While subscribed:** returns query state reactively; multiple components share a single cache entry
-- **On dispose:** marks query inactive, starts GC timer, stops polling
+If you'd rather have subscribing trigger the fetch like React Query's `useQuery`, use `::rfq/query`. It's built with `reg-sub-raw` and uses Reagent's `Reaction` lifecycle: **on subscribe** it fetches if absent/stale, marks active, and starts polling; **on dispose** it marks inactive and starts the GC timer. Multiple components subscribing to the same `[k params]` share a single cache entry.
 
-> **A note on re-frame philosophy:** re-frame [recommends](https://day8.github.io/re-frame/FAQs/LoadOnMount/) that subscriptions be pure reads. Our `::rfq/query` dispatches events as a side effect of subscribing — a deliberate trade-off mirroring React Query's `useQuery`. If you prefer explicit control, dispatch `::rfq/ensure-query` and `::rfq/mark-active` yourself and use the passive subscriptions `::rfq/query-state` and `::rfq/infinite-query-state` — they return the exact same data shape with no side effects.
+```clojure
+(defn todos-view []
+  (let [{:keys [status data error fetching?]}
+        @(rf/subscribe [::rfq/query :todos/list {:user-id 42}])]
+    ...))
+```
+
+> **Trade-off:** `::rfq/query` dispatches events as a side effect of subscribing, which technically [violates re-frame's pure-subscription guidance](https://day8.github.io/re-frame/FAQs/LoadOnMount/). It's a deliberate ergonomics trade-off mirroring `useQuery` — convenient for simple views, but Option A is easier to test and reason about for non-trivial flows.
 
 ### 4. Dispatch a mutation
 
