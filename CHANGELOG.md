@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.10.1 - 2026-05-04]
+
+### Fixed
+- Include clj-kondo hooks in the build jar to be imported in target projects
+
+
 ## [0.10.0 - 2026-05-04]
 
 ### Fixed
