@@ -1,0 +1,1 @@
+../../resources/clj-kondo.exports/com.shipclojure/re-frame-query/hooks/re_frame_query.clj

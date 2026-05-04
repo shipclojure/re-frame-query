@@ -1,4 +1,4 @@
-{:paths ["src"]
+{:paths ["src" "resources"]
 
  ;; No direct deps — consumers provide their own versions of
  ;; Clojure, ClojureScript, re-frame, and reagent.
