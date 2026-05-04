@@ -4,7 +4,19 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
-## [Unreleased]
+## [0.10.0 - 2026-05-04]
+
+### Fixed
+- `::rfq/mark-inactive` is now a noop if no active query with the caller params exists. Previously would not check this
+
+### Added
+- Added `clj-kondo` hooks for `reg-query`, `reg-mutation`, and `init!` — enables go-to-definition, find-references, and unused-keyword warnings for registered query/mutation keys in clojure-lsp. To activate, run once in your project:
+  ```sh
+  clj-kondo --copy-configs --dependencies --lint src
+  ```
+  This copies the hooks into `.clj-kondo/imports/` automatically. No manual config required.
+
+## [0.9.0 - 2026-04-26]
 
 ### Changed
 
