@@ -6,11 +6,8 @@
    [re-frame.db :as rf-db]
    [re-frame.query :as rfq]
    [re-frame.query.gc :as gc]
-   [re-frame.query.polling :as polling]
-   [re-frame.query.registry :as registry]
    [re-frame.query.test-helpers :as h]
-   [re-frame.query.util :as util]
-   #?(:cljs [reagent.ratom :as ratom])))
+   [re-frame.query.util :as util]))
 
 (use-fixtures :each {:before h/reset-db! :after h/reset-db!})
 
