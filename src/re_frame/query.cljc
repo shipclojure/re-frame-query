@@ -227,6 +227,7 @@
   and `:refetch-state`. Responses from the superseded requests are dropped
   on arrival — `:data`, `:status` and `:error` are left as they are. No-op
   when the query is not cached.
+  An in-flight entry is marked stale so `ensure-query` can retry it.
 
   Use it when you write the cache yourself and do not want an older fetch to
   win the race:

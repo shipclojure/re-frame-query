@@ -271,6 +271,31 @@
       (is (nil? (query-entry qid))
           "cancelling an uncached query does not create an entry"))))
 
+(deftest cancel-query-allows-an-initial-request-to-retry
+  (testing "cancelling the initial load leaves the query stale"
+    (let [calls (reg-patients!)
+          qid (util/query-id :patients/page {:page 1})]
+      (h/process-event [:re-frame.query/ensure-query
+                        :patients/page {:page 1}])
+      (h/process-event [:re-frame.query/cancel-query
+                        :patients/page {:page 1}])
+      (let [query (query-entry qid)]
+        (is (= :idle (:status query))
+            "cancel reverts to :idle when there was no previous success")
+        (is (false? (:fetching? query)))
+        (is (true? (:stale? query))
+            "a cancelled initial request must remain retryable"))
+
+      (h/process-event [:re-frame.query/ensure-query
+                        :patients/page {:page 1}])
+      (is (= 2 (count @calls))
+          "ensure-query retries after the initial request is cancelled")
+      (deliver! (:on-success (attempt calls 0)) [{:id :cancelled}])
+      (is (nil? (:data (query-entry qid)))
+          "the cancelled initial response is still dropped")
+      (deliver! (:on-success (attempt calls 1)) [{:id :fresh}])
+      (is (= [{:id :fresh}] (:data (query-entry qid)))))))
+
 (deftest cancel-query-only-clears-paging-flags-for-infinite-queries
   (testing "a cancelled regular query gains no infinite-only keys"
     (reg-patients!)

@@ -6,6 +6,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed
+- Cancelling an in-flight initial query now leaves its cache entry stale so a
+  later `ensure-query` can retry it.
+- Cancelling a query that never received a successful response now reverts the
+  status to `:idle` instead of leaving it at `:loading`.
 ### Changed
 - **Breaking:** executing a query or mutation with no effect adapter (per-query/mutation `:effect-fn` or global default) now throws instead of passing the raw effects map through. The undocumented legacy form — `query-fn` returning a full effects map with hand-written callbacks — is removed; it let stale responses overwrite fresh data ([#6](https://github.com/shipclojure/re-frame-query/issues/6)).
 
