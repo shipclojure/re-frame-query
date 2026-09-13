@@ -9,7 +9,7 @@
   "Fetches all notifications via WebSocket."
   []
   (let [{:keys [status data]}
-        @(rf/subscribe [::rfq/query :ws/notifications {}])]
+        @(rf/subscribe [::rfq/query {:query :ws/notifications}])]
     [:div.panel
      [:h3 "🔔 Notifications (WebSocket query)"]
      (case status
@@ -32,7 +32,7 @@
   "Polls the latest notification via WebSocket every 3s."
   []
   (let [{:keys [status data]}
-        @(rf/subscribe [::rfq/query :ws/latest-notification {}])]
+        @(rf/subscribe [::rfq/query {:query :ws/latest-notification}])]
     [:div.panel
      [:h3 "📡 Latest Notification "
       [:span {:style {:font-size "0.75rem" :color "#999"}} "(polling every 3s via WS)"]]
@@ -54,7 +54,7 @@
    and refetch queries through the same tag system as HTTP."
   []
   (let [{:keys [status data]}
-        @(rf/subscribe [::rfq/query :ws/chat-messages {}])
+        @(rf/subscribe [::rfq/query {:query :ws/chat-messages}])
         new-text (or @(rf/subscribe [:ui/get :ws/chat-text]) "")]
     [:div.panel
      [:h3 "💬 Chat (WebSocket mutation + invalidation)"]
@@ -80,13 +80,15 @@
                            :on-key-down #(when (= "Enter" (.-key %))
                                            (when (seq new-text)
                                              (rf/dispatch [::rfq/execute-mutation
-                                                           :ws/chat-send {:user "You" :text new-text}])
+                                                           {:mutation :ws/chat-send
+                                                            :params {:user "You" :text new-text}}])
                                              (rf/dispatch [:ui/set :ws/chat-text ""])))}]
                   [:button.primary
                    {:disabled (empty? new-text)
                     :on-click (fn []
                                 (rf/dispatch [::rfq/execute-mutation
-                                              :ws/chat-send {:user "You" :text new-text}])
+                                              {:mutation :ws/chat-send
+                                               :params {:user "You" :text new-text}}])
                                 (rf/dispatch [:ui/set :ws/chat-text ""]))}
                    "Send"]]]
        [:div.loading "Initializing…"])]))

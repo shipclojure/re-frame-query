@@ -17,14 +17,14 @@
           new (mapv #(if (= (:id %) id) (assoc % :done done) %) old)]
       {:db (assoc-in db [:snapshots qid] old)
        :abort-request qid                                        ;; cancel in-flight refetch
-       :dispatch [::rfq/set-query-data :todos/list {} new]})))
+       :dispatch [::rfq/set-query-data {:query :todos/list :data new}]})))
 
 (rf/reg-event-fx :todos/rollback
   (fn [{:keys [db]} [_ _params _error]]
     (let [qid [:todos/list {}]
           old (get-in db [:snapshots qid])]
       {:db (update db :snapshots dissoc qid)
-       :dispatch [::rfq/set-query-data :todos/list {} old]})))
+       :dispatch [::rfq/set-query-data {:query :todos/list :data old}]})))
 
 (rf/reg-event-db :todos/clear-snapshot
   (fn [db [_ _params _data]]
@@ -41,9 +41,10 @@
             :checked done
             :on-change (fn [_]
                          (rf/dispatch
-                          [::rfq/execute-mutation :todos/toggle
-                           {:id id :done (not done) :fail-mode? fail-mode?}
-                           {:on-start [:todos/optimistic-toggle]
+                          [::rfq/execute-mutation
+                           {:mutation :todos/toggle
+                            :params {:id id :done (not done) :fail-mode? fail-mode?}
+                            :on-start [:todos/optimistic-toggle]
                             :on-success [:todos/clear-snapshot]
                             :on-failure [:todos/rollback]}]))}]
    [:span {:style (cond-> {:font-size "0.95rem"}
@@ -53,7 +54,7 @@
 
 (defn panel []
   (let [{:keys [status data]}
-        @(rf/subscribe [::rfq/query :todos/list {}])
+        @(rf/subscribe [::rfq/query {:query :todos/list}])
         fail-mode? @(rf/subscribe [:ui/get :todos/fail-mode?])]
     [:div
      [:p {:style {:color "#666" :margin-bottom "1rem"}}

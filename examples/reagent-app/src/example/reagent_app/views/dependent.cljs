@@ -13,13 +13,14 @@
       (skipped until user data is available)"
   []
   (let [{user-status :status user-data :data}
-        @(rf/subscribe [::rfq/query :user/current {}])
+        @(rf/subscribe [::rfq/query {:query :user/current}])
 
         user-id (:id user-data)
 
         {favs-status :status favs-data :data}
-        @(rf/subscribe [::rfq/query :user/favorites {:user-id user-id}
-                        {:skip? (nil? user-id)}])]
+        @(rf/subscribe [::rfq/query {:query :user/favorites
+                                     :params {:user-id user-id}
+                                     :skip? (nil? user-id)}])]
     [:div
      ;; User info
      [:div.panel

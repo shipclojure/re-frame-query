@@ -9,7 +9,7 @@
   "A book list item that prefetches the detail query on mouse-enter."
   [{:keys [id title author]}]
   [:div.book-card
-   {:on-mouse-enter #(rfq/prefetch :book/detail {:id id})
+   {:on-mouse-enter #(rfq/prefetch {:query :book/detail :params {:id id}})
     :on-click #(rf/dispatch [:ui/set :prefetch/selected-id id])}
    [:div.title title]
    [:div.author "by " author]
@@ -21,7 +21,7 @@
    immediately from cache with no loading spinner."
   [book-id]
   (let [{:keys [status data fetching?]}
-        @(rf/subscribe [::rfq/query :book/detail {:id book-id}])]
+        @(rf/subscribe [::rfq/query {:query :book/detail :params {:id book-id}}])]
     [:div.panel
      [:h3 "Book Detail"]
      (case status
@@ -50,7 +50,7 @@
      (if selected-id
        [book-detail-instant selected-id]
        (let [{:keys [status data]}
-             @(rf/subscribe [::rfq/query :books/list {}])]
+             @(rf/subscribe [::rfq/query {:query :books/list}])]
          [:div.panel
           [:h3 "📚 Books (hover to prefetch)"]
           (case status

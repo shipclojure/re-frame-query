@@ -8,7 +8,7 @@
 
 (defui server-stats-auto []
   (let [{:keys [status data]}
-        (urf/use-subscribe [::rfq/query :server/stats {}])]
+        (urf/use-subscribe [::rfq/query {:query :server/stats}])]
     ($ :div.panel
        ($ :h3 "📊 Server Stats "
           ($ :span {:style {:font-size "0.75rem" :color "#999"}}
@@ -24,8 +24,8 @@
 
 (defui server-stats-fast []
   (let [{:keys [status data]}
-        (urf/use-subscribe [::rfq/query :server/stats {}
-                            {:polling-interval-ms 1000}])]
+        (urf/use-subscribe [::rfq/query {:query :server/stats
+                                         :polling-interval-ms 1000}])]
     ($ :div.panel
        ($ :h3 "⚡ Fast Stats "
           ($ :span {:style {:font-size "0.75rem" :color "#999"}}

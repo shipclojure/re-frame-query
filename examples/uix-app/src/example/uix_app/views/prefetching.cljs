@@ -9,7 +9,7 @@
 (defui book-card-with-prefetch [{:keys [book]}]
   (let [{:keys [id title author]} book]
     ($ :div.book-card
-       {:on-mouse-enter #(rfq/prefetch :book/detail {:id id})
+       {:on-mouse-enter #(rfq/prefetch {:query :book/detail :params {:id id}})
         :on-click #(rf/dispatch [:ui/set :prefetch/selected-id id])}
        ($ :div.title title)
        ($ :div.author "by " author)
@@ -18,7 +18,7 @@
 
 (defui book-detail-instant [{:keys [book-id]}]
   (let [{:keys [status data fetching?]}
-        (urf/use-subscribe [::rfq/query :book/detail {:id book-id}])]
+        (urf/use-subscribe [::rfq/query {:query :book/detail :params {:id book-id}}])]
     ($ :div.panel
        ($ :h3 "Book Detail")
        (case status
@@ -39,7 +39,7 @@
 
 (defui book-list-prefetch []
   (let [{:keys [status data]}
-        (urf/use-subscribe [::rfq/query :books/list {}])]
+        (urf/use-subscribe [::rfq/query {:query :books/list}])]
     ($ :div.panel
        ($ :h3 "📚 Books (hover to prefetch)")
        (case status

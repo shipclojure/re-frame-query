@@ -7,7 +7,7 @@
    [uix.re-frame :as urf]))
 
 (defui book-list []
-  (let [query (urf/use-subscribe [::rfq/query :books/list {}])]
+  (let [query (urf/use-subscribe [::rfq/query {:query :books/list}])]
     ($ :div.panel
        ($ :h2 "📚 Books")
        (case (:status query)
@@ -25,7 +25,7 @@
          ($ :div.loading "Initializing…")))))
 
 (defui book-detail [{:keys [book-id]}]
-  (let [query (urf/use-subscribe [::rfq/query :book/detail {:id book-id}])
+  (let [query (urf/use-subscribe [::rfq/query {:query :book/detail :params {:id book-id}}])
         editing? (urf/use-subscribe [:ui/get :basic/editing?])
         new-title (or (urf/use-subscribe [:ui/get :basic/new-title]) "")]
     ($ :div.panel
@@ -48,7 +48,8 @@
                       ($ :button.primary
                          {:on-click (fn []
                                       (rf/dispatch [::rfq/execute-mutation
-                                                    :books/update {:id id :title new-title}])
+                                                    {:mutation :books/update
+                                                     :params {:id id :title new-title}}])
                                       (rf/dispatch [:ui/set :basic/editing? false])
                                       (rf/dispatch [:ui/set :basic/new-title ""]))}
                          "Save")
@@ -65,7 +66,8 @@
                  ($ :button.danger
                     {:on-click (fn []
                                  (rf/dispatch [::rfq/execute-mutation
-                                               :books/delete {:id id}])
+                                               {:mutation :books/delete
+                                                :params {:id id}}])
                                  (rf/dispatch [:ui/set :basic/selected-id nil]))}
                     "Delete")
                  ($ :button.secondary
@@ -90,7 +92,8 @@
           {:disabled (or (empty? title) (empty? author))
            :on-click (fn []
                        (rf/dispatch [::rfq/execute-mutation
-                                     :books/create {:title title :author author}])
+                                     {:mutation :books/create
+                                      :params {:title title :author author}}])
                        (rf/dispatch [:ui/set :basic/add-title ""])
                        (rf/dispatch [:ui/set :basic/add-author ""]))}
           "Add Book"))))
@@ -98,8 +101,8 @@
 (defui paginated-book-list []
   (let [current-page (or (urf/use-subscribe [:ui/get :basic/page]) 1)
         per-page 3
-        query (urf/use-subscribe [::rfq/query :books/page
-                                  {:page current-page :per-page per-page}])]
+        query (urf/use-subscribe [::rfq/query {:query :books/page
+                                               :params {:page current-page :per-page per-page}}])]
     ($ :div.panel
        ($ :h2 "📖 Books (Paginated)")
        (case (:status query)
@@ -136,7 +139,7 @@
     ($ :div
        ($ :div.toolbar
           ($ :button.secondary
-             {:on-click #(rf/dispatch [::rfq/invalidate-tags [[:books :all]]])}
+             {:on-click #(rf/dispatch [::rfq/invalidate-tags {:tags [[:books :all]]}])}
              "🔄 Invalidate All Books"))
        (if selected-id
          ($ book-detail {:book-id selected-id})

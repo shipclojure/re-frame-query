@@ -11,7 +11,7 @@
    Polling starts automatically when this component mounts."
   []
   (let [{:keys [status data]}
-        @(rf/subscribe [::rfq/query :server/stats {}])]
+        @(rf/subscribe [::rfq/query {:query :server/stats}])]
     [:div.panel
      [:h3 "📊 Server Stats "
       [:span {:style {:font-size "0.75rem" :color "#999"}}
@@ -34,8 +34,8 @@
    interval becomes 1s (the lowest non-zero)."
   []
   (let [{:keys [status data]}
-        @(rf/subscribe [::rfq/query :server/stats {}
-                        {:polling-interval-ms 1000}])]
+        @(rf/subscribe [::rfq/query {:query :server/stats
+                                     :polling-interval-ms 1000}])]
     [:div.panel
      [:h3 "⚡ Fast Stats "
       [:span {:style {:font-size "0.75rem" :color "#999"}}

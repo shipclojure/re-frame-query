@@ -7,13 +7,14 @@
 
 (defui user-favorites []
   (let [{user-status :status user-data :data}
-        (urf/use-subscribe [::rfq/query :user/current {}])
+        (urf/use-subscribe [::rfq/query {:query :user/current}])
 
         user-id (:id user-data)
 
         {favs-status :status favs-data :data}
-        (urf/use-subscribe [::rfq/query :user/favorites {:user-id user-id}
-                            {:skip? (nil? user-id)}])]
+        (urf/use-subscribe [::rfq/query {:query :user/favorites
+                                         :params {:user-id user-id}
+                                         :skip? (nil? user-id)}])]
     ($ :div
        ($ :div.panel
           ($ :h3 "👤 Current User")

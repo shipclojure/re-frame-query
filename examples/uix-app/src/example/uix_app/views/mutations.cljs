@@ -20,7 +20,8 @@
   (let [title (or (urf/use-subscribe [:ui/get :mut/title]) "")
         author (or (urf/use-subscribe [:ui/get :mut/author]) "")
         {:keys [status data error]}
-        (urf/use-subscribe [::rfq/mutation :books/create-demo {:title title :author author}])]
+        (urf/use-subscribe [::rfq/mutation {:mutation :books/create-demo
+                                            :params {:title title :author author}}])]
     ($ :div.panel
        ($ :h3 "Create Book — Mutation Lifecycle")
        ($ :div {:style {:display "flex" :align-items "center" :gap "0.75rem" :margin-bottom "1rem"}}
@@ -52,19 +53,20 @@
              {:disabled (or (empty? title) (empty? author) (= :loading status))
               :on-click (fn []
                           (rf/dispatch [::rfq/execute-mutation
-                                        :books/create-demo
-                                        {:title title :author author}]))}
+                                        {:mutation :books/create-demo
+                                         :params {:title title :author author}}]))}
              (if (= :loading status) "Creating…" "Create Book"))
           (when (#{:success :error} status)
             ($ :button.secondary
                {:on-click #(rf/dispatch [::rfq/reset-mutation
-                                         :books/create-demo {:title title :author author}])}
+                                         {:mutation :books/create-demo
+                                          :params {:title title :author author}}])}
                "Reset Status"))))))
 
 (defui delete-with-status []
   (let [params {:id 9999}
         {:keys [status error]}
-        (urf/use-subscribe [::rfq/mutation :books/delete params])]
+        (urf/use-subscribe [::rfq/mutation {:mutation :books/delete :params params}])]
     ($ :div.panel
        ($ :h3 "Delete Book #9999 — Error Flow")
        ($ :div {:style {:display "flex" :align-items "center" :gap "0.75rem" :margin-bottom "1rem"}}
@@ -80,11 +82,12 @@
           ($ :button.danger
              {:disabled (= :loading status)
               :on-click #(rf/dispatch [::rfq/execute-mutation
-                                       :books/delete {:id 9999}])}
+                                       {:mutation :books/delete :params params}])}
              "Try Delete #9999")
           (when (#{:success :error} status)
             ($ :button.secondary
-               {:on-click #(rf/dispatch [::rfq/reset-mutation :books/delete params])}
+               {:on-click #(rf/dispatch [::rfq/reset-mutation
+                                         {:mutation :books/delete :params params}])}
                "Reset Status"))))))
 
 (defui panel []
