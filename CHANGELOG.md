@@ -6,11 +6,28 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+
+### Added
+- **Map payload form for every public event and subscription.** Each rfq event/sub now takes a single map — `{:query k :params p ...}` for queries, `{:mutation k :params p ...}` for mutations, with options (`:skip?`, `:polling-interval-ms`, `:sub-id`, mutation hooks) as top-level keys instead of a trailing opts map. Named args, optional keys without arity growth, and room to add keys later without touching call sites.
+  ```clojure
+  ;; before
+  (rf/dispatch [::rfq/execute-mutation :todos/toggle {:id 5 :done true}
+                {:on-success [::saved]}])
+  ;; after
+  (rf/dispatch [::rfq/execute-mutation {:mutation   :todos/toggle
+                                        :params     {:id 5 :done true}
+                                        :on-success [::saved]}])
+  ```
+  - Helper fns gained a 1-arity map form: `(rfq/prefetch {:query k :params p})`, `(rfq/set-query-data {:query k :params p :data d})`, `(rfq/cancel-query {...})`, `(rfq/fetch-next-page {...})`, `(rfq/fetch-previous-page {...})`, `(rfq/infinite-query-data {...})`.
+  - `:params` is optional in the map form — `{:query :books/list}` keys the cache under `[:books/list {}]`.
+  - Malformed map payloads fail loudly: a map without a keyword under `:query`/`:mutation` (e.g. bare params `[::rfq/ensure-query {:page 1}]`) throws with both correct forms in the message; `:on-start`/`:on-success`/`:on-failure` on any **query** event or subscription throws and points at the global-interceptor + `rfq/parse-result-event` lane (hooks exist on mutations only).
+  - **The positional form remains fully supported** — `[::rfq/query k params opts]`, `[::rfq/execute-mutation k params opts]`, the old helper arities, etc. all keep working, with no warnings and no deprecation timeline. This release has no breaking changes to the positional form. Internal result events (`::rfq/query-success` and friends) are unchanged and still positional.
+  - Docs, README and the `re-frame-query` skill now show the map form everywhere; the positional equivalents live in [`docs/api-reference.md` → Legacy positional form](docs/api-reference.md#legacy-positional-form).
+
 ### Fixed
-- Cancelling an in-flight initial query now leaves its cache entry stale so a
-  later `ensure-query` can retry it.
-- Cancelling a query that never received a successful response now reverts the
-  status to `:idle` instead of leaving it at `:loading`.
+- Cancelling an in-flight initial query now leaves its cache entry stale so a later `ensure-query` can retry it.
+- Cancelling a query that never received a successful response now reverts the status to `:idle` instead of leaving it at `:loading`.
+
 ### Changed
 - **Breaking:** executing a query or mutation with no effect adapter (per-query/mutation `:effect-fn` or global default) now throws instead of passing the raw effects map through. The undocumented legacy form — `query-fn` returning a full effects map with hand-written callbacks — is removed; it let stale responses overwrite fresh data ([#6](https://github.com/shipclojure/re-frame-query/issues/6)).
 

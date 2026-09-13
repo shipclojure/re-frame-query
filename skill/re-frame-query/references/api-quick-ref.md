@@ -50,46 +50,61 @@
 | `:transform-response` | | `(fn [data params] -> data')` |
 | `:transform-error` | | `(fn [error params] -> error')` |
 
+## Payload Form
+
+Every event/sub takes **one map**: `{:query k :params p ...}` for queries, `{:mutation k :params p ...}` for mutations. `:params` is optional (defaults to `{}` for the cache key). Options (`:skip?`, `:polling-interval-ms`, `:sub-id`, mutation hooks) are top-level keys of the same map.
+
+The positional form (`[::rfq/query k params opts]`, `[::rfq/execute-mutation k params opts]`) is legacy — still supported with no deprecation, but always write the map form.
+
+Loud errors on the map form:
+- Missing/non-keyword `:query` / `:mutation` (e.g. bare params `[::rfq/ensure-query {:page 1}]`) → throws `expects a keyword under :query …`
+- `:on-start` / `:on-success` / `:on-failure` on any **query** event or sub → throws `does not accept … per-call lifecycle hooks exist on mutations only …`
+
 ## Events
 
 ```clojure
-[::rfq/ensure-query k params]           ;; fetch if stale/absent (regular queries only)
-[::rfq/refetch-query k params]          ;; force refetch
-[::rfq/mark-active k params]            ;; manual lifecycle
-[::rfq/mark-active k params opts]       ;; opts: {:polling-interval-ms N :sub-id kw}
-[::rfq/mark-inactive k params]          ;; manual lifecycle
-[::rfq/mark-inactive k params opts]     ;; opts: {:sub-id kw}
-[::rfq/execute-mutation k params]       ;; run mutation
-[::rfq/execute-mutation k params opts]  ;; opts: {:on-start [...] :on-success [...] :on-failure [...]}
-[::rfq/set-query-data k params data]    ;; direct cache write
-[::rfq/invalidate-tags tags]            ;; invalidate + refetch only matching active queries
-[::rfq/reset-api-state]                 ;; clear all state + timers
-[::rfq/reset-mutation k params]         ;; clear mutation to idle
-[::rfq/ensure-infinite-query k params]  ;; fetch first page if absent/stale
-[::rfq/fetch-next-page k params]        ;; infinite: append next page
-[::rfq/fetch-previous-page k params]    ;; infinite: prepend previous page (requires :get-previous-cursor)
-[::rfq/refetch-infinite-query k params] ;; infinite: sequential re-fetch from page 1
+[::rfq/ensure-query {:query k :params p}]                         ;; fetch if stale/absent (regular queries only)
+[::rfq/refetch-query {:query k :params p}]                        ;; force refetch
+[::rfq/mark-active {:query k :params p}]                          ;; manual lifecycle
+[::rfq/mark-active {:query k :params p :polling-interval-ms N :sub-id kw}]
+[::rfq/mark-inactive {:query k :params p}]                        ;; manual lifecycle
+[::rfq/mark-inactive {:query k :params p :sub-id kw}]
+[::rfq/cancel-query {:query k :params p}]                         ;; drop in-flight responses, clear :fetching?
+[::rfq/execute-mutation {:mutation k :params p}]                  ;; run mutation
+[::rfq/execute-mutation {:mutation k :params p
+                         :on-start [...] :on-success [...] :on-failure [...]}]
+[::rfq/set-query-data {:query k :params p :data d}]               ;; direct cache write
+[::rfq/invalidate-tags {:tags tags}]                              ;; invalidate + refetch only matching active queries
+[::rfq/reset-api-state]                                           ;; clear all state + timers
+[::rfq/reset-mutation {:mutation k :params p}]                    ;; clear mutation to idle
+[::rfq/ensure-infinite-query {:query k :params p}]                ;; fetch first page if absent/stale
+[::rfq/fetch-next-page {:query k :params p}]                      ;; infinite: append next page
+[::rfq/fetch-previous-page {:query k :params p}]                  ;; infinite: prepend previous page (requires :get-previous-cursor)
+[::rfq/refetch-infinite-query {:query k :params p}]               ;; infinite: sequential re-fetch from page 1
 ```
+
+Helper fns (dispatch/subscribe for you): `(rfq/prefetch {:query k :params p})`, `(rfq/set-query-data {:query k :params p :data d})`, `(rfq/cancel-query {:query k :params p})`, `(rfq/fetch-next-page {:query k :params p})`, `(rfq/fetch-previous-page {:query k :params p})`, `(rfq/infinite-query-data {:query k :params p})`.
 
 ## Subscriptions
 
 ```clojure
 ;; Effectful (triggers fetch + lifecycle)
-[::rfq/query k params]                  ;; -> full query state
-[::rfq/query k params opts]             ;; opts: {:polling-interval-ms N, :skip? bool}
-[::rfq/infinite-query k params]         ;; -> infinite query state
+[::rfq/query {:query k :params p}]                                ;; -> full query state
+[::rfq/query {:query k :params p :polling-interval-ms N :skip? bool}]
+[::rfq/infinite-query {:query k :params p}]                       ;; -> infinite query state
 
 ;; Passive (pure read, no side effects — prefer these for manual lifecycle)
-[::rfq/query-state k params]            ;; same shape as ::rfq/query
-[::rfq/infinite-query-state k params]   ;; same shape as ::rfq/infinite-query
+[::rfq/query-state {:query k :params p}]                          ;; same shape as ::rfq/query
+[::rfq/infinite-query-state {:query k :params p}]                 ;; same shape as ::rfq/infinite-query
 
 ;; Derived (no fetch, depend on effectful ::rfq/query)
-[::rfq/query-data k params]             ;; -> :data
-[::rfq/query-status k params]           ;; -> :status
-[::rfq/query-fetching? k params]        ;; -> :fetching?
-[::rfq/query-error k params]            ;; -> :error
-[::rfq/mutation k params]               ;; -> mutation state
-[::rfq/mutation-status k params]        ;; -> :status
+[::rfq/query-data {:query k :params p}]                           ;; -> :data
+[::rfq/query-status {:query k :params p}]                         ;; -> :status
+[::rfq/query-fetching? {:query k :params p}]                      ;; -> :fetching?
+[::rfq/query-error {:query k :params p}]                          ;; -> :error
+[::rfq/infinite-query-data {:query k :params p}]                  ;; -> infinite :data only
+[::rfq/mutation {:mutation k :params p}]                          ;; -> mutation state
+[::rfq/mutation-status {:mutation k :params p}]                   ;; -> :status
 ```
 
 ## Query State Shape
@@ -120,11 +135,12 @@
 ## Mutation Lifecycle Hooks
 
 ```clojure
-(rf/dispatch [::rfq/execute-mutation :todos/toggle {:id 5 :done true}
-              {:on-start   [:my/on-start-event]    ;; receives params
-               :on-success [:my/on-success-event]  ;; receives params, data
-               :on-failure [:my/on-failure-event]  ;; receives params, error
-               }])
+(rf/dispatch [::rfq/execute-mutation {:mutation   :todos/toggle
+                                      :params     {:id 5 :done true}
+                                      :on-start   [:my/on-start-event]    ;; receives params
+                                      :on-success [:my/on-success-event]  ;; receives params, data
+                                      :on-failure [:my/on-failure-event]  ;; receives params, error
+                                      }])
 
 ;; Several events per hook — pass a vector of event vectors
 {:on-success [[:my/refresh-badge] [:my/toast "Saved"]]}

@@ -13,7 +13,9 @@ re-frame-query is a TanStack Query / RTK Query inspired library for re-frame. Al
 - `[re-frame.query :as rfq]` — public API (events, subs, registration)
 - `[re-frame.query.db :as rfq-db]` — pure `db → db` functions for inline cache operations
 
-**Key pattern:** register a query once with `rfq/reg-query`, then subscribe with `[::rfq/query k params]` — subscribing triggers fetch, caching, refetch, and GC automatically.
+**Key pattern:** register a query once with `rfq/reg-query`, then subscribe with `[::rfq/query {:query k :params params}]` — subscribing triggers fetch, caching, refetch, and GC automatically.
+
+**Payload form:** every rfq event and subscription takes a single map — `{:query k :params p ...}` for queries, `{:mutation k :params p ...}` for mutations. `:params` is optional. The positional form (`[::rfq/query k params opts]`) is legacy: still supported, not deprecated, but do not write it in new code.
 
 ## Setup Pattern
 
@@ -46,7 +48,7 @@ Alternative: use `rfq/init!` for one-shot declarative registration of all querie
 ```clojure
 ;; Triggers fetch + marks active + starts polling + handles GC
 (let [{:keys [status data error fetching?]}
-      @(rf/subscribe [::rfq/query :todos/list {:user-id 42}])]
+      @(rf/subscribe [::rfq/query {:query :todos/list :params {:user-id 42}}])]
   (case status
     :loading [:div "Loading..."]
     :success [:div (for [t data] ^{:key (:id t)} [:li (:title t)])]
@@ -57,32 +59,32 @@ Alternative: use `rfq/init!` for one-shot declarative registration of all querie
 
 ```clojure
 ;; Pure read — prefer these when managing lifecycle via navigation hooks
-@(rf/subscribe [::rfq/query-state :todos/list {:user-id 42}])
-@(rf/subscribe [::rfq/infinite-query-state :feed/items {}])
+@(rf/subscribe [::rfq/query-state {:query :todos/list :params {:user-id 42}}])
+@(rf/subscribe [::rfq/infinite-query-state {:query :feed/items}])
 ```
 
 Use passive subs when managing lifecycle explicitly (e.g. route hooks):
 
 ```clojure
 ;; Route enter
-(rf/dispatch [::rfq/ensure-query :todos/list {:user-id 42}])
-(rf/dispatch [::rfq/mark-active :todos/list {:user-id 42}])
+(rf/dispatch [::rfq/ensure-query {:query :todos/list :params {:user-id 42}}])
+(rf/dispatch [::rfq/mark-active {:query :todos/list :params {:user-id 42}}])
 ;; View uses ::rfq/query-state (pure read, same shape)
 ;; Route leave
-(rf/dispatch [::rfq/mark-inactive :todos/list {:user-id 42}])
+(rf/dispatch [::rfq/mark-inactive {:query :todos/list :params {:user-id 42}}])
 ```
 
 ## Polling
 
-Polling can be started either via subscription opts or via `mark-active`:
+Polling can be started either via the subscription payload or via `mark-active`:
 
 ```clojure
-;; Via subscription opts
-@(rf/subscribe [::rfq/query :stats/live {} {:polling-interval-ms 5000}])
+;; Via subscription payload
+@(rf/subscribe [::rfq/query {:query :stats/live :polling-interval-ms 5000}])
 
 ;; Via mark-active (event-based lifecycle, no effectful sub needed)
-(rf/dispatch [::rfq/mark-active :stats/live {} {:polling-interval-ms 5000 :sub-id :my-widget}])
-(rf/dispatch [::rfq/mark-inactive :stats/live {} {:sub-id :my-widget}])
+(rf/dispatch [::rfq/mark-active {:query :stats/live :polling-interval-ms 5000 :sub-id :my-widget}])
+(rf/dispatch [::rfq/mark-inactive {:query :stats/live :sub-id :my-widget}])
 ```
 
 Polling skips a tick when a request is already in-flight (prevents stale-response races). Set `:polling-mode :force` on the query config to restore unconditional polling. Infinite queries do not support polling.
@@ -118,13 +120,13 @@ Functions: `get-query`, `get-query-data`, `set-query-data`, `remove-query`, `gar
    :tags          (constantly [[:feed]])})
 
 ;; Subscribe
-(let [{:keys [data fetching-next?]} @(rf/subscribe [::rfq/infinite-query :feed/items {}])
+(let [{:keys [data fetching-next?]} @(rf/subscribe [::rfq/infinite-query {:query :feed/items}])
       {:keys [pages has-next? has-prev?]} data]
   ...)
 
 ;; Paginate
-(rf/dispatch [::rfq/fetch-next-page :feed/items {}])
-(rf/dispatch [::rfq/fetch-previous-page :feed/items {}])  ;; requires :get-previous-cursor
+(rf/dispatch [::rfq/fetch-next-page {:query :feed/items}])
+(rf/dispatch [::rfq/fetch-previous-page {:query :feed/items}])  ;; requires :get-previous-cursor
 ```
 
 On invalidation, all loaded pages are re-fetched sequentially with fresh cursors. Old data preserved until complete (atomic swap). Use `::rfq/ensure-infinite-query` (not `::rfq/ensure-query`) for infinite queries.
@@ -132,13 +134,14 @@ On invalidation, all loaded pages are re-fetched sequentially with fresh cursors
 ## Mutation Lifecycle Hooks
 
 ```clojure
-(rf/dispatch [::rfq/execute-mutation :todos/toggle {:id 5 :done true}
-              {:on-start   [:todos/optimistic-patch]   ;; receives params
-               :on-success [:todos/clear-snapshot]     ;; receives params, data
-               :on-failure [:todos/rollback]}])        ;; receives params, error
+(rf/dispatch [::rfq/execute-mutation {:mutation   :todos/toggle
+                                      :params     {:id 5 :done true}
+                                      :on-start   [:todos/optimistic-patch]   ;; receives params
+                                      :on-success [:todos/clear-snapshot]     ;; receives params, data
+                                      :on-failure [:todos/rollback]}])        ;; receives params, error
 ```
 
-Each hook takes one event vector. Pass a vector of event vectors — `{:on-success [[:hook-a] [:hook-b]]}` — to dispatch several. Each hook event gets args conj'd onto it — **always** `params`, plus `data` for `:on-success` or `error` for `:on-failure`. Handler signatures:
+Hooks are top-level keys of the mutation payload map. Each hook takes one event vector. Pass a vector of event vectors — `{:on-success [[:hook-a] [:hook-b]]}` — to dispatch several. Each hook event gets args conj'd onto it — **always** `params`, plus `data` for `:on-success` or `error` for `:on-failure`. Handler signatures:
 
 ```clojure
 (fn [_ [_ params]] ...)           ;; :on-start
@@ -161,15 +164,16 @@ See [docs/lifecycle-hooks.md](../../docs/lifecycle-hooks.md) for the full patter
 Use mutation lifecycle hooks + `rfq-db` inside your event handlers:
 
 ```clojure
-(rf/dispatch [::rfq/execute-mutation :todos/toggle {:id 5 :done true}
-              {:on-start   [:todos/optimistic-patch]
-               :on-success [:todos/clear-snapshot]
-               :on-failure [:todos/rollback]}])
+(rf/dispatch [::rfq/execute-mutation {:mutation   :todos/toggle
+                                      :params     {:id 5 :done true}
+                                      :on-start   [:todos/optimistic-patch]
+                                      :on-success [:todos/clear-snapshot]
+                                      :on-failure [:todos/rollback]}])
 ```
 
 ## Observing Query Lifecycle
 
-Queries do **not** have per-call hooks (no `:on-success` opt on `::rfq/query`). Fetches originate from too many places — `ensure-query`, `refetch-query`, polling, tag invalidation, prefetch, the `::rfq/query` subscription — for per-call hooks to be reliable. Instead, observe the lifecycle events with a global interceptor:
+Queries do **not** have per-call hooks (no `:on-success` key on `::rfq/query`). Fetches originate from too many places — `ensure-query`, `refetch-query`, polling, tag invalidation, prefetch, the `::rfq/query` subscription — for per-call hooks to be reliable. Putting `:on-start`/`:on-success`/`:on-failure` on any query event or subscription map **throws** (`… does not accept #{:on-success} — per-call lifecycle hooks exist on mutations only …`). Instead, observe the lifecycle events with a global interceptor:
 
 | Event | Carries |
 |---|---|
@@ -203,6 +207,7 @@ Use cases: analytics, route-scoped toast-on-failure, debug logging, post-success
 
 ## Key Design Rules
 
+- **Always use the map payload form for rfq events/subs** — `{:query k :params p}` / `{:mutation k :params p}`; positional `[::rfq/query k params opts]` is legacy (still supported, not deprecated)
 - **Events are pure data** — never pass functions as event arguments
 - **All state in app-db** — queries under `:re-frame.query/queries`, mutations under `:re-frame.query/mutations`
 - **Cache key = `[k params]`** — e.g. `[:todos/list {:user-id 42}]`

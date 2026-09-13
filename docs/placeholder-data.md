@@ -11,8 +11,8 @@ When you already have partial data for a query — e.g. you're navigating from a
           placeholder  (some #(when (= (:id %) todo-id) %) list-data)]
       {:db (cond-> db
              placeholder (rfq-db/set-query-data :todos/get {:id todo-id} placeholder))
-       :fx [[:dispatch [::rfq/ensure-query :todos/get {:id todo-id}]]
-            [:dispatch [::rfq/mark-active   :todos/get {:id todo-id}]]]})))
+       :fx [[:dispatch [::rfq/ensure-query {:query :todos/get :params {:id todo-id}}]]
+            [:dispatch [::rfq/mark-active  {:query :todos/get :params {:id todo-id}}]]]})))
 ```
 
 `set-query-data` writes the placeholder **and marks the entry stale**, so the very next `ensure-query` triggers a background refetch. The view subscribed via `::rfq/query-state` sees `:status :success` (with the placeholder) and `:fetching? true` simultaneously — render the placeholder immediately, optionally show a subtle refresh indicator until the verified data arrives.
@@ -28,8 +28,8 @@ When you already have partial data for a query — e.g. you're navigating from a
 
 Because the entry is stale, any of the following will trigger a background refetch:
 
-- the next `::rfq/ensure-query` for the same `[k params]`
-- a fresh subscriber to `::rfq/query` (the causal sub) for the same `[k params]`
+- the next `::rfq/ensure-query` for the same `{:query k :params params}`
+- a fresh subscriber to `::rfq/query` (the causal sub) for the same `{:query k :params params}`
 
 In-flight deduplication still applies — if a fetch is already running, the placeholder write doesn't kick off a second one.
 

@@ -18,28 +18,28 @@ The `::rfq/query` subscription handles the full lifecycle — fetching, active t
 
 ```clojure
 ;; Starts polling at 5s — no extra config needed
-@(rf/subscribe [::rfq/query :stocks/prices {}])
+@(rf/subscribe [::rfq/query {:query :stocks/prices}])
 ```
 
 ### With events and passive subscriptions
 
-For explicit lifecycle control (e.g. route-based navigation), use events for lifecycle and `::rfq/query-state` for reading. `mark-active` reads `:polling-interval-ms` from its opts map or falls back to the query config:
+For explicit lifecycle control (e.g. route-based navigation), use events for lifecycle and `::rfq/query-state` for reading. `mark-active` reads `:polling-interval-ms` from its payload map or falls back to the query config:
 
 ```clojure
 ;; On route enter — start fetching, mark active, and start polling
-(rf/dispatch [::rfq/ensure-query :stocks/prices {}])
-(rf/dispatch [::rfq/mark-active :stocks/prices {}]) ;; reads interval from query config
+(rf/dispatch [::rfq/ensure-query {:query :stocks/prices}])
+(rf/dispatch [::rfq/mark-active {:query :stocks/prices}]) ;; reads interval from query config
 
 ;; Or override the interval per-caller:
-(rf/dispatch [::rfq/mark-active :stocks/prices {} {:polling-interval-ms 1000}])
+(rf/dispatch [::rfq/mark-active {:query :stocks/prices :polling-interval-ms 1000}])
 
 ;; In views — read with a passive sub (no side effects)
 (let [{:keys [status data fetching?]}
-      @(rf/subscribe [::rfq/query-state :stocks/prices {}])]
+      @(rf/subscribe [::rfq/query-state {:query :stocks/prices}])]
   ...)
 
 ;; On route leave — stops polling and schedules GC
-(rf/dispatch [::rfq/mark-inactive :stocks/prices {}])
+(rf/dispatch [::rfq/mark-inactive {:query :stocks/prices}])
 ```
 
 ### Subscriber identity (`:sub-id`)
@@ -50,36 +50,37 @@ If **multiple callers** manage the same query independently (e.g. a dashboard an
 
 ```clojure
 ;; Dashboard route
-(rf/dispatch [::rfq/mark-active :stocks/prices {} {:sub-id :dashboard}])
+(rf/dispatch [::rfq/mark-active {:query :stocks/prices :sub-id :dashboard}])
 ;; ...later
-(rf/dispatch [::rfq/mark-inactive :stocks/prices {} {:sub-id :dashboard}])
+(rf/dispatch [::rfq/mark-inactive {:query :stocks/prices :sub-id :dashboard}])
 
 ;; Sidebar (different interval, independent lifecycle)
-(rf/dispatch [::rfq/mark-active :stocks/prices {} {:sub-id :sidebar
-                                                    :polling-interval-ms 1000}])
+(rf/dispatch [::rfq/mark-active {:query               :stocks/prices
+                                 :sub-id              :sidebar
+                                 :polling-interval-ms 1000}])
 ;; ...later — only removes the sidebar subscriber
-(rf/dispatch [::rfq/mark-inactive :stocks/prices {} {:sub-id :sidebar}])
+(rf/dispatch [::rfq/mark-inactive {:query :stocks/prices :sub-id :sidebar}])
 ```
 
 When multiple subscribers exist for the same query, the **lowest non-zero** interval wins — same as with effectful subscriptions.
 
 ## Per-subscription polling
 
-Override or set the interval for a specific subscriber via the opts map:
+Override or set the interval for a specific subscriber with `:polling-interval-ms` on the subscription payload:
 
 ```clojure
 ;; This component polls at 1s, regardless of the query-level default
-@(rf/subscribe [::rfq/query :stocks/prices {} {:polling-interval-ms 1000}])
+@(rf/subscribe [::rfq/query {:query :stocks/prices :polling-interval-ms 1000}])
 ```
 
 ## Multiple subscribers → lowest interval wins
 
 ```clojure
 ;; Component A — polls at 5s (query-level default)
-@(rf/subscribe [::rfq/query :stocks/prices {}])
+@(rf/subscribe [::rfq/query {:query :stocks/prices}])
 
 ;; Component B — polls at 1s (per-subscription override)
-@(rf/subscribe [::rfq/query :stocks/prices {} {:polling-interval-ms 1000}])
+@(rf/subscribe [::rfq/query {:query :stocks/prices :polling-interval-ms 1000}])
 
 ;; Effective interval: 1s (the lowest non-zero)
 ;; When Component B unmounts → interval reverts to 5s

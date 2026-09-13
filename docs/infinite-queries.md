@@ -28,7 +28,7 @@ Set `:max-pages` on the query config to cap how many pages are kept in memory (s
 
 ```clojure
 (let [{:keys [status data fetching? fetching-next?]}
-      @(rf/subscribe [::rfq/infinite-query :feed/items {:user "alex"}])
+      @(rf/subscribe [::rfq/infinite-query {:query :feed/items :params {:user "alex"}}])
       {:keys [pages has-next?]} data]
   ;; pages = [page1-response, page2-response, ...]
   ;; Each page is the raw response from your API
@@ -51,12 +51,12 @@ Like `::rfq/query`, subscribing triggers the first page fetch and marks the quer
 
 ```clojure
 ;; From a "Load More" button
-[:button {:on-click #(rfq/fetch-next-page :feed/items {:user "alex"})
+[:button {:on-click #(rfq/fetch-next-page {:query :feed/items :params {:user "alex"}})
           :disabled fetching-next?}
  "Load More"]
 
 ;; Or dispatch directly
-(rf/dispatch [::rfq/fetch-next-page :feed/items {:user "alex"}])
+(rf/dispatch [::rfq/fetch-next-page {:query :feed/items :params {:user "alex"}}])
 ```
 
 No-op if `has-next?` is false or a fetch is already in progress.
@@ -80,8 +80,8 @@ Different params create different cache entries. Switching between users maintai
 
 ```clojure
 ;; These are two independent cache entries:
-@(rf/subscribe [::rfq/infinite-query :feed/items {:user "alex"}])
-@(rf/subscribe [::rfq/infinite-query :feed/items {:user "maria"}])
+@(rf/subscribe [::rfq/infinite-query {:query :feed/items :params {:user "alex"}}])
+@(rf/subscribe [::rfq/infinite-query {:query :feed/items :params {:user "maria"}}])
 ```
 
 ## Per-user tag invalidation

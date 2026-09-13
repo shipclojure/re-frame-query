@@ -1,5 +1,24 @@
 # API Reference
 
+## Payload forms
+
+Every public rfq event and subscription takes a **single map payload**. Queries are identified by `:query`, mutations by `:mutation`; everything else (`:params`, `:data`, `:tags`, `:skip?`, `:polling-interval-ms`, `:sub-id`, mutation hooks) is a named key on the same map:
+
+```clojure
+[::rfq/ensure-query     {:query :books/list :params {:page 1}}]
+[::rfq/query            {:query :books/list :params {:page 1} :polling-interval-ms 5000}]
+[::rfq/execute-mutation {:mutation :books/add :params {:title "x"} :on-success [:my/saved]}]
+[::rfq/invalidate-tags  {:tags [[:books]]}]
+```
+
+Why a map: arguments are named rather than positional, optional keys can be added without growing arities or trailing opts maps, and new keys can be introduced later without changing call sites.
+
+- **The positional form is still fully supported** — `[::rfq/ensure-query k params]`, `[::rfq/query k params opts]`, `[::rfq/execute-mutation k params opts]` and friends all keep working, with no warnings and no deprecation timeline. The two forms are equivalent; a trailing positional `opts` map is flattened into the same top-level keys the map form uses. The full mapping is in the [Legacy positional form](#legacy-positional-form) appendix.
+- **`:params` is optional** in the map form — `{:query :user/current}` and `{:query :user/current :params {}}` resolve to the same cache entry.
+- **Two loud errors** guard the map form:
+  - A map payload without a keyword under `:query` / `:mutation` throws — e.g. passing bare params `[::rfq/ensure-query {:page 1}]` fails with `re-frame-query: :re-frame.query/ensure-query expects a keyword under :query …`, showing both correct forms.
+  - Any **query** event or subscription whose map contains `:on-start`, `:on-success` or `:on-failure` throws `… does not accept #{:on-success} — per-call lifecycle hooks exist on mutations only …`. Queries are observed via global interceptors and `rfq/parse-result-event` instead — see [Lifecycle Hooks](lifecycle-hooks.md#observing-query-lifecycle). Mutations keep their hooks.
+
 ## Setup
 
 | Function | Description |
@@ -23,7 +42,7 @@ Use these to add queries/mutations one at a time, either standalone or after `in
 |---|---|
 | `rfq/reg-query` | Register a single query definition |
 | `rfq/reg-mutation` | Register a single mutation definition |
-| `rfq/prefetch` | `(rfq/prefetch k params)` — pre-populate cache (convenience for dispatching `::rfq/ensure-query`) |
+| `rfq/prefetch` | `(rfq/prefetch {:query k :params params})` — pre-populate cache (convenience for dispatching `::rfq/ensure-query`) |
 | `rfq/reset-api-state!` | Clear all query/mutation state and cancel all timers (for logout, account switch, etc.) |
 
 ### `reg-query` config keys
@@ -57,24 +76,29 @@ With `(:require [re-frame.query :as rfq])`, use `::rfq/` shorthand:
 
 | Event | Description |
 |---|---|
-| `[::rfq/ensure-query k params]` | Fetch if stale/absent (called automatically by subscription; can also used for prefetching) |
-| `[::rfq/refetch-query k params]` | Force refetch regardless of staleness |
-| `[::rfq/execute-mutation k params]` | Execute a mutation |
-| `[::rfq/execute-mutation k params opts]` | Execute with [lifecycle hooks](lifecycle-hooks.md) |
-| `[::rfq/set-query-data k params data]` | Directly set cached query data (for [placeholder data](placeholder-data.md), optimistic updates, rollback). Marks the entry stale — the next `ensure-query` background-refetches. |
-| `[::rfq/invalidate-tags tags]` | Mark matching queries stale & refetch active ones |
+| `[::rfq/ensure-query {:query k :params params}]` | Fetch if stale/absent (called automatically by subscription; can also used for prefetching) |
+| `[::rfq/refetch-query {:query k :params params}]` | Force refetch regardless of staleness |
+| `[::rfq/mark-active {:query k :params params}]` | Mark a query active (manual lifecycle); accepts `:polling-interval-ms` and `:sub-id` — see [Polling](polling.md) |
+| `[::rfq/mark-inactive {:query k :params params}]` | Mark a query inactive and schedule GC; accepts `:sub-id` |
+| `[::rfq/execute-mutation {:mutation k :params params}]` | Execute a mutation |
+| `[::rfq/execute-mutation {:mutation k :params params :on-start ev :on-success ev :on-failure ev}]` | Execute with [lifecycle hooks](lifecycle-hooks.md) |
+| `[::rfq/set-query-data {:query k :params params :data data}]` | Directly set cached query data (for [placeholder data](placeholder-data.md), optimistic updates, rollback). Marks the entry stale — the next `ensure-query` background-refetches. |
+| `[::rfq/invalidate-tags {:tags tags}]` | Mark matching queries stale & refetch active ones |
 | `[::rfq/remove-query qid]` | Remove a specific query from cache (used internally by GC) |
 | `[::rfq/garbage-collect]` | Bulk remove all expired inactive queries |
 | `[::rfq/reset-api-state]` | Clear all queries, mutations, and cancel all GC/polling timers |
-| `[::rfq/reset-mutation k params]` | Clear a mutation's state back to idle |
-| `[::rfq/fetch-next-page k params]` | Fetch and append the next page of an [infinite query](infinite-queries.md) |
-| `[::rfq/cancel-query k params]` | Supersede every in-flight request for a query — responses from it are dropped on arrival, `:fetching?`/`:fetching-next?`/`:fetching-prev?`/`:refetch-state` are cleared, `:data`/`:status`/`:error` are left alone. No-op if the query isn't cached. See [Lifecycle Hooks](lifecycle-hooks.md#advanced-cancelling-in-flight-requests). |
+| `[::rfq/reset-mutation {:mutation k :params params}]` | Clear a mutation's state back to idle |
+| `[::rfq/ensure-infinite-query {:query k :params params}]` | Fetch the first page of an [infinite query](infinite-queries.md) if stale/absent |
+| `[::rfq/fetch-next-page {:query k :params params}]` | Fetch and append the next page of an [infinite query](infinite-queries.md) |
+| `[::rfq/fetch-previous-page {:query k :params params}]` | Fetch and prepend the previous page (requires `:get-previous-cursor`) |
+| `[::rfq/refetch-infinite-query {:query k :params params}]` | Sequentially re-fetch every loaded page from page 1 |
+| `[::rfq/cancel-query {:query k :params params}]` | Supersede every in-flight request for a query — responses from it are dropped on arrival, `:fetching?`/`:fetching-next?`/`:fetching-prev?`/`:refetch-state` are cleared, `:data`/`:status`/`:error` are left alone. No-op if the query isn't cached. See [Lifecycle Hooks](lifecycle-hooks.md#advanced-cancelling-in-flight-requests). |
 
 ## Cancellation
 
 | Function | Description |
 |---|---|
-| `rfq/cancel-query` | `(rfq/cancel-query k params)` — dispatches `::rfq/cancel-query` above |
+| `rfq/cancel-query` | `(rfq/cancel-query {:query k :params params})` — dispatches `::rfq/cancel-query` above |
 | `re-frame.query.db/cancel-query` | `(cancel-query db k params query-config request-id)` — pure `db -> db` version, for use directly inside your own event handlers to avoid an extra dispatch cycle |
 
 ## Subscriptions
@@ -86,17 +110,18 @@ With `(:require [re-frame.query :as rfq])`, use `::rfq/` shorthand:
 
 | Subscription | Triggers fetch? | Returns |
 |---|---|---|
-| `[::rfq/query k params]` | ✅ Yes | Full query state map |
-| `[::rfq/query k params opts]` | ✅ Yes | Full query state map (opts: `{:polling-interval-ms 5000, :skip? false}`) |
-| `[::rfq/query-state k params]` | ❌ No | Full query state map (same shape as `::rfq/query`, no side effects) |
-| `[::rfq/infinite-query-state k params]` | ❌ No | Full infinite query state (same shape as `::rfq/infinite-query`, no side effects) |
-| `[::rfq/query-data k params]` | ❌ No | Just the `:data` |
-| `[::rfq/query-status k params]` | ❌ No | Just the `:status` (`:idle`, `:loading`, `:success`, `:error`) |
-| `[::rfq/query-fetching? k params]` | ❌ No | Boolean — is a request in flight? |
-| `[::rfq/query-error k params]` | ❌ No | Just the `:error` |
-| `[::rfq/infinite-query k params]` | ✅ Yes | Full [infinite query](infinite-queries.md) state (pages, cursors, has-next?) |
-| `[::rfq/mutation k params]` | ❌ No | Mutation state map |
-| `[::rfq/mutation-status k params]` | ❌ No | Just the mutation `:status` |
+| `[::rfq/query {:query k :params params}]` | ✅ Yes | Full query state map |
+| `[::rfq/query {:query k :params params :polling-interval-ms 5000 :skip? false}]` | ✅ Yes | Full query state map (`:polling-interval-ms` and `:skip?` are optional top-level keys) |
+| `[::rfq/query-state {:query k :params params}]` | ❌ No | Full query state map (same shape as `::rfq/query`, no side effects) |
+| `[::rfq/infinite-query-state {:query k :params params}]` | ❌ No | Full infinite query state (same shape as `::rfq/infinite-query`, no side effects) |
+| `[::rfq/query-data {:query k :params params}]` | ❌ No | Just the `:data` |
+| `[::rfq/query-status {:query k :params params}]` | ❌ No | Just the `:status` (`:idle`, `:loading`, `:success`, `:error`) |
+| `[::rfq/query-fetching? {:query k :params params}]` | ❌ No | Boolean — is a request in flight? |
+| `[::rfq/query-error {:query k :params params}]` | ❌ No | Just the `:error` |
+| `[::rfq/infinite-query {:query k :params params}]` | ✅ Yes | Full [infinite query](infinite-queries.md) state (pages, cursors, has-next?) |
+| `[::rfq/infinite-query-data {:query k :params params}]` | ❌ No | Just the infinite `:data` (`{:pages :page-params :has-next? :has-prev?}`) |
+| `[::rfq/mutation {:mutation k :params params}]` | ❌ No | Mutation state map |
+| `[::rfq/mutation-status {:mutation k :params params}]` | ❌ No | Just the mutation `:status` |
 
 ## Query State Shape
 
@@ -131,3 +156,45 @@ Returned map shapes (`rfq/parse-result-event`):
 | anything else | `nil` |
 
 `:request-control` — `{:query-id :request-id :issued-at}` — is only present when the source event carries the per-attempt stamp (i.e. it went through the library's effect wiring rather than a hand-dispatched or adapter-rebuilt event vector).
+
+## Legacy positional form
+
+The positional form predates the map payload and remains fully supported — no warnings, no deprecation. Both columns below are equivalent; a trailing positional `opts` map is flattened into the same top-level keys the map form carries. Internal result events (`::rfq/query-success`, `::rfq/query-failure`, `::rfq/infinite-page-success`, `::rfq/infinite-page-failure`, `::rfq/mutation-success`, `::rfq/mutation-failure`) are positional only and unchanged — use `rfq/parse-result-event` to read them.
+
+| Map form (canonical) | Positional equivalent |
+|---|---|
+| `[::rfq/ensure-query {:query k :params p}]` | `[::rfq/ensure-query k p]` |
+| `[::rfq/refetch-query {:query k :params p}]` | `[::rfq/refetch-query k p]` |
+| `[::rfq/cancel-query {:query k :params p}]` | `[::rfq/cancel-query k p]` |
+| `[::rfq/set-query-data {:query k :params p :data d}]` | `[::rfq/set-query-data k p d]` |
+| `[::rfq/invalidate-tags {:tags tags}]` | `[::rfq/invalidate-tags tags]` |
+| `[::rfq/mark-active {:query k :params p :polling-interval-ms n :sub-id id}]` | `[::rfq/mark-active k p {:polling-interval-ms n :sub-id id}]` |
+| `[::rfq/mark-inactive {:query k :params p :sub-id id}]` | `[::rfq/mark-inactive k p {:sub-id id}]` |
+| `[::rfq/ensure-infinite-query {:query k :params p}]` | `[::rfq/ensure-infinite-query k p]` |
+| `[::rfq/fetch-next-page {:query k :params p}]` | `[::rfq/fetch-next-page k p]` |
+| `[::rfq/fetch-previous-page {:query k :params p}]` | `[::rfq/fetch-previous-page k p]` |
+| `[::rfq/refetch-infinite-query {:query k :params p}]` | `[::rfq/refetch-infinite-query k p]` |
+| `[::rfq/execute-mutation {:mutation k :params p :on-start ev :on-success ev :on-failure ev}]` | `[::rfq/execute-mutation k p {:on-start ev :on-success ev :on-failure ev}]` |
+| `[::rfq/reset-mutation {:mutation k :params p}]` | `[::rfq/reset-mutation k p]` |
+| `[::rfq/query {:query k :params p :skip? b :polling-interval-ms n}]` | `[::rfq/query k p {:skip? b :polling-interval-ms n}]` |
+| `[::rfq/query-state {:query k :params p}]` | `[::rfq/query-state k p]` |
+| `[::rfq/query-data {:query k :params p}]` | `[::rfq/query-data k p]` |
+| `[::rfq/query-status {:query k :params p}]` | `[::rfq/query-status k p]` |
+| `[::rfq/query-fetching? {:query k :params p}]` | `[::rfq/query-fetching? k p]` |
+| `[::rfq/query-error {:query k :params p}]` | `[::rfq/query-error k p]` |
+| `[::rfq/infinite-query {:query k :params p}]` | `[::rfq/infinite-query k p]` |
+| `[::rfq/infinite-query-data {:query k :params p}]` | `[::rfq/infinite-query-data k p]` |
+| `[::rfq/infinite-query-state {:query k :params p}]` | `[::rfq/infinite-query-state k p]` |
+| `[::rfq/mutation {:mutation k :params p}]` | `[::rfq/mutation k p]` |
+| `[::rfq/mutation-status {:mutation k :params p}]` | `[::rfq/mutation-status k p]` |
+
+Helper functions in `re-frame.query` follow the same rule — the 1-arity map form is canonical and the positional arity still works:
+
+| Map form (canonical) | Positional equivalent |
+|---|---|
+| `(rfq/prefetch {:query k :params p})` | `(rfq/prefetch k p)` |
+| `(rfq/set-query-data {:query k :params p :data d})` | `(rfq/set-query-data k p d)` |
+| `(rfq/cancel-query {:query k :params p})` | `(rfq/cancel-query k p)` |
+| `(rfq/fetch-next-page {:query k :params p})` | `(rfq/fetch-next-page k p)` |
+| `(rfq/fetch-previous-page {:query k :params p})` | `(rfq/fetch-previous-page k p)` |
+| `(rfq/infinite-query-data {:query k :params p})` | `(rfq/infinite-query-data k p)` |

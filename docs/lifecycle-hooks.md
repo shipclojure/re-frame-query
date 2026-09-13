@@ -2,18 +2,19 @@
 
 re-frame-query exposes lifecycle information differently for mutations and queries:
 
-- **Mutations** support explicit per-call hooks (`:on-start`, `:on-success`, `:on-failure`) passed in the opts map to `execute-mutation`. They're scoped to a single action and commonly power optimistic updates.
+- **Mutations** support explicit per-call hooks (`:on-start`, `:on-success`, `:on-failure`) passed as top-level keys of the `execute-mutation` payload map. They're scoped to a single action and commonly power optimistic updates.
 - **Queries** are observed via **re-frame global interceptors** on the library's lifecycle events. This matches the fact that query fetches can originate from many places (subscriptions, navigation events, polling, tag invalidation, prefetches) — a per-call hook would silently miss most of them.
 
 ## Mutation Lifecycle Hooks
 
-Pass an opts map as the third argument to `execute-mutation` to hook into the mutation lifecycle:
+Add `:on-start` / `:on-success` / `:on-failure` keys to the `execute-mutation` payload map to hook into the mutation lifecycle:
 
 ```clojure
-(rf/dispatch [::rfq/execute-mutation :todos/toggle {:id 5 :done true}
-              {:on-start   [:my-app/on-start-event]
-               :on-success [:my-app/on-success-event]
-               :on-failure [:my-app/on-failure-event]}])
+(rf/dispatch [::rfq/execute-mutation {:mutation   :todos/toggle
+                                      :params     {:id 5 :done true}
+                                      :on-start   [:my-app/on-start-event]
+                                      :on-success [:my-app/on-success-event]
+                                      :on-failure [:my-app/on-failure-event]}])
 ```
 
 | Hook | When | Args conj'd onto each event vector |
@@ -22,16 +23,17 @@ Pass an opts map as the third argument to `execute-mutation` to hook into the mu
 | `:on-success` | After mutation succeeds | `params`, `response-data` |
 | `:on-failure` | After mutation fails | `params`, `error` |
 
-Each hook takes a single event vector. Hooks are optional; omitting the opts map works exactly as before.
+Each hook takes an event vector. Hooks are optional; omitting the hook keys works exactly as before.
 
 ### Multiple events per hook
 
 To dispatch several events from one hook, pass a vector of event vectors — all of them are dispatched:
 
 ```clojure
-(rf/dispatch [::rfq/execute-mutation :todos/toggle {:id 5 :done true}
-              {:on-success [[:my-app/refresh-badge]
-                            [:my-app/toast "Saved"]]}])
+(rf/dispatch [::rfq/execute-mutation {:mutation   :todos/toggle
+                                      :params     {:id 5 :done true}
+                                      :on-success [[:my-app/refresh-badge]
+                                                   [:my-app/toast "Saved"]]}])
 ```
 
 ### Hook Handler Signatures
@@ -42,8 +44,9 @@ If you pre-bind data in the hook event vector, those values sit *before* rfq's a
 
 ```clojure
 ;; Dispatch:
-[::rfq/execute-mutation :todos/toggle {:id 5}
- {:on-success [:my/hook extra-1 extra-2]}]
+[::rfq/execute-mutation {:mutation   :todos/toggle
+                         :params     {:id 5}
+                         :on-success [:my/hook extra-1 extra-2]}]
 
 ;; Hook handler receives:
 (fn [cofx [_ extra-1 extra-2 mutation-params response]] ...)
@@ -65,8 +68,9 @@ If you pre-bind data in the hook event vector, those values sit *before* rfq's a
   (fn [_ [_ params]] ...))
 
 ;; With pre-bound args (e.g. a user-supplied callback fn)
-(rf/dispatch [::rfq/execute-mutation :todos/add {:title "x"}
-              {:on-success [:my/on-success some-data]}])
+(rf/dispatch [::rfq/execute-mutation {:mutation   :todos/add
+                                      :params     {:title "x"}
+                                      :on-success [:my/on-success some-data]}])
 
 (rf/reg-event-fx :my/on-success
   (fn [_ [_ some-data params response]] ...))
@@ -87,20 +91,21 @@ Use lifecycle hooks + `set-query-data` to build optimistic updates in pure re-fr
     (let [qid  [:todos/list {}]
           old  (get-in db [:re-frame.query/queries qid :data])
           new  (mapv #(if (= (:id %) id) (assoc % :done done) %) old)]
-      {:db       (assoc-in db [:snapshots qid] old)           ;; save snapshot
-       :dispatch [::rfq/set-query-data :todos/list {} new]}))) ;; patch cache
+      {:db       (assoc-in db [:snapshots qid] old)                        ;; save snapshot
+       :dispatch [::rfq/set-query-data {:query :todos/list :data new}]}))) ;; patch cache
 
 (rf/reg-event-fx :todos/rollback
   (fn [{:keys [db]} [_ _params _error]]
     (let [qid [:todos/list {}]
           old (get-in db [:snapshots qid])]
       {:db       (update db :snapshots dissoc qid)
-       :dispatch [::rfq/set-query-data :todos/list {} old]}))) ;; restore snapshot
+       :dispatch [::rfq/set-query-data {:query :todos/list :data old}]}))) ;; restore snapshot
 
 ;; 2. Dispatch mutation with hooks
-(rf/dispatch [::rfq/execute-mutation :todos/toggle {:id 5 :done true}
-              {:on-start   [:todos/optimistic-toggle]
-               :on-failure [:todos/rollback]}])
+(rf/dispatch [::rfq/execute-mutation {:mutation   :todos/toggle
+                                      :params     {:id 5 :done true}
+                                      :on-start   [:todos/optimistic-toggle]
+                                      :on-failure [:todos/rollback]}])
 ```
 
 The checkbox toggles instantly. If the server rejects, the snapshot is restored. No library magic — just re-frame events and data.
@@ -125,8 +130,8 @@ Dispatch it in the same `on-start` hook that patches the optimistic update:
           old (get-in db [:re-frame.query/queries qid :data])
           new (mapv #(if (= (:id %) id) (assoc % :done done) %) old)]
       {:db (assoc-in db [:snapshots qid] old)
-       :dispatch-n [[::rfq/cancel-query :todos/list {}]        ;; drop any in-flight response
-                    [::rfq/set-query-data :todos/list {} new]]}))) ;; patch cache
+       :dispatch-n [[::rfq/cancel-query {:query :todos/list}]             ;; drop any in-flight response
+                    [::rfq/set-query-data {:query :todos/list :data new}]]}))) ;; patch cache
 ```
 
 Or call `re-frame.query.db/cancel-query` directly if you're already inside a `db -> db` handler and want to avoid the extra dispatch cycle. `rfq/cancel-query` is also useful on its own, with no cache write — e.g. abandoning a slow infinite re-fetch, or leaving a route for which a query is already in flight.
@@ -171,9 +176,9 @@ Plain `rfq/cancel-query` does **not** abort the network call — the request kee
           old (get-in db [:re-frame.query/queries qid :data])
           new (mapv #(if (= (:id %) id) (assoc % :done done) %) old)]
       {:db            (assoc-in db [:snapshots qid] old)
-       :abort-request qid                                       ;; stop the network call
-       :dispatch-n    [[::rfq/cancel-query :todos/list {}]      ;; clear :fetching?, drop the response
-                        [::rfq/set-query-data :todos/list {} new]]}))) ;; patch cache
+       :abort-request qid                                                     ;; stop the network call
+       :dispatch-n    [[::rfq/cancel-query {:query :todos/list}]              ;; clear :fetching?, drop the response
+                       [::rfq/set-query-data {:query :todos/list :data new}]]}))) ;; patch cache
 ```
 
 `qid` here is exactly `(util/query-id :todos/list {})` — the same value `rfq/request-control` reports as `:query-id` in step 1 — so the key you dispatch `:abort-request` with always matches what the adapter has stored, with no separate `:abort-key` to keep in sync.
@@ -185,6 +190,16 @@ Aborting the network call alone leaves `:fetching?` stuck `true` forever, since 
 ## Observing Query Lifecycle
 
 Queries don't have per-call `:on-start`/`:on-success`/`:on-failure` hooks. The reason is that a single query key can be fetched from many entry points in the same session — `ensure-query`, `refetch-query`, polling ticks, tag invalidations, prefetches, or the `::rfq/query` subscription — and most of those paths have no natural place to carry caller-supplied opts. Baking hooks into only some of them would be a footgun.
+
+The map payload enforces this loudly: putting a hook key on any query event or subscription throws instead of being silently ignored, and the error points you at the interceptor lane below.
+
+```clojure
+(rf/dispatch [::rfq/ensure-query {:query :books/list :params {:page 1} :on-success [:my/loaded]}])
+;; => ExceptionInfo: re-frame-query: :re-frame.query/ensure-query does not accept #{:on-success}
+;;    — per-call lifecycle hooks exist on mutations only. To observe query lifecycles, register a
+;;    re-frame global interceptor over the rfq result events and parse them with
+;;    re-frame.query/parse-result-event (see docs/lifecycle-hooks.md).
+```
 
 Instead, observe the library's **lifecycle events** with a re-frame global interceptor. The events are stable and part of the public surface:
 
@@ -250,11 +265,11 @@ Do the registration and clearing in the route-enter/leave **functions** themselv
             (rfi/update-effect context :fx (fnil conj [])
                                [:dispatch [:analytics/books-event event-id]])
             context)))))
-  (rf/dispatch [::rfq/ensure-query :books/list {:page 1}]))
+  (rf/dispatch [::rfq/ensure-query {:query :books/list :params {:page 1}}]))
 
 (defn books-route-leave []
   (rf/clear-global-interceptor :books/page-telemetry)
-  (rf/dispatch [::rfq/mark-inactive :books/list {:page 1}]))
+  (rf/dispatch [::rfq/mark-inactive {:query :books/list :params {:page 1}}]))
 
 ;; Wire into your router. With reitit:
 ;; {:name :books

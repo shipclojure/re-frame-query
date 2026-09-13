@@ -85,17 +85,17 @@ Trigger the fetch from your router's enter/leave hooks; render with the **passiv
 
 (rf/reg-event-fx :routes/todos-entered
   (fn [_ _]
-    {:fx [[:dispatch [::rfq/ensure-query :todos/list {:user-id 42}]]
-          [:dispatch [::rfq/mark-active   :todos/list {:user-id 42}]]]}))
+    {:fx [[:dispatch [::rfq/ensure-query {:query :todos/list :params {:user-id 42}}]]
+          [:dispatch [::rfq/mark-active  {:query :todos/list :params {:user-id 42}}]]]}))
 
 (rf/reg-event-fx :routes/todos-left
   (fn [_ _]
-    {:fx [[:dispatch [::rfq/mark-inactive :todos/list {:user-id 42}]]]}))
+    {:fx [[:dispatch [::rfq/mark-inactive {:query :todos/list :params {:user-id 42}}]]]}))
 
 ;; 2. Views subscribe via the passive sub — pure read, no side effects
 (defn todos-view []
   (let [{:keys [status data error fetching?]}
-        @(rf/subscribe [::rfq/query-state :todos/list {:user-id 42}])]
+        @(rf/subscribe [::rfq/query-state {:query :todos/list :params {:user-id 42}}])]
     (case status
       :loading [:div "Loading..."]
       :error   [:div "Error: " (pr-str error)]
@@ -110,12 +110,12 @@ Trigger the fetch from your router's enter/leave hooks; render with the **passiv
 
 #### Option B — Causal subscription (`use-query`-style)
 
-If you'd rather have subscribing trigger the fetch like React Query's `useQuery`, use `::rfq/query`. It's built with `reg-sub-raw` and uses Reagent's `Reaction` lifecycle: **on subscribe** it fetches if absent/stale, marks active, and starts polling; **on dispose** it marks inactive and starts the GC timer. Multiple components subscribing to the same `[k params]` share a single cache entry.
+If you'd rather have subscribing trigger the fetch like React Query's `useQuery`, use `::rfq/query`. It's built with `reg-sub-raw` and uses Reagent's `Reaction` lifecycle: **on subscribe** it fetches if absent/stale, marks active, and starts polling; **on dispose** it marks inactive and starts the GC timer. Multiple components subscribing to the same `{:query k :params params}` share a single cache entry.
 
 ```clojure
 (defn todos-view []
   (let [{:keys [status data error fetching?]}
-        @(rf/subscribe [::rfq/query :todos/list {:user-id 42}])]
+        @(rf/subscribe [::rfq/query {:query :todos/list :params {:user-id 42}}])]
     ...))
 ```
 
@@ -124,7 +124,7 @@ If you'd rather have subscribing trigger the fetch like React Query's `useQuery`
 ### 4. Dispatch a mutation
 
 ```clojure
-(rf/dispatch [::rfq/execute-mutation :todos/add {:user-id 42 :title "Ship it"}])
+(rf/dispatch [::rfq/execute-mutation {:mutation :todos/add :params {:user-id 42 :title "Ship it"}}])
 ```
 
 On success, mutations automatically invalidate matching tags — all active queries with those tags are refetched.
@@ -132,8 +132,10 @@ On success, mutations automatically invalidate matching tags — all active quer
 ### 5. Manual invalidation
 
 ```clojure
-(rf/dispatch [::rfq/invalidate-tags [[:todos :user 42]]])
+(rf/dispatch [::rfq/invalidate-tags {:tags [[:todos :user 42]]}])
 ```
+
+> **Payload form:** every rfq event and subscription takes a single map — `{:query k :params p ...}` for queries, `{:mutation k :params p ...}` for mutations. Positional args form (`[::rfq/query k params]`) also works; see [Payload forms](docs/api-reference.md#payload-forms).
 
 ## Documentation
 
@@ -153,7 +155,7 @@ On success, mutations automatically invalidate matching tags — all active quer
 
 ## How It Works
 
-1. **Subscribing** to `[::rfq/query k params]` fetches data (if absent/stale) and marks the query **active**
+1. **Subscribing** to `[::rfq/query {:query k :params params}]` fetches data (if absent/stale) and marks the query **active**
 2. **`query-fn`** returns a request map; the library wraps it with callbacks via `effect-fn`
 3. **On success**, the cache updates with data, timestamps, and tags; on **failure**, the error is stored
 4. **Mutations** invalidate matching tags — active queries with those tags are automatically refetched

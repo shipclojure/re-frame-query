@@ -1,13 +1,14 @@
 # Conditional Fetching (Skip)
 
-Use `:skip? true` in the subscription opts to prevent a query from firing. This is useful for **dependent queries** — where query B needs data from query A before it can fetch.
+Use `:skip? true` in the subscription payload to prevent a query from firing. This is useful for **dependent queries** — where query B needs data from query A before it can fetch.
 
 ```clojure
 (defn user-todos []
-  (let [{:keys [data]}   @(rf/subscribe [::rfq/query :user/current {}])
+  (let [{:keys [data]}   @(rf/subscribe [::rfq/query {:query :user/current}])
         user-id          (:id data)
-        {:keys [status]} @(rf/subscribe [::rfq/query :user/todos {:user-id user-id}
-                                         {:skip? (nil? user-id)}])]
+        {:keys [status]} @(rf/subscribe [::rfq/query {:query  :user/todos
+                                                      :params {:user-id user-id}
+                                                      :skip?  (nil? user-id)}])]
     (case status
       :idle    [:div "Waiting for user..."]
       :loading [:div "Loading todos..."]
