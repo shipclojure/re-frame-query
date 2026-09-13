@@ -25,6 +25,10 @@
                           "CLOJARS_PASSWORD" (make/op-read "op://Personal/Clojars Token/credential")}}
                         "clojure -T:build release")}
 
+  skill {:doc "Package skill/re-frame-query into re-frame-query.skill (a zip). Re-run after editing the skill so the tracked artifact doesn't drift."
+         :task (do (shell "rm" "-f" "re-frame-query.skill")
+                   (shell {:dir "skill"} "zip" "-r" "-X" "-D" "../re-frame-query.skill" "re-frame-query"))}
+
   fmt {:doc "Format all Clojure files with cljfmt"
        :task (shell "cljfmt" "fix" "src" "test" "examples" "bb" "build.clj")}
 
