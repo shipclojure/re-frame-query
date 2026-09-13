@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.13.0] - 2026-09-13
+
 
 ### Added
 - **Map payload form for every public event and subscription.** Each rfq event/sub now takes a single map — `{:query k :params p ...}` for queries, `{:mutation k :params p ...}` for mutations, with options (`:skip?`, `:polling-interval-ms`, `:sub-id`, mutation hooks) as top-level keys instead of a trailing opts map. Named args, optional keys without arity growth, and room to add keys later without touching call sites.
@@ -210,7 +212,8 @@ Initial public release.
 - 80 unit tests (371 assertions), 60 Playwright e2e tests
 - GitHub Actions CI with parallel unit + e2e jobs
 
-[unreleased]: https://github.com/shipclojure/re-frame-query/compare/v0.12.0...HEAD
+[unreleased]: https://github.com/shipclojure/re-frame-query/compare/v0.13.0...HEAD
+[0.13.0]: https://github.com/shipclojure/re-frame-query/compare/v0.12.0...v0.13.0
 [0.12.0]: https://github.com/shipclojure/re-frame-query/compare/v0.11.0...v0.12.0
 [0.11.0]: https://github.com/shipclojure/re-frame-query/compare/v0.10.0...v0.11.0
 [0.10.1]: https://github.com/shipclojure/re-frame-query/compare/v0.10.0...v0.10.1
