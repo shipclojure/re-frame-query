@@ -20,8 +20,12 @@
        :tags (fn [{:keys [user-id]}] [[:todos :user user-id]])})
 
     ;; Fetch and subscribe
-    (rf/dispatch [::rfq/ensure-query :todos/list {:user-id 42}])
-    @(rf/subscribe [::rfq/query :todos/list {:user-id 42}])"
+    (rf/dispatch [::rfq/ensure-query {:query :todos/list :params {:user-id 42}}])
+    @(rf/subscribe [::rfq/query {:query :todos/list :params {:user-id 42}}])
+
+  Events and subscriptions take a single canonical payload map; the legacy
+  positional form (e.g. [::rfq/ensure-query :todos/list {:user-id 42}])
+  remains supported."
   (:require
    ;; Side-effecting requires — registers events, subs, and fx on load
    [re-frame.core :as rf]
@@ -205,15 +209,22 @@
     - Rollback (restore snapshot on mutation failure).
     - Manually populating cache from external data.
 
+  Accepts the canonical map `{:query k :params p :data d}`; the legacy
+  positional arity `(set-query-data k params data)` remains supported.
+
   Example:
     ;; Optimistically mark a todo as done
-    (rfq/set-query-data :todos/list {:user-id 42}
-      (mapv #(if (= (:id %) 5) (assoc % :done true) %) old-todos))
+    (rfq/set-query-data
+      {:query :todos/list
+       :params {:user-id 42}
+       :data (mapv #(if (= (:id %) 5) (assoc % :done true) %) old-todos)})
 
     ;; Rollback to snapshot
-    (rfq/set-query-data :todos/list {:user-id 42} snapshot)"
-  [k params data]
-  (rf/dispatch [:re-frame.query/set-query-data k params data]))
+    (rfq/set-query-data {:query :todos/list :params {:user-id 42} :data snapshot})"
+  ([m]
+   (rf/dispatch [:re-frame.query/set-query-data m]))
+  ([k params data]
+   (set-query-data {:query k :params params :data data})))
 
 ;; ---------------------------------------------------------------------------
 ;; Cancellation
@@ -234,16 +245,21 @@
 
     ;; Optimistic update — a fetch started before this patch would otherwise
     ;; land afterwards and overwrite it with pre-mutation data.
-    (rfq/cancel-query :todos/list {:user-id 42})
-    (rfq/set-query-data :todos/list {:user-id 42} patched)
+    (rfq/cancel-query {:query :todos/list :params {:user-id 42}})
+    (rfq/set-query-data {:query :todos/list :params {:user-id 42} :data patched})
 
   Note `rfq/set-query-data` does **not** supersede anything on its own — it
   deliberately leaves an in-flight request alone rather than lying about it
   — so the pairing above is required for optimistic updates. `cancel-query`
   is also useful on its own, without writing data (e.g. leaving a route, or
-  abandoning a slow infinite re-fetch)."
-  [k params]
-  (rf/dispatch [:re-frame.query/cancel-query k params]))
+  abandoning a slow infinite re-fetch).
+
+  Accepts the canonical map `{:query k :params p}`; the legacy positional
+  arity `(cancel-query k params)` remains supported."
+  ([m]
+   (rf/dispatch [:re-frame.query/cancel-query m]))
+  ([k params]
+   (cancel-query {:query k :params params})))
 
 ;; ---------------------------------------------------------------------------
 ;; Infinite Query API
@@ -256,10 +272,15 @@
   No-op if there is no next page (`has-next?` is false) or a fetch is
   already in progress.
 
+  Accepts the canonical map `{:query k :params p}`; the legacy positional
+  arity `(fetch-next-page k params)` remains supported.
+
   Example:
-    (rfq/fetch-next-page :feed/items {:category \"tech\"})"
-  [k params]
-  (rf/dispatch [:re-frame.query/fetch-next-page k params]))
+    (rfq/fetch-next-page {:query :feed/items :params {:category \"tech\"}})"
+  ([m]
+   (rf/dispatch [:re-frame.query/fetch-next-page m]))
+  ([k params]
+   (fetch-next-page {:query k :params params})))
 
 (defn fetch-previous-page
   "Fetch the previous page of an infinite query.
@@ -272,10 +293,15 @@
   When `:max-pages` is set, older pages are trimmed from the end (opposite
   of `fetch-next-page` which trims from the start).
 
+  Accepts the canonical map `{:query k :params p}`; the legacy positional
+  arity `(fetch-previous-page k params)` remains supported.
+
   Example:
-    (rfq/fetch-previous-page :feed/items {:category \"tech\"})"
-  [k params]
-  (rf/dispatch [:re-frame.query/fetch-previous-page k params]))
+    (rfq/fetch-previous-page {:query :feed/items :params {:category \"tech\"}})"
+  ([m]
+   (rf/dispatch [:re-frame.query/fetch-previous-page m]))
+  ([k params]
+   (fetch-previous-page {:query k :params params})))
 
 (defn infinite-query-data
   "Subscribe to just the `:data` field of an infinite query's passive state.
@@ -292,10 +318,15 @@
   `::rfq/ensure-infinite-query` and `::rfq/mark-active` / `::rfq/mark-inactive`,
   or by having another component subscribed to `::rfq/infinite-query`.
 
+  Accepts the canonical map `{:query k :params p}`; the legacy positional
+  arity `(infinite-query-data k params)` remains supported.
+
   Example:
-    @(rf/subscribe [::rfq/infinite-query-data :feed/items {:user \"alex\"}])"
-  [k params]
-  (rf/subscribe [:re-frame.query/infinite-query-data k params]))
+    @(rfq/infinite-query-data {:query :feed/items :params {:user \"alex\"}})"
+  ([m]
+   (rf/subscribe [:re-frame.query/infinite-query-data m]))
+  ([k params]
+   (infinite-query-data {:query k :params params})))
 
 ;; ---------------------------------------------------------------------------
 ;; Prefetching
@@ -314,14 +345,19 @@
     - Prefetch on route transition
     - Prefetch from an event handler
 
+  Accepts the canonical map `{:query k :params p}`; the legacy positional
+  arity `(prefetch k params)` remains supported.
+
   Example:
     ;; On mouse-enter for a link
-    (rfq/prefetch :book/detail {:id 42})
+    (rfq/prefetch {:query :book/detail :params {:id 42}})
 
     ;; Later, when the component mounts, it finds cached data:
-    @(rf/subscribe [::rfq/query :book/detail {:id 42}])"
-  [k params]
-  (rf/dispatch [:re-frame.query/ensure-query k params]))
+    @(rf/subscribe [::rfq/query {:query :book/detail :params {:id 42}}])"
+  ([m]
+   (rf/dispatch [:re-frame.query/ensure-query m]))
+  ([k params]
+   (prefetch {:query k :params params})))
 
 ;; ---------------------------------------------------------------------------
 ;; Event Introspection

@@ -68,14 +68,19 @@
 
 (rf/reg-sub-raw
   :re-frame.query/query
-  (fn [app-db [_ k params opts]]
-    (let [qid (util/query-id k params)
-          skip? (:skip? opts)
+  (fn [app-db [_ & args]]
+    (let [{k :query params :params skip? :skip? :as opts}
+          (-> (util/normalize-payload :re-frame.query/query
+                                      args
+                                      [:query :params :opts]
+                                      {:reject-keys util/mutation-only-hook-keys})
+              util/flatten-opts)
+          qid (util/query-id k params)
           sub-id (gensym "poll-sub-")
-          mark-active-opts (assoc (dissoc opts :skip?) :sub-id sub-id)]
+          mark-active-payload (assoc (dissoc opts :skip?) :sub-id sub-id)]
       (when-not skip?
-        (rf/dispatch [:re-frame.query/ensure-query k params])
-        (rf/dispatch [:re-frame.query/mark-active k params mark-active-opts]))
+        (rf/dispatch [:re-frame.query/ensure-query {:query k :params params}])
+        (rf/dispatch [:re-frame.query/mark-active mark-active-payload]))
       (let [reaction
             #?(:cljs
                (ratom/make-reaction
@@ -92,7 +97,10 @@
                   reaction
                   (fn []
                     (when-not skip?
-                      (rf/dispatch [:re-frame.query/mark-inactive k params {:sub-id sub-id}])))))
+                      (rf/dispatch [:re-frame.query/mark-inactive
+                                    {:query k
+                                     :params params
+                                     :sub-id sub-id}])))))
         reaction))))
 
 ;; ---------------------------------------------------------------------------
@@ -101,10 +109,15 @@
 
 (rf/reg-sub-raw
   :re-frame.query/infinite-query
-  (fn [app-db [_ k params]]
-    (let [qid (util/query-id k params)]
-      (rf/dispatch [:re-frame.query/ensure-infinite-query k params])
-      (rf/dispatch [:re-frame.query/mark-active k params])
+  (fn [app-db [_ & args]]
+    (let [{k :query params :params}
+          (util/normalize-payload :re-frame.query/infinite-query
+                                  args
+                                  [:query :params]
+                                  {:reject-keys util/mutation-only-hook-keys})
+          qid (util/query-id k params)]
+      (rf/dispatch [:re-frame.query/ensure-infinite-query {:query k :params params}])
+      (rf/dispatch [:re-frame.query/mark-active {:query k :params params}])
       (let [reaction
             #?(:cljs
                (ratom/make-reaction
@@ -116,7 +129,8 @@
         #?(:cljs (ratom/add-on-dispose!
                   reaction
                   (fn []
-                    (rf/dispatch [:re-frame.query/mark-inactive k params]))))
+                    (rf/dispatch [:re-frame.query/mark-inactive {:query k
+                                                                 :params params}]))))
         reaction))))
 
 ;; ---------------------------------------------------------------------------
@@ -130,14 +144,24 @@
 (rf/reg-sub
   :re-frame.query/query-state
   :<- [:re-frame.query/queries]
-  (fn [queries [_ k params]]
-    (resolve-query queries (util/query-id k params))))
+  (fn [queries [_ & args]]
+    (let [{k :query params :params}
+          (util/normalize-payload :re-frame.query/query-state
+                                  args
+                                  [:query :params]
+                                  {:reject-keys util/mutation-only-hook-keys})]
+      (resolve-query queries (util/query-id k params)))))
 
 (rf/reg-sub
   :re-frame.query/infinite-query-state
   :<- [:re-frame.query/queries]
-  (fn [queries [_ k params]]
-    (resolve-infinite-query queries (util/query-id k params))))
+  (fn [queries [_ & args]]
+    (let [{k :query params :params}
+          (util/normalize-payload :re-frame.query/infinite-query-state
+                                  args
+                                  [:query :params]
+                                  {:reject-keys util/mutation-only-hook-keys})]
+      (resolve-infinite-query queries (util/query-id k params)))))
 
 ;; ---------------------------------------------------------------------------
 ;; Derived query subscriptions
@@ -145,29 +169,49 @@
 
 (rf/reg-sub
   :re-frame.query/query-data
-  (fn [[_ k params] _]
-    (rf/subscribe [:re-frame.query/query-state k params]))
+  (fn [[_ & args] _]
+    (let [{k :query params :params}
+          (util/normalize-payload :re-frame.query/query-data
+                                  args
+                                  [:query :params]
+                                  {:reject-keys util/mutation-only-hook-keys})]
+      (rf/subscribe [:re-frame.query/query-state k params])))
   (fn [query _]
     (:data query)))
 
 (rf/reg-sub
   :re-frame.query/query-status
-  (fn [[_ k params] _]
-    (rf/subscribe [:re-frame.query/query-state k params]))
+  (fn [[_ & args] _]
+    (let [{k :query params :params}
+          (util/normalize-payload :re-frame.query/query-status
+                                  args
+                                  [:query :params]
+                                  {:reject-keys util/mutation-only-hook-keys})]
+      (rf/subscribe [:re-frame.query/query-state k params])))
   (fn [query _]
     (:status query)))
 
 (rf/reg-sub
   :re-frame.query/query-fetching?
-  (fn [[_ k params] _]
-    (rf/subscribe [:re-frame.query/query-state k params]))
+  (fn [[_ & args] _]
+    (let [{k :query params :params}
+          (util/normalize-payload :re-frame.query/query-fetching?
+                                  args
+                                  [:query :params]
+                                  {:reject-keys util/mutation-only-hook-keys})]
+      (rf/subscribe [:re-frame.query/query-state k params])))
   (fn [query _]
     (:fetching? query)))
 
 (rf/reg-sub
   :re-frame.query/query-error
-  (fn [[_ k params] _]
-    (rf/subscribe [:re-frame.query/query-state k params]))
+  (fn [[_ & args] _]
+    (let [{k :query params :params}
+          (util/normalize-payload :re-frame.query/query-error
+                                  args
+                                  [:query :params]
+                                  {:reject-keys util/mutation-only-hook-keys})]
+      (rf/subscribe [:re-frame.query/query-state k params])))
   (fn [query _]
     (:error query)))
 
@@ -177,8 +221,13 @@
 
 (rf/reg-sub
   :re-frame.query/infinite-query-data
-  (fn [[_ k params] _]
-    (rf/subscribe [:re-frame.query/infinite-query-state k params]))
+  (fn [[_ & args] _]
+    (let [{k :query params :params}
+          (util/normalize-payload :re-frame.query/infinite-query-data
+                                  args
+                                  [:query :params]
+                                  {:reject-keys util/mutation-only-hook-keys})]
+      (rf/subscribe [:re-frame.query/infinite-query-state k params])))
   (fn [query _]
     (:data query)))
 
@@ -189,15 +238,23 @@
 (rf/reg-sub
   :re-frame.query/mutation
   :<- [:re-frame.query/mutations]
-  (fn [mutations [_ k params]]
-    (let [mid (util/query-id k params)]
+  (fn [mutations [_ & args]]
+    (let [{k :mutation params :params}
+          (util/normalize-payload :re-frame.query/mutation
+                                  args
+                                  [:mutation :params])
+          mid (util/query-id k params)]
       (get mutations mid
            {:status :idle
             :error nil}))))
 
 (rf/reg-sub
   :re-frame.query/mutation-status
-  (fn [[_ k params] _]
-    (rf/subscribe [:re-frame.query/mutation k params]))
+  (fn [[_ & args] _]
+    (let [{k :mutation params :params}
+          (util/normalize-payload :re-frame.query/mutation-status
+                                  args
+                                  [:mutation :params])]
+      (rf/subscribe [:re-frame.query/mutation k params])))
   (fn [mutation _]
     (:status mutation)))

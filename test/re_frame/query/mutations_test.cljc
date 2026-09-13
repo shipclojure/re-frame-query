@@ -385,3 +385,133 @@
                        {:status 500}])
          (is (= [{:id 1 :title "Dune"}] (get-in (h/app-db) [:re-frame.query/queries qid :data]))
              "cache rolled back to snapshot after failure"))))))
+
+;; ---------------------------------------------------------------------------
+;; Map-form payload tests (canonical single-map event form)
+;; ---------------------------------------------------------------------------
+
+(deftest map-form-execute-mutation-test
+  (testing "map form issues the same request and callback events as positional"
+    (let [captured (atom [])]
+      (rf/reg-fx :test-http (fn [v] (swap! captured conj v)))
+      (rfq/set-default-effect-fn!
+       (fn [request on-success on-failure]
+         {:test-http (assoc request
+                            :on-success on-success
+                            :on-failure on-failure)}))
+      (rfq/reg-mutation :books/create
+        {:mutation-fn (fn [{:keys [title]}]
+                        {:method :post :url "/api/books" :body {:title title}})})
+      ;; Positional trailing-opts form, then map form with top-level hooks
+      (h/process-event [:re-frame.query/execute-mutation :books/create {:title "Dune"}
+                        {:on-success [[:test/hook]] :on-failure [[:test/fail]]}])
+      (h/process-event [:re-frame.query/execute-mutation
+                        {:mutation :books/create
+                         :params {:title "Dune"}
+                         :on-success [[:test/hook]]
+                         :on-failure [[:test/fail]]}])
+      (is (= 2 (count @captured)))
+      (is (= (first @captured) (second @captured))
+          "identical request and callback events — hooks carried the same way")
+      (let [mid (util/query-id :books/create {:title "Dune"})]
+        (is (= {:status :loading :error nil}
+               (get-in (h/app-db) [:re-frame.query/mutations mid]))
+            "mutation state matches the positional form")))))
+
+(deftest map-form-mutation-hooks-fire-test
+  (testing "top-level :on-start fires immediately"
+    (rf-test/run-test-sync
+     (let [calls (atom [])]
+       (rf/reg-event-db :test/on-start
+         (fn [db [_ params]] (swap! calls conj params) db))
+       (rfq/set-default-effect-fn! h/noop-effect-fn)
+       (rfq/reg-mutation :books/create {:mutation-fn (fn [_] {})})
+       (rf/dispatch [:re-frame.query/execute-mutation
+                     {:mutation :books/create :params {:title "Dune"}
+                      :on-start [[:test/on-start]]}])
+       (is (= [{:title "Dune"}] @calls)))))
+
+  (testing "top-level :on-success fires when the request succeeds"
+    (rf-test/run-test-sync
+     (let [calls (atom [])]
+       (rf/reg-event-db :test/on-success
+         (fn [db [_ params data]] (swap! calls conj {:params params :data data}) db))
+       ;; Adapter that completes every request successfully with {:id 1}
+       (rfq/set-default-effect-fn!
+        (fn [_request on-success _on-failure]
+          {:dispatch (conj on-success {:id 1})}))
+       (rfq/reg-mutation :books/create {:mutation-fn (fn [_] {})})
+       (rf/dispatch [:re-frame.query/execute-mutation
+                     {:mutation :books/create :params {:title "Dune"}
+                      :on-success [[:test/on-success]]}])
+       (is (= [{:params {:title "Dune"} :data {:id 1}}] @calls)))))
+
+  (testing "top-level :on-failure fires when the request fails"
+    (rf-test/run-test-sync
+     (let [calls (atom [])]
+       (rf/reg-event-db :test/on-failure
+         (fn [db [_ params error]] (swap! calls conj {:params params :error error}) db))
+       ;; Adapter that fails every request with {:status 500}
+       (rfq/set-default-effect-fn!
+        (fn [_request _on-success on-failure]
+          {:dispatch (conj on-failure {:status 500})}))
+       (rfq/reg-mutation :books/create {:mutation-fn (fn [_] {})})
+       (rf/dispatch [:re-frame.query/execute-mutation
+                     {:mutation :books/create :params {:title "Dune"}
+                      :on-failure [[:test/on-failure]]}])
+       (is (= [{:params {:title "Dune"} :error {:status 500}}] @calls))))))
+
+(deftest map-form-reset-mutation-test
+  (testing "map form clears mutation state like the positional form"
+    (rfq/set-default-effect-fn! h/noop-effect-fn)
+    (rfq/reg-mutation :books/create {:mutation-fn (fn [_] {})})
+    (h/process-event [:re-frame.query/execute-mutation :books/create {:title "Dune"}])
+    (let [mid (util/query-id :books/create {:title "Dune"})]
+      (is (some? (get-in (h/app-db) [:re-frame.query/mutations mid]))
+          "precondition: mutation state exists")
+      (h/process-event [:re-frame.query/reset-mutation
+                        {:mutation :books/create :params {:title "Dune"}}])
+      (is (nil? (get-in (h/app-db) [:re-frame.query/mutations mid]))
+          "mutation state removed by the map form"))))
+
+(deftest nil-params-mutation-pass-through-test
+  (testing "nil/omitted params reach mutation-fn and hooks as nil in both forms"
+    (rf-test/run-test-sync
+     (let [seen (atom [])
+           hook-args (atom [])]
+       (rf/reg-event-db :seen/hook
+         (fn [db [_ & args]] (swap! hook-args conj (vec args)) db))
+       ;; Adapter that completes every request successfully with {:id 1}
+       (rfq/set-default-effect-fn!
+        (fn [_request on-success _on-failure]
+          {:dispatch (conj on-success {:id 1})}))
+       (rfq/reg-mutation :books/create
+         {:mutation-fn (fn [p] (swap! seen conj p) {})})
+       (rf/dispatch [:re-frame.query/execute-mutation :books/create nil
+                     {:on-success [[:seen/hook]]}])
+       (rf/dispatch [:re-frame.query/execute-mutation
+                     {:mutation :books/create :on-success [[:seen/hook]]}])
+       (is (= [nil nil] @seen)
+           "mutation-fn receives the caller's nil, not a substituted {}")
+       (is (= [[nil {:id 1}] [nil {:id 1}]] @hook-args)
+           ":on-success receives nil params in both forms")
+       (is (= [(util/query-id :books/create nil)]
+              (keys (get (h/app-db) :re-frame.query/mutations)))
+           "both forms share the [k {}] entry via query-id")))))
+
+(deftest map-form-execute-mutation-rejects-malformed-test
+  (testing "a map form without a keyword :mutation is rejected at the handler"
+    (rfq/set-default-effect-fn! h/noop-effect-fn)
+    (rfq/reg-mutation :books/create {:mutation-fn (fn [_] {})})
+    (is (thrown-with-msg?
+         #?(:clj clojure.lang.ExceptionInfo :cljs ExceptionInfo)
+         #"expects a keyword"
+         (h/process-event [:re-frame.query/execute-mutation {:params {}}]))
+        "missing :mutation")
+    (is (thrown-with-msg?
+         #?(:clj clojure.lang.ExceptionInfo :cljs ExceptionInfo)
+         #"expects a keyword"
+         (h/process-event [:re-frame.query/execute-mutation {:mutation "books/create"}]))
+        "string instead of keyword")
+    (is (empty? (get (h/app-db) :re-frame.query/mutations {}))
+        "no mutation state was written for the rejected payloads")))

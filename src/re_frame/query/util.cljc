@@ -161,3 +161,67 @@
 
         (= event-id :re-frame.query/infinite-page-failure)
         (assoc :error a)))))
+
+(def mutation-only-hook-keys
+  "The per-call lifecycle hook keys `::execute-mutation` accepts. Hooks exist
+   on mutations only."
+  #{:on-start :on-success :on-failure})
+
+(defn normalize-payload
+  "Canonicalizes the args of an rfq event or subscription into a single
+   payload map.
+
+   `event-id`-  the event/subscription id (used in error messages)
+
+    `args` - the args passed to the actual event
+
+  `positional-keys` - names the legacy positional slots in order, e.g.
+  `[:query :params]`. When `(first args)` is a map it is the canonical map form
+  and is used as-is (extra keys pass through untouched); otherwise the args are
+  the legacy positional form and are zipped with `positional-keys`.
+
+   `opts` may contain:
+     `:reject-keys` -  set of keys forbidden in the map form (query events and
+                      subscriptions pass `mutation-only-hook-keys`)
+
+   Only the map form is validated: when the identity key
+   (`(first positional-keys)`) is `:query` or `:mutation` it must be present
+   and a keyword; events whose first slot is something else (e.g.
+   `::rfq/invalidate-tags`, whose `:tags` slot holds a vector) skip that check.
+
+   Throws when keys from `:reject-keys` appear in `args`"
+  ([event-id args positional-keys]
+   (normalize-payload event-id args positional-keys {}))
+  ([event-id args positional-keys {:keys [reject-keys]}]
+   (let [map-form? (map? (first args))
+         payload (if map-form?
+                   (first args)
+                   (zipmap positional-keys args))
+         identity-key (first positional-keys)]
+     (when map-form?
+       (when (and (#{:query :mutation} identity-key)
+                  (not (keyword? (get payload identity-key))))
+         (throw (ex-info (str "re-frame-query: " event-id " expects a keyword under "
+                              identity-key ". Use the map form [" event-id " {"
+                              identity-key " :your/key :params {...}}] or the positional "
+                              "form [" event-id " :your/key {...}]. Did you pass a "
+                              "params map without the wrapping {" identity-key " ...}?")
+                         {:event-id event-id :payload payload})))
+       (let [rejected (set (filter #(contains? payload %) reject-keys))]
+         (when (seq rejected)
+           (throw (ex-info (str "re-frame-query: " event-id " does not accept "
+                                (pr-str rejected) " — per-call lifecycle hooks exist "
+                                "on mutations only. To observe query lifecycles, register a "
+                                "re-frame global interceptor over the rfq result events and "
+                                "parse them with re-frame.query/parse-result-event "
+                                "(see docs/lifecycle-hooks.md).")
+                           {:event-id event-id :rejected-keys rejected})))))
+     payload)))
+
+(defn flatten-opts
+  "Merge the positional trailing `:opts` map into the payload, so both forms
+   yield the same flat map (the map form carries those keys top-level). Named
+   slots win over the opts bag, so `:query`/`:params`/`:mutation` can never be
+   clobbered by a stray key in `:opts`."
+  [m]
+  (merge (:opts m) (dissoc m :opts)))

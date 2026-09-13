@@ -242,3 +242,52 @@
              "exactly one refetch — only the matched query")
          (is (= "/api/items" (:url (first @calls)))
              "refetch is for the table query, not stats"))))))
+
+;; ---------------------------------------------------------------------------
+;; Map-form payload tests (canonical single-map event form)
+;; ---------------------------------------------------------------------------
+
+(deftest map-form-invalidate-tags-test
+  (testing "{:tags [...]} marks the same inactive entries stale as positional"
+    (let [call-count (atom 0)]
+      (rf/reg-fx :test-http (fn [_] (swap! call-count inc)))
+      (rfq/set-default-effect-fn!
+       (fn [request on-success on-failure]
+         {:test-http (assoc request
+                            :on-success on-success
+                            :on-failure on-failure)}))
+      (rfq/reg-query :books/list
+        {:query-fn (fn [_] {:method :get :url "/api/books"})
+         :tags (fn [_] [[:books :all]])})
+      ;; Populate with data but do NOT mark active
+      (h/process-event [:re-frame.query/query-success :books/list {} [{:id 1}]])
+      (reset! call-count 0)
+      (h/process-event [:re-frame.query/invalidate-tags {:tags [[:books :all]]}])
+      (let [qid (util/query-id :books/list {})]
+        (is (true? (get-in (h/app-db) [:re-frame.query/queries qid :stale?]))
+            "query is marked stale by the map form")
+        (is (zero? @call-count)
+            "no refetch effect for the inactive query"))))
+
+  (testing "map form refetches matched active queries like positional"
+    (rf-test/run-test-sync
+     (let [calls (atom [])]
+       (rf/reg-fx :test-http (fn [v] (swap! calls conj v)))
+       (rfq/set-default-effect-fn!
+        (fn [request on-success on-failure]
+          {:test-http (assoc request
+                             :on-success on-success
+                             :on-failure on-failure)}))
+       (rfq/reg-query :books/list
+         {:query-fn (fn [_] {:method :get :url "/api/books"})
+          :tags (fn [_] [[:books :all]])})
+       (rf/dispatch [:re-frame.query/query-success :books/list {} [{:id 1}]])
+       (rf/dispatch [:re-frame.query/mark-active :books/list {}])
+       (reset! calls [])
+       (rf/dispatch [:re-frame.query/invalidate-tags {:tags [[:books :all]]}])
+       (let [qid (util/query-id :books/list {})]
+         (is (true? (get-in (h/app-db) [:re-frame.query/queries qid :fetching?]))
+             "active query is refetching")
+         (is (= 1 (count @calls))
+             "exactly one refetch effect fired")
+         (is (= "/api/books" (:url (first @calls)))))))))

@@ -81,8 +81,11 @@
 (rf/reg-event-fx
   :re-frame.query/ensure-query
   [inject-request-id]
-  (fn [{:keys [db] :re-frame.query/keys [request-id]} [_ k params]]
-    (let [query-config (registry/get-query! k)
+  (fn [{:keys [db] :re-frame.query/keys [request-id]} [_ & args]]
+    (let [{k :query params :params} (util/normalize-payload :re-frame.query/ensure-query args
+                                                            [:query :params]
+                                                            {:reject-keys util/mutation-only-hook-keys})
+          query-config (registry/get-query! k)
           _ (when (util/infinite-query? query-config)
               (throw (ex-info (str "Query " k " is an infinite query — use :re-frame.query/ensure-infinite-query instead")
                               {:key k})))
@@ -118,8 +121,11 @@
 (rf/reg-event-fx
   :re-frame.query/refetch-query
   [inject-request-id]
-  (fn [{:keys [db] :re-frame.query/keys [request-id]} [_ k params]]
-    (let [query-config (registry/get-query! k)]
+  (fn [{:keys [db] :re-frame.query/keys [request-id]} [_ & args]]
+    (let [{k :query params :params} (util/normalize-payload :re-frame.query/refetch-query args
+                                                            [:query :params]
+                                                            {:reject-keys util/mutation-only-hook-keys})
+          query-config (registry/get-query! k)]
       (refetch-effects db query-config k params request-id))))
 
 (rf/reg-event-fx
@@ -185,8 +191,11 @@
 (rf/reg-event-fx
   :re-frame.query/cancel-query
   [inject-request-id]
-  (fn [{:keys [db] :re-frame.query/keys [request-id]} [_ k params]]
-    {:db (qdb/cancel-query db k params (registry/get-query! k) request-id)}))
+  (fn [{:keys [db] :re-frame.query/keys [request-id]} [_ & args]]
+    (let [{k :query params :params} (util/normalize-payload :re-frame.query/cancel-query args
+                                                            [:query :params]
+                                                            {:reject-keys util/mutation-only-hook-keys})]
+      {:db (qdb/cancel-query db k params (registry/get-query! k) request-id)})))
 
 ;; ---------------------------------------------------------------------------
 ;; Mutation Events
@@ -202,17 +211,21 @@
 
 (rf/reg-event-fx
   :re-frame.query/execute-mutation
-  (fn [{:keys [db]} [_ k params opts]]
-    (let [mutation-config (registry/get-mutation! k)
+  (fn [{:keys [db]} [_ & args]]
+    (let [{k :mutation params :params :as flat} (-> (util/normalize-payload :re-frame.query/execute-mutation
+                                                                            args
+                                                                            [:mutation :params :opts])
+                                                    util/flatten-opts)
+          mutation-config (registry/get-mutation! k)
           mutation-fn (:mutation-fn mutation-config)
           effect-fn (resolve-effect-fn mutation-config k)
           mid (util/query-id k params)
           request (mutation-fn params)
-          hooks (select-keys opts [:on-success :on-failure])
+          hooks (select-keys flat [:on-success :on-failure])
           effects (effect-fn request
                              [:re-frame.query/mutation-success k params hooks]
                              [:re-frame.query/mutation-failure k params hooks])
-          start-fx (dispatch-hooks (:on-start opts) params)]
+          start-fx (dispatch-hooks (:on-start flat) params)]
       (-> (merge
            {:db (assoc-in db [:re-frame.query/mutations mid]
                           {:status :loading
@@ -231,7 +244,7 @@
           transform-fn (:transform-response mutation-config)
           transformed (cond-> data (fn? transform-fn) (transform-fn params))
           invalidate-fx (when (seq tags)
-                          [[:dispatch [:re-frame.query/invalidate-tags tags]]])
+                          [[:dispatch [:re-frame.query/invalidate-tags {:tags tags}]]])
           hook-fx (dispatch-hooks (:on-success hooks) params transformed)]
       (-> {:db (assoc-in db [:re-frame.query/mutations mid]
                          {:status :success
@@ -257,8 +270,11 @@
 
 (rf/reg-event-db
   :re-frame.query/reset-mutation
-  (fn [db [_ k params]]
-    (let [mid (util/query-id k params)]
+  (fn [db [_ & args]]
+    (let [{k :mutation params :params} (util/normalize-payload :re-frame.query/reset-mutation
+                                                               args
+                                                               [:mutation :params])
+          mid (util/query-id k params)]
       (update db :re-frame.query/mutations dissoc mid))))
 
 ;; ---------------------------------------------------------------------------
@@ -267,8 +283,13 @@
 
 (rf/reg-event-db
   :re-frame.query/set-query-data
-  (fn [db [_ k params data]]
-    (qdb/set-query-data db k params data)))
+  (fn [db [_ & args]]
+    (let [{k :query params :params data :data}
+          (util/normalize-payload :re-frame.query/set-query-data
+                                  args
+                                  [:query :params :data]
+                                  {:reject-keys util/mutation-only-hook-keys})]
+      (qdb/set-query-data db k params data))))
 
 ;; ---------------------------------------------------------------------------
 ;; Invalidation
@@ -276,8 +297,10 @@
 
 (rf/reg-event-fx
   :re-frame.query/invalidate-tags
-  (fn [{:keys [db]} [_ tags]]
-    (let [queries (get db :re-frame.query/queries {})
+  (fn [{:keys [db]} [_ & args]]
+    (let [{:keys [tags]} (util/normalize-payload :re-frame.query/invalidate-tags args [:tags]
+                                                 {:reject-keys util/mutation-only-hook-keys})
+          queries (get db :re-frame.query/queries {})
           matched (volatile! #{})
          ;; Mark all matching queries as stale, tracking which were matched
           updated (reduce-kv
@@ -298,7 +321,8 @@
                                         event-id (if (util/infinite-query? query-config)
                                                    :re-frame.query/refetch-infinite-query
                                                    :re-frame.query/refetch-query)]
-                                    [:dispatch [event-id k params]]))))]
+                                    [:dispatch [event-id {:query k
+                                                          :params params}]]))))]
       {:db (assoc db :re-frame.query/queries updated)
        :fx refetch-fx})))
 
@@ -363,8 +387,12 @@
 (rf/reg-event-fx
   :re-frame.query/ensure-infinite-query
   [inject-request-id]
-  (fn [{:keys [db] :re-frame.query/keys [request-id]} [_ k params]]
-    (let [query-config (or (registry/get-query k)
+  (fn [{:keys [db] :re-frame.query/keys [request-id]} [_ & args]]
+    (let [{k :query params :params} (util/normalize-payload :re-frame.query/ensure-infinite-query
+                                                            args
+                                                            [:query :params]
+                                                            {:reject-keys util/mutation-only-hook-keys})
+          query-config (or (registry/get-query k)
                            (throw (ex-info (str "No query registered for key: " k) {:key k})))
           _ (when-not (util/infinite-query? query-config)
               (throw (ex-info (str "Query " k " is not an infinite query (missing :infinite config)") {:key k})))
@@ -391,8 +419,12 @@
 (rf/reg-event-fx
   :re-frame.query/fetch-next-page
   [inject-request-id]
-  (fn [{:keys [db] :re-frame.query/keys [request-id]} [_ k params]]
-    (let [query-config (registry/get-query k)]
+  (fn [{:keys [db] :re-frame.query/keys [request-id]} [_ & args]]
+    (let [{k :query params :params} (util/normalize-payload :re-frame.query/fetch-next-page
+                                                            args
+                                                            [:query :params]
+                                                            {:reject-keys util/mutation-only-hook-keys})
+          query-config (registry/get-query k)]
       (when-not query-config
         (throw (ex-info (str "No query registered for key: " k) {:key k})))
       (let [qid (util/query-id k params)
@@ -416,8 +448,12 @@
 (rf/reg-event-fx
   :re-frame.query/fetch-previous-page
   [inject-request-id]
-  (fn [{:keys [db] :re-frame.query/keys [request-id]} [_ k params]]
-    (let [query-config (registry/get-query k)]
+  (fn [{:keys [db] :re-frame.query/keys [request-id]} [_ & args]]
+    (let [{k :query params :params} (util/normalize-payload :re-frame.query/fetch-previous-page
+                                                            args
+                                                            [:query :params]
+                                                            {:reject-keys util/mutation-only-hook-keys})
+          query-config (registry/get-query k)]
       (when-not query-config
         (throw (ex-info (str "No query registered for key: " k) {:key k})))
       (let [qid (util/query-id k params)
@@ -587,8 +623,11 @@
 (rf/reg-event-fx
   :re-frame.query/refetch-infinite-query
   [inject-request-id]
-  (fn [{:keys [db] :re-frame.query/keys [request-id]} [_ k params]]
-    (let [query-config (or (registry/get-query k)
+  (fn [{:keys [db] :re-frame.query/keys [request-id]} [_ & args]]
+    (let [{k :query params :params} (util/normalize-payload :re-frame.query/refetch-infinite-query args
+                                                            [:query :params]
+                                                            {:reject-keys util/mutation-only-hook-keys})
+          query-config (or (registry/get-query k)
                            (throw (ex-info (str "No query registered for key: " k) {:key k})))
           qid (util/query-id k params)
           query (get-in db [:re-frame.query/queries qid])
@@ -631,8 +670,13 @@
 
 (rf/reg-event-fx
   :re-frame.query/mark-active
-  (fn [{:keys [db]} [_ k params opts]]
-    (let [qid (util/query-id k params)
+  (fn [{:keys [db]} [_ & args]]
+    (let [{k :query params :params :as opts}
+          (util/flatten-opts (util/normalize-payload :re-frame.query/mark-active
+                                                     args
+                                                     [:query :params :opts]
+                                                     {:reject-keys util/mutation-only-hook-keys}))
+          qid (util/query-id k params)
           query-config (registry/get-query k)
           interval-ms (or (:polling-interval-ms opts)
                           (:polling-interval-ms query-config))
@@ -648,8 +692,13 @@
 
 (rf/reg-event-fx
   :re-frame.query/mark-inactive
-  (fn [{:keys [db]} [_ k params opts]]
-    (let [qid (util/query-id k params)]
+  (fn [{:keys [db]} [_ & args]]
+    (let [{k :query params :params :as opts}
+          (util/flatten-opts (util/normalize-payload :re-frame.query/mark-inactive
+                                                     args
+                                                     [:query :params :opts]
+                                                     {:reject-keys util/mutation-only-hook-keys}))
+          qid (util/query-id k params)]
       (if-let [query (get-in db [:re-frame.query/queries qid])]
         (let [cache-time (or (:cache-time-ms query) gc/default-cache-time-ms)
               sub-id (or (:sub-id opts) :default)]

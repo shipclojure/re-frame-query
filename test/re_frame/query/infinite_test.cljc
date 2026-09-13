@@ -492,3 +492,98 @@
           "has-prev? is always present and false when no previous page exists")
       (is (not (contains? data :prev-cursor))
           "prev-cursor only present when :get-previous-cursor is configured"))))
+
+;; ---------------------------------------------------------------------------
+;; Map-form payload tests (canonical single-map event form)
+;; ---------------------------------------------------------------------------
+
+(deftest map-form-infinite-events-test
+  (testing "ensure-infinite-query map form loads the first page"
+    (reg-infinite-feed!)
+    (h/process-event [:re-frame.query/ensure-infinite-query
+                      {:query :feed/items
+                       :params {}}])
+    (let [qid (util/query-id :feed/items {})
+          query (get-in (h/app-db) [:re-frame.query/queries qid])]
+      (is (= :loading (:status query)))
+      (is (true? (:fetching? query)))
+      (is (= {:pages [] :page-params [] :has-next? false :has-prev? false}
+             (:data query)))))
+
+  (testing "fetch-next-page map form appends like the positional form"
+    (reset! rf-db/app-db {})
+    (reg-infinite-feed!)
+    (h/process-event [:re-frame.query/infinite-page-success
+                      :feed/items {} nil
+                      {:items [{:id 1}] :next_cursor "abc"}])
+    (h/process-event [:re-frame.query/fetch-next-page {:query :feed/items :params {}}])
+    (let [qid (util/query-id :feed/items {})]
+      (is (true? (get-in (h/app-db) [:re-frame.query/queries qid :fetching-next?]))
+          "fetching-next? is true while fetching")
+      (h/process-event [:re-frame.query/infinite-page-success :feed/items {} :append
+                        {:items [{:id 2}] :next_cursor "def"}])
+      (is (= 2 (count (get-in (h/app-db) [:re-frame.query/queries qid :data :pages])))
+          "second page appended")))
+
+  (testing "fetch-previous-page map form prepends like the positional form"
+    (reset! rf-db/app-db {})
+    (reg-bidirectional-feed!)
+    (h/process-event [:re-frame.query/infinite-page-success :feed/items {} nil
+                      {:items [{:id 5}] :next_cursor "next-5" :prev_cursor "prev-5"}])
+    (h/process-event [:re-frame.query/fetch-previous-page {:query :feed/items :params {}}])
+    (let [qid (util/query-id :feed/items {})]
+      (is (true? (get-in (h/app-db) [:re-frame.query/queries qid :fetching-prev?]))
+          "fetching-prev? is true while loading")
+      (h/process-event [:re-frame.query/infinite-page-success :feed/items {} :prepend
+                        {:items [{:id 2}] :next_cursor "next-2" :prev_cursor "prev-2"}])
+      (let [data (get-in (h/app-db) [:re-frame.query/queries qid :data])]
+        (is (= [{:id 2}] (:items (first (:pages data))))
+            "new page is prepended at the front"))))
+
+  (testing "refetch-infinite-query map form starts a sequential refetch"
+    (reset! rf-db/app-db {})
+    (reg-infinite-feed!)
+    (h/process-event [:re-frame.query/infinite-page-success :feed/items {} nil
+                      {:items [{:id 1}] :next_cursor "abc"}])
+    (h/process-event [:re-frame.query/refetch-infinite-query
+                      {:query :feed/items :params {}}])
+    (let [qid (util/query-id :feed/items {})
+          query (get-in (h/app-db) [:re-frame.query/queries qid])]
+      (is (true? (:fetching? query)))
+      (is (= 1 (get-in query [:refetch-state :target-page-count]))
+          "sequential refetch targets the existing page count"))))
+
+;; ---------------------------------------------------------------------------
+;; Public helper fns — map arities
+;; ---------------------------------------------------------------------------
+
+(deftest helper-fns-infinite-map-arity-test
+  (testing "fetch-next-page helper map arity starts a next-page fetch"
+    (rf-test/run-test-sync
+     (reg-infinite-feed!)
+     (h/process-event [:re-frame.query/infinite-page-success :feed/items {} nil
+                       {:items [{:id 1}] :next_cursor "abc"}])
+     (rfq/fetch-next-page {:query :feed/items :params {}})
+     (let [qid (util/query-id :feed/items {})]
+       (is (true? (get-in (h/app-db) [:re-frame.query/queries qid :fetching-next?]))
+           "fetch-next-page map arity started the page fetch"))))
+
+  (testing "fetch-previous-page helper map arity starts a previous-page fetch"
+    (rf-test/run-test-sync
+     (reg-bidirectional-feed!)
+     (h/process-event [:re-frame.query/infinite-page-success :feed/items {} nil
+                       {:items [{:id 5}] :next_cursor "next-5" :prev_cursor "prev-5"}])
+     (rfq/fetch-previous-page {:query :feed/items :params {}})
+     (let [qid (util/query-id :feed/items {})]
+       (is (true? (get-in (h/app-db) [:re-frame.query/queries qid :fetching-prev?]))
+           "fetch-previous-page map arity started the page fetch"))))
+
+  (testing "infinite-query-data helper map arity returns the data field"
+    (rf-test/run-test-sync
+     (reg-infinite-feed!)
+     (h/process-event [:re-frame.query/infinite-page-success :feed/items {} nil
+                       {:items [{:id 1}] :next_cursor "abc"}])
+     (let [data @(rfq/infinite-query-data {:query :feed/items :params {}})]
+       (is (= [{:items [{:id 1}] :next_cursor "abc"}] (:pages data))
+           "helper map arity returns the accumulated pages")
+       (is (true? (:has-next? data)))))))

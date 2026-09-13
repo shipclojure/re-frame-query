@@ -1,6 +1,7 @@
 (ns re-frame.query.events-test
   (:require
    [clojure.test :refer [deftest is testing use-fixtures]]
+   [clojure.walk :as walk]
    [day8.re-frame.test :as rf-test]
    [re-frame.core :as rf]
    [re-frame.db :as rf-db]
@@ -1277,3 +1278,268 @@
       (h/process-event [:re-frame.query/set-query-data :books/list {} [{:id 99}]])
       (is (true? (get-in (h/app-db) [:re-frame.query/queries qid :fetching?]))
           "set-query-data must not lie about an in-flight request"))))
+
+;; ---------------------------------------------------------------------------
+;; Map-form payload tests (canonical single-map event form)
+;; ---------------------------------------------------------------------------
+
+(deftest map-form-ensure-query-test
+  (rfq/set-default-effect-fn! h/noop-effect-fn)
+  (testing "map form produces the same query state as the positional form"
+    (rfq/reg-query :books/list {:query-fn (fn [_] {})})
+    (h/process-event [:re-frame.query/ensure-query :books/list {}])
+    (let [qid (util/query-id :books/list {})
+          positional (get-in (h/app-db) [:re-frame.query/queries qid])]
+      (reset! rf-db/app-db {})
+      (h/process-event [:re-frame.query/ensure-query {:query :books/list :params {}}])
+      (let [map-form (get-in (h/app-db) [:re-frame.query/queries qid])]
+        (is (= (dissoc positional :request-id)
+               (dissoc map-form :request-id))
+            "both forms yield identical query state (modulo the attempt stamp)")
+        (is (uuid? (:request-id map-form))
+            "the map form stamps the attempt like the positional form"))))
+
+  (testing "map form without :params still keys the cache under [k {}]"
+    (reset! rf-db/app-db {})
+    (rfq/reg-query :books/list {:query-fn (fn [_] {})})
+    (h/process-event [:re-frame.query/ensure-query {:query :books/list}])
+    (let [qid (util/query-id :books/list {})]
+      (is (true? (get-in (h/app-db) [:re-frame.query/queries qid :fetching?]))
+          "the entry lives under [k {}], same as the positional form"))))
+
+(deftest map-form-refetch-query-test
+  (rfq/set-default-effect-fn! h/noop-effect-fn)
+  (testing "map form refetches exactly like the positional form"
+    (rfq/reg-query :books/list {:query-fn (fn [_] {})})
+    (h/process-event [:re-frame.query/query-success :books/list {} [{:id 1}]])
+    (h/process-event [:re-frame.query/refetch-query {:query :books/list :params {}}])
+    (let [qid (util/query-id :books/list {})
+          query (get-in (h/app-db) [:re-frame.query/queries qid])]
+      (is (= :success (:status query))
+          "status stays :success during background refetch")
+      (is (true? (:fetching? query)))
+      (is (= [{:id 1}] (:data query))))))
+
+(deftest map-form-cancel-query-test
+  (rfq/set-default-effect-fn! h/noop-effect-fn)
+  (testing "map form cancels an in-flight attempt"
+    (rfq/reg-query :books/list {:query-fn (fn [_] {})})
+    (h/process-event [:re-frame.query/ensure-query :books/list {}])
+    (let [qid (util/query-id :books/list {})
+          id-before (get-in (h/app-db) [:re-frame.query/queries qid :request-id])]
+      (h/process-event [:re-frame.query/cancel-query {:query :books/list :params {}}])
+      (let [query (get-in (h/app-db) [:re-frame.query/queries qid])]
+        (is (false? (:fetching? query))
+            "fetching? cleared by cancel")
+        (is (not= id-before (:request-id query))
+            "cancel claims a fresh request id, superseding the in-flight attempt")))))
+
+(deftest map-form-set-query-data-test
+  (testing "map form writes the same cache entry as the positional form"
+    (rfq/reg-query :books/list {:query-fn (fn [_] {})})
+    (h/process-event [:re-frame.query/set-query-data :books/list {} [{:id 1}]])
+    (let [qid (util/query-id :books/list {})
+          positional (get-in (h/app-db) [:re-frame.query/queries qid])]
+      (reset! rf-db/app-db {})
+      (h/process-event [:re-frame.query/set-query-data
+                        {:query :books/list :params {} :data [{:id 1}]}])
+      (let [map-form (get-in (h/app-db) [:re-frame.query/queries qid])]
+        (is (= (dissoc positional :fetched-at)
+               (dissoc map-form :fetched-at))
+            "both forms produce identical cache entries (modulo timestamp)")))))
+
+(deftest map-form-mark-active-test
+  (rfq/set-default-effect-fn! h/noop-effect-fn)
+  (testing "map form marks the query active"
+    (rfq/reg-query :books/list {:query-fn (fn [_] {})})
+    (h/process-event [:re-frame.query/mark-active {:query :books/list :params {}}])
+    (let [qid (util/query-id :books/list {})]
+      (is (true? (get-in (h/app-db) [:re-frame.query/queries qid :active?])))
+      (h/process-event [:re-frame.query/mark-inactive {:query :books/list :params {}}])
+      (is (false? (get-in (h/app-db) [:re-frame.query/queries qid :active?]))
+          "map-form mark-inactive flips it back")))
+
+  (testing "flattened :polling-interval-ms and :sub-id behave like positional opts"
+    (rfq/reg-query :books/list {:query-fn (fn [_] {})})
+    (let [qid (util/query-id :books/list {})]
+      (h/process-event [:re-frame.query/mark-active
+                        {:query :books/list
+                         :params {}
+                         :sub-id :dashboard
+                         :polling-interval-ms 5000}])
+      (is (contains? (polling/active-polls) qid)
+          "polling started from the flattened interval")
+      (is (= 5000 (polling/current-interval qid)))
+      (h/process-event [:re-frame.query/mark-active
+                        {:query :books/list
+                         :params {}
+                         :sub-id :sidebar
+                         :polling-interval-ms 1000}])
+      (is (= 1000 (polling/current-interval qid))
+          "lowest interval wins, as with positional opts")
+      (is (= 2 (polling/subscriber-count qid))
+          "flattened :sub-id registers independent subscribers")
+      (h/process-event [:re-frame.query/mark-inactive
+                        {:query :books/list :params {} :sub-id :sidebar}])
+      (is (= 5000 (polling/current-interval qid))
+          "removing one sub-id reverts to the other's interval")
+      (h/process-event [:re-frame.query/mark-inactive
+                        {:query :books/list :params {} :sub-id :dashboard}])
+      (is (not (contains? (polling/active-polls) qid))
+          "polling stops after all subscribers are removed"))))
+
+(deftest map-form-rejects-query-hooks-test
+  (rfq/set-default-effect-fn! h/noop-effect-fn)
+  (testing "the map form of query events rejects mutation-only lifecycle hooks"
+    (rfq/reg-query :books/list {:query-fn (fn [_] {})})
+    (is (thrown-with-msg?
+         #?(:clj clojure.lang.ExceptionInfo :cljs ExceptionInfo)
+         #"does not accept"
+         (h/process-event [:re-frame.query/ensure-query
+                           {:query :books/list :params {} :on-success [:noop]}])))
+    (is (thrown-with-msg?
+         #?(:clj clojure.lang.ExceptionInfo :cljs ExceptionInfo)
+         #"does not accept"
+         (h/process-event [:re-frame.query/refetch-query
+                           {:query :books/list :params {} :on-failure [:noop]}]))))
+
+  (testing "a params map without the :query wrapper is rejected"
+    (rfq/reg-query :books/list {:query-fn (fn [_] {})})
+    (is (thrown-with-msg?
+         #?(:clj clojure.lang.ExceptionInfo :cljs ExceptionInfo)
+         #"expects a keyword"
+         (h/process-event [:re-frame.query/ensure-query {:page 1}])))))
+
+(deftest nil-params-pass-through-test
+  (testing "omitted/nil params reach query-fn as nil in every form, keyed under [k {}]"
+    (rfq/set-default-effect-fn! h/noop-effect-fn)
+    (let [seen (atom [])
+          qid (util/query-id :books/list nil)]
+      (rfq/reg-query :books/list {:query-fn (fn [p] (swap! seen conj p) {})})
+      (doseq [event [[:re-frame.query/ensure-query :books/list]
+                     [:re-frame.query/ensure-query :books/list nil]
+                     [:re-frame.query/ensure-query {:query :books/list}]]]
+        (reset! rf-db/app-db {})
+        (h/process-event event)
+        (is (= [qid] (keys (get (h/app-db) :re-frame.query/queries)))
+            (str event " keys the cache under [k {}]")))
+      (is (= [nil nil nil] @seen)
+          "normalization never substitutes {} for the caller's nil"))))
+
+;; ---------------------------------------------------------------------------
+;; Positional ⇔ map form equivalence across every public event
+;; ---------------------------------------------------------------------------
+
+(defn- scrub
+  "Strip the per-attempt stamp and wall-clock timestamp so two runs compare equal."
+  [db]
+  (walk/postwalk (fn [x] (if (map? x) (dissoc x :request-id :fetched-at) x)) db))
+
+(defn- register-equivalence-fixtures! []
+  (rfq/set-default-effect-fn! h/noop-effect-fn)
+  (rfq/reg-query :books/list {:query-fn (fn [_] {}) :tags (fn [_] [[:books]])})
+  (rfq/reg-query :feed/items
+    {:query-fn (fn [_] {})
+     :infinite {:initial-cursor 0
+                :get-next-cursor :next
+                :get-previous-cursor :prev}})
+  (rfq/reg-mutation :books/create {:mutation-fn (fn [_] {})}))
+
+(defn- seed-books! []
+  (rf/dispatch [:re-frame.query/query-success :books/list {} [{:id 1}]]))
+
+(defn- seed-feed-page! []
+  (rf/dispatch [:re-frame.query/infinite-page-success :feed/items {} nil
+                {:items [{:id 1}] :next 10 :prev -10}]))
+
+(def ^:private equivalence-cases
+  "[event-id positional-args map-payload seed-fn] — one row per public event.
+   `seed-fn` (may be nil) establishes whatever precondition the event needs."
+  [[:re-frame.query/ensure-query
+    [:books/list {}] {:query :books/list :params {}} nil]
+   [:re-frame.query/refetch-query
+    [:books/list {}] {:query :books/list :params {}} seed-books!]
+   [:re-frame.query/cancel-query
+    [:books/list {}] {:query :books/list :params {}}
+    #(rf/dispatch [:re-frame.query/ensure-query :books/list {}])]
+   [:re-frame.query/set-query-data
+    [:books/list {} [{:id 2}]] {:query :books/list :params {} :data [{:id 2}]} nil]
+   [:re-frame.query/invalidate-tags
+    [[[:books]]] {:tags [[:books]]}
+    #(do (seed-books!) (rf/dispatch [:re-frame.query/mark-active :books/list {}]))]
+   [:re-frame.query/mark-active
+    [:books/list {} {:sub-id :a}] {:query :books/list :params {} :sub-id :a} seed-books!]
+   [:re-frame.query/mark-inactive
+    [:books/list {} {:sub-id :a}] {:query :books/list :params {} :sub-id :a}
+    #(do (seed-books!) (rf/dispatch [:re-frame.query/mark-active :books/list {} {:sub-id :a}]))]
+   [:re-frame.query/ensure-infinite-query
+    [:feed/items {}] {:query :feed/items :params {}} nil]
+   [:re-frame.query/fetch-next-page
+    [:feed/items {}] {:query :feed/items :params {}} seed-feed-page!]
+   [:re-frame.query/fetch-previous-page
+    [:feed/items {}] {:query :feed/items :params {}} seed-feed-page!]
+   [:re-frame.query/refetch-infinite-query
+    [:feed/items {}] {:query :feed/items :params {}} seed-feed-page!]
+   [:re-frame.query/execute-mutation
+    [:books/create {:title "Dune"} {:on-success [[:test/hook]]}]
+    {:mutation :books/create :params {:title "Dune"} :on-success [[:test/hook]]} nil]
+   [:re-frame.query/reset-mutation
+    [:books/create {:title "Dune"}] {:mutation :books/create :params {:title "Dune"}}
+    #(rf/dispatch [:re-frame.query/execute-mutation :books/create {:title "Dune"}])]])
+
+(defn- run-and-snapshot
+  "Fresh db + registry, seed, dispatch `event`, return the scrubbed app-db."
+  [seed-fn event]
+  (h/reset-db!)
+  (register-equivalence-fixtures!)
+  (when seed-fn (seed-fn))
+  (rf/dispatch event)
+  (scrub (h/app-db)))
+
+(deftest positional-and-map-forms-are-equivalent-test
+  (rf-test/run-test-sync
+   (doseq [[event-id positional payload seed-fn] equivalence-cases]
+     (testing (str event-id)
+       (is (= (run-and-snapshot seed-fn (into [event-id] positional))
+              (run-and-snapshot seed-fn [event-id payload]))
+           "both forms leave app-db in the same state (modulo :request-id/:fetched-at)")))))
+
+;; ---------------------------------------------------------------------------
+;; Public helper fns — map arities
+;; ---------------------------------------------------------------------------
+
+(deftest helper-fns-map-arity-test
+  (testing "prefetch map arity ensures the query"
+    (rf-test/run-test-sync
+     (rfq/set-default-effect-fn! h/noop-effect-fn)
+     (rfq/reg-query :books/list {:query-fn (fn [_] {})})
+     (rfq/prefetch {:query :books/list :params {:page 1}})
+     (let [qid (util/query-id :books/list {:page 1})]
+       (is (true? (get-in (h/app-db) [:re-frame.query/queries qid :fetching?]))
+           "prefetch map arity started the fetch"))))
+
+  (testing "set-query-data and cancel-query map arities match their event dispatches"
+    (rf-test/run-test-sync
+     (rfq/set-default-effect-fn! h/noop-effect-fn)
+     (rfq/reg-query :books/list {:query-fn (fn [_] {})})
+     (rfq/set-query-data {:query :books/list :params {} :data [{:id 1}]})
+     (let [qid (util/query-id :books/list {})]
+       (is (= [{:id 1}] (get-in (h/app-db) [:re-frame.query/queries qid :data]))
+           "set-query-data map arity wrote the cache entry")
+       (is (true? (get-in (h/app-db) [:re-frame.query/queries qid :stale?]))
+           "seeded data is marked stale, same as the event")
+       (rf/dispatch [:re-frame.query/ensure-query {:query :books/list :params {}}])
+       (is (true? (get-in (h/app-db) [:re-frame.query/queries qid :fetching?]))
+           "stale entry background-refetches on ensure")
+       (rfq/cancel-query {:query :books/list :params {}})
+       (is (false? (get-in (h/app-db) [:re-frame.query/queries qid :fetching?]))
+           "cancel-query map arity superseded the in-flight attempt"))))
+
+  (testing "positional helper arities still delegate unchanged"
+    (rf-test/run-test-sync
+     (rfq/set-default-effect-fn! h/noop-effect-fn)
+     (rfq/reg-query :books/list {:query-fn (fn [_] {})})
+     (rfq/prefetch :books/list {:page 2})
+     (let [qid (util/query-id :books/list {:page 2})]
+       (is (true? (get-in (h/app-db) [:re-frame.query/queries qid :fetching?]))
+           "positional prefetch behaves as before")))))
